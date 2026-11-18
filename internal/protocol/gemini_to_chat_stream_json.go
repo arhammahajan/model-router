@@ -19,6 +19,12 @@ type GeminiToChatJSONArrayTranslator struct {
 	// Plan restores emulated Chat customs on tool blocks. Nil or empty
 	// restores nothing.
 	Plan *ToolPlan
+	// AllowLossyDrops accepts validated routine provider/gateway response
+	// extensions (thoughtSignature, finishMessage, TEXT-modality usage
+	// details, usage.cost/usage.opencode, nonzero thoughtsTokenCount via
+	// the Reasoning fold) after bounded validation; false keeps the
+	// strict 502.
+	AllowLossyDrops bool
 }
 
 // Translate reads the JSON array from r and writes Chat SSE chunks to w,
@@ -27,7 +33,7 @@ type GeminiToChatJSONArrayTranslator struct {
 // are left unread.
 func (t *GeminiToChatJSONArrayTranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewJSONArrayFrameReader(r, t.Limits)
-	var dec StreamDecoder = NewGeminiStreamDecoder(t.Limits, false)
+	var dec StreamDecoder = NewGeminiStreamDecoderWithPolicy(t.Limits, false, t.AllowLossyDrops)
 	if t.Plan != nil {
 		dec = t.Plan.WrapDecoder(dec, t.Limits)
 	}

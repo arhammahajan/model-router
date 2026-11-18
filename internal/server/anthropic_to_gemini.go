@@ -100,7 +100,7 @@ func (s *Server) serveAnthropicToGemini(w http.ResponseWriter, r *http.Request, 
 	}()
 	lossHeader := protocol.EncodeLosses(kept)
 	if !gen.Stream {
-		translated, rerr := protocol.TranslateGeminiJSONToAnthropic(res.Body, model.Name, lim)
+		translated, rerr := protocol.TranslateGeminiJSONToAnthropicWithPolicy(res.Body, model.Name, lim, p.IsLossy())
 		if rerr != nil {
 			s.writeIngressError(w, config.DialectAnthropic, *rerr)
 			return rerr.Status
@@ -118,12 +118,16 @@ func (s *Server) serveAnthropicToGemini(w http.ResponseWriter, r *http.Request, 
 		s.writeJSON(w, 200, translated)
 		return 200
 	}
-	return s.copyAnthropicToGeminiStream(w, r, res, model.Name, lossHeader)
+	return s.copyAnthropicToGeminiStream(w, r, res, model.Name, lossHeader, p.IsLossy())
 }
 
 // copyAnthropicToGeminiStream translates an upstream Gemini stream into
 // Anthropic Messages SSE with commitment awareness and bounded downstream
-// writes. The framing decoder is selected from the reviewed upstream
+// writes. lossyDrops carries the provider compatibility: true accepts the
+// validated routine provider/gateway response extensions (thoughtSignature,
+// TEXT-modality usage details, usage.cost/usage.opencode); false keeps the
+// strict 502.
+// The framing decoder is selected from the reviewed upstream
 // Content-Type: text/event-stream uses the SSE translator,
 // application/json the incremental JSON-array translator. Any other content
 // type is an ordinary pre-commit 502: the body is never probed or buffered
@@ -133,16 +137,16 @@ func (s *Server) serveAnthropicToGemini(w http.ResponseWriter, r *http.Request, 
 // synthetic message_stop; the translator emits the error on the reviewed
 // paths and the boundary emits it once when missing, guarding against
 // model-text false positives via framed error detection.
-func (s *Server) copyAnthropicToGeminiStream(w http.ResponseWriter, r *http.Request, res *transport.Result, publicModel, lossHeader string) int {
+func (s *Server) copyAnthropicToGeminiStream(w http.ResponseWriter, r *http.Request, res *transport.Result, publicModel, lossHeader string, lossyDrops bool) int {
 	media := upstreamMediaType(res.Header.Get("Content-Type"))
 	lim := protocol.DefaultLimits()
 	var translate func(io.Reader, io.Writer, func()) *protocol.RouterError
 	switch media {
 	case "text/event-stream":
-		tr := &protocol.GeminiToAnthropicSSETranslator{PublicModel: publicModel, Limits: lim}
+		tr := &protocol.GeminiToAnthropicSSETranslator{PublicModel: publicModel, Limits: lim, AllowLossyDrops: lossyDrops}
 		translate = tr.Translate
 	case "application/json":
-		tr := &protocol.GeminiToAnthropicJSONArrayTranslator{PublicModel: publicModel, Limits: lim}
+		tr := &protocol.GeminiToAnthropicJSONArrayTranslator{PublicModel: publicModel, Limits: lim, AllowLossyDrops: lossyDrops}
 		translate = tr.Translate
 	default:
 		// Unsupported encoding: ordinary pre-commit 502, upstream closed.

@@ -344,9 +344,21 @@ func TranslateAnthropicJSONToResponsesWithPlanAndPolicy(raw []byte, publicModel 
 
 // TranslateGeminiJSONToResponsesWithPlan decodes one Gemini response,
 // restores namespace identities from the request plan, and renders the
-// Responses envelope.
+// Responses envelope. A nil/empty plan behaves exactly like
+// TranslateGeminiJSONToResponses. Strict: gateway/provider response
+// extensions fail closed.
 func TranslateGeminiJSONToResponsesWithPlan(raw []byte, publicModel string, lim Limits, plan *ToolPlan) ([]byte, *RouterError) {
-	resp, rerr := DecodeGeminiResponse(raw, lim)
+	return TranslateGeminiJSONToResponsesWithPlanAndPolicy(raw, publicModel, lim, plan, false)
+}
+
+// TranslateGeminiJSONToResponsesWithPlanAndPolicy decodes one Gemini
+// response with narrow lossy-extension policy, restores namespace
+// identities from the request plan, and renders the Responses
+// envelope. allowDrop drops validated response extensions
+// (thoughtSignature, TEXT-modality usage details, usage.cost/
+// usage.opencode); false keeps the strict 502.
+func TranslateGeminiJSONToResponsesWithPlanAndPolicy(raw []byte, publicModel string, lim Limits, plan *ToolPlan, allowDrop bool) ([]byte, *RouterError) {
+	resp, rerr := DecodeGeminiResponseWithPolicy(raw, lim, allowDrop)
 	if rerr != nil {
 		return nil, rerr
 	}

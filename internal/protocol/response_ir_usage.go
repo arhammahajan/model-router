@@ -516,17 +516,20 @@ func CheckUsageRepresentableWithPolicy(usage ResponseUsage, source, dest Dialect
 	// Scalar reasoning accounting: refuses only where no reviewed
 	// mapping exists. Anthropic has no reasoning usage field. Strict
 	// refuses every source there (Chat->Anthropic, Responses->Anthropic
-	// proven). Lossy projects Chat and Responses reasoning for Anthropic by dropping
-	// the breakdown while preserving aggregate output_tokens. Gemini
-	// thoughts still refuse outside Gemini. Chat and Responses reasoning
-	// travel to Chat, Gemini (thoughts), and Responses natively.
+	// proven; Gemini thoughts fold into Reasoning at lossy Gemini source
+	// decode). Lossy projects Chat, Responses and Gemini reasoning for
+	// Anthropic by dropping the breakdown while preserving aggregate
+	// output_tokens. Gemini thoughts still refuse outside Gemini.
+	// Chat and Responses reasoning travel to Chat, Gemini (thoughts),
+	// and Responses natively.
 	if nonzero(usage.Reasoning) && dest == DialectAnthropic {
-		if !(allowAnthropicReasoningProjection && (source == DialectChat || source == DialectResponses)) {
+		if !(allowAnthropicReasoningProjection && (source == DialectChat || source == DialectResponses || source == DialectGemini)) {
 			return unrep("response.usage.reasoning_tokens")
 		}
 		// Lossy Anthropic projection: fall through, breakdown dropped,
-		// aggregate preserved by the target encoders (output_tokens stays
-		// completion).
+		// aggregate preserved by the target encoders (output_tokens
+		// stays completion; Gemini-source thoughts were folded into
+		// completion at decode).
 	}
 	// Gemini-provenance thoughts: only Gemini renders thoughtsTokenCount
 	// natively today. (Gemini source decode refuses nonzero thoughts, so

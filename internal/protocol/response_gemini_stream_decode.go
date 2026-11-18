@@ -40,9 +40,12 @@
 //     CallOrigin) + ArgsFragment immediately (missing args emit exact {}
 //     counted in both bounds). Absent id mints gemini-compat-call-<n>
 //     skipping every seen id; colliding/supplied-duplicate ids conflict.
-//   - thought=true, thoughtSignature, media, executableCode,
-//     functionResponse, server tools, nonempty *TokensDetails, nonzero
-//     thoughts/toolUse fail closed. role, when present, must be model.
+//   - thought=true, media, executableCode, functionResponse, server
+//     tools, nonzero thoughts/toolUse fail closed. Under the lossy
+//     policy (NewGeminiStreamDecoderWithPolicy) a validated bounded
+//     thoughtSignature and validated TEXT-modality *TokensDetails
+//     entries are dropped; non-TEXT modality shares fail closed in
+//     both modes. role, when present, must be model.
 //   - Usage: every present usageMetadata validates via geminiParseUsage
 //     (exact totals, cache subset, overflow). Reported counts on the start
 //     chunk become InitialUsage; later intermediate counts emit nothing.
@@ -75,6 +78,9 @@ import (
 type GeminiStreamDecoder struct {
 	lim Limits
 	sse bool
+	// allowDrop selects the lossy-extension policy for routine
+	// provider/gateway response members; false keeps strict 502s.
+	allowDrop bool
 
 	started bool
 	done    bool
@@ -113,14 +119,30 @@ type GeminiStreamDecoder struct {
 }
 
 // NewGeminiStreamDecoder creates the Gemini source stream decoder for one
-// generation. sse selects the framing contract: true for ?alt=sse
-// (terminal returns promptly), false for the default JSON array (finish
-// arms until Frame{Closed:true}). The flag is explicit because the same
-// bytes cannot distinguish a prompt terminal from an armed one.
+// generation under the strict policy. sse selects the framing contract:
+// true for ?alt=sse (terminal returns promptly), false for the default
+// JSON array (finish arms until Frame{Closed:true}). The flag is explicit
+// because the same bytes cannot distinguish a prompt terminal from an
+// armed one.
 func NewGeminiStreamDecoder(lim Limits, sse bool) *GeminiStreamDecoder {
+	return NewGeminiStreamDecoderWithPolicy(lim, sse, false)
+}
+
+// NewGeminiStreamDecoderWithPolicy creates the Gemini source stream
+// decoder with narrow lossy-extension policy. allowDrop keeps every
+// strict failure identical; when true the decoder additionally
+// accepts, after bounded validation, the routine provider/gateway
+// extensions that every target dialect drops: parts[*].thoughtSignature
+// (opaque provider-private reasoning state), TEXT-modality usage
+// detail entries, and the usage cost/opencode gateway billing members
+// (see DecodeGeminiResponseWithPolicy and geminiParseUsageWithPolicy).
+// thought=true parts, media parts and non-TEXT modality shares still
+// fail closed in both modes.
+func NewGeminiStreamDecoderWithPolicy(lim Limits, sse bool, allowDrop bool) *GeminiStreamDecoder {
 	return &GeminiStreamDecoder{
 		lim:       lim,
 		sse:       sse,
+		allowDrop: allowDrop,
 		seenCalls: map[string]bool{},
 		minted:    map[CallID]struct{}{},
 	}
@@ -249,7 +271,7 @@ func (d *GeminiStreamDecoder) handleObject(data []byte) ([]ResponseEvent, *Route
 	var chunkUsage *ResponseUsage
 	chunkHasUsage := false
 	if rawU, ok := top["usageMetadata"]; ok && !isNull(rawU) {
-		u, rerr := geminiParseUsage(rawU)
+		u, rerr := geminiParseUsageWithPolicy(rawU, d.allowDrop)
 		if rerr != nil {
 			return nil, rerr
 		}
@@ -318,7 +340,7 @@ func (d *GeminiStreamDecoder) handleBlockedTerminal(top map[string]json.RawMessa
 	}
 	var chunkUsage *ResponseUsage
 	if rawU, ok := top["usageMetadata"]; ok && !isNull(rawU) {
-		u, rerr := geminiParseUsage(rawU)
+		u, rerr := geminiParseUsageWithPolicy(rawU, d.allowDrop)
 		if rerr != nil {
 			return nil, rerr
 		}

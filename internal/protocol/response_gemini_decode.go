@@ -93,13 +93,40 @@ const geminiCompatCallPrefix = "gemini-compat-call-"
 const geminiCompatResponseID = "gemini-compat-response"
 
 // DecodeGeminiResponse parses one Gemini generateContent complete
-// response into the canonical IR. Source validation is
-// destination-independent: unknown members, malformed envelopes, bad
-// totals and universally unmapped nonzero accounting fail closed here
-// for every target. Known target-divergent renderings (usage bucket
-// math, finish wording, downstream id minting) stay in the target
-// encoders behind CheckRepresentable.
+// response into the canonical IR under the strict policy: unknown
+// members, malformed envelopes, bad totals and universally unmapped
+// nonzero accounting fail closed here for every target. Known
+// target-divergent renderings (usage bucket math, finish wording,
+// downstream id minting) stay in the target encoders behind
+// CheckRepresentable.
 func DecodeGeminiResponse(raw []byte, lim Limits) (Response, *RouterError) {
+	return DecodeGeminiResponseWithPolicy(raw, lim, false)
+}
+
+// DecodeGeminiResponseWithPolicy parses one Gemini generateContent
+// complete response with narrow lossy-extension policy. allowDrop keeps
+// every strict failure identical; when true the decoder additionally
+// accepts, after bounded validation, the routine provider/gateway
+// response extensions that every target dialect drops:
+//
+//   - parts[*].thoughtSignature and functionCall.thoughtSignature:
+//     opaque provider-private reasoning state (Gemini 4 attaches one to
+//     ordinary text parts on every response), dropped exactly as the
+//     request-side row drops signatures in history.
+//   - usageMetadata.promptTokensDetails/candidatesTokensDetails/
+//     cacheTokensDetails/toolUsePromptTokensDetails TEXT-modality
+//     entries: pure breakdowns of totals already carried by the
+//     authoritative scalars, so dropping them changes no accounting.
+//   - usageMetadata.cost and usageMetadata.opencode gateway billing
+//     members (validateGatewayBillingMetadata, shared with the
+//     Chat/Anthropic/Responses rows).
+//
+// Malformed extensions and non-TEXT modality shares still fail closed
+// in both modes: media-bearing accounting has no reviewed mapping, and
+// validation never invents values. thought=true parts, media parts,
+// server tools and nonzero thoughts/toolUse shares keep their strict
+// failures unchanged.
+func DecodeGeminiResponseWithPolicy(raw []byte, lim Limits, allowDrop bool) (Response, *RouterError) {
 	bad := &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned an invalid response"}
 	contradiction := &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned a contradictory blocked response"}
 	multi := &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned multiple choices with no representation"}
@@ -184,7 +211,7 @@ func DecodeGeminiResponse(raw []byte, lim Limits) (Response, *RouterError) {
 			if !ok || isNull(rawUsage) {
 				return Response{}, bad
 			}
-			usage, rerr := geminiParseUsage(rawUsage)
+			usage, rerr := geminiParseUsageWithPolicy(rawUsage, allowDrop)
 			if rerr != nil {
 				return Response{}, rerr
 			}
@@ -252,10 +279,14 @@ func DecodeGeminiResponse(raw []byte, lim Limits) (Response, *RouterError) {
 	}
 	if rawFM, ok := cand["finishMessage"]; ok && !isNull(rawFM) {
 		var s string
-		if err := json.Unmarshal(rawFM, &s); err != nil {
+		if err := json.Unmarshal(rawFM, &s); err != nil || len(s) > lim.MaxArgsChars {
 			return Response{}, bad
 		}
-		if s != "" {
+		// Gemini 4 attaches an informational finishMessage to tool-call
+		// finishes ("Model generated function call(s)."). No target
+		// dialect renders it; strict fails closed, lossy validates the
+		// bounded string and drops it.
+		if s != "" && !allowDrop {
 			return Response{}, unrep("response.candidates[0].finishMessage")
 		}
 	}
@@ -279,7 +310,7 @@ func DecodeGeminiResponse(raw []byte, lim Limits) (Response, *RouterError) {
 			return Response{}, bad
 		}
 	}
-	items, mintedCalls, rerr := geminiDecodeContent(rawContent, lim)
+	items, mintedCalls, rerr := geminiDecodeContent(rawContent, lim, allowDrop)
 	if rerr != nil {
 		return Response{}, rerr
 	}
@@ -298,7 +329,7 @@ func DecodeGeminiResponse(raw []byte, lim Limits) (Response, *RouterError) {
 	if !ok || isNull(rawUsage) {
 		return Response{}, bad
 	}
-	usage, rerr := geminiParseUsage(rawUsage)
+	usage, rerr := geminiParseUsageWithPolicy(rawUsage, allowDrop)
 	if rerr != nil {
 		return Response{}, rerr
 	}
@@ -408,17 +439,21 @@ func geminiDecodePromptBlocked(raw json.RawMessage) (bool, string, *RouterError)
 // geminiDecodeContent validates one candidate content into ordered
 // items preserving upstream part order: tool-first stays tool-first
 // and text-call-text stays three items. Only text and complete
-// functionCall parts are supported; thought parts and signatures,
-// opaque signatures, media, executable code, server tools, function
-// responses and partial-arg streaming all fail closed, exactly as in
-// all three old paths. Consecutive text parts coalesce into one
-// TextItem; empty text parts contribute nothing and create no item.
-// Item ids are router-minted position identities ("t<n>" for text
-// runs, "c<n>" for calls, matching the Chat decoder convention);
-// call ids follow the package identity policy. The returned minted set
-// records call IDs the router minted (provider omitted); supplied IDs
-// — even ones colliding with the compat prefix — are never added.
-func geminiDecodeContent(raw json.RawMessage, lim Limits) ([]ResponseItem, map[CallID]struct{}, *RouterError) {
+// functionCall parts are supported; thought parts, media, executable
+// code, server tools, function responses and partial-arg streaming
+// all fail closed in both modes, exactly as in all three old paths.
+// allowDrop (lossy) additionally accepts parts[*].thoughtSignature —
+// opaque provider-private reasoning state that no target dialect can
+// carry — after bounded string validation, dropping it exactly as the
+// request-side row drops signatures in history. Consecutive text
+// parts coalesce into one TextItem; empty text parts contribute
+// nothing and create no item. Item ids are router-minted position
+// identities ("t<n>" for text runs, "c<n>" for calls, matching the
+// Chat decoder convention); call ids follow the package identity
+// policy. The returned minted set records call IDs the router minted
+// (provider omitted); supplied IDs — even ones colliding with the
+// compat prefix — are never added.
+func geminiDecodeContent(raw json.RawMessage, lim Limits, allowDrop bool) ([]ResponseItem, map[CallID]struct{}, *RouterError) {
 	bad := &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned an invalid response"}
 	unrep := func(what string) *RouterError {
 		return &RouterError{Status: 502, Code: CodeUpstreamBad,
@@ -524,8 +559,8 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits) ([]ResponseItem, map[C
 		if payloads > 1 {
 			return nil, nil, bad
 		}
-		// Thought and opaque-signature semantics require a reviewed
-		// mapping; never stripped, never merged into ordinary text.
+		// Thought parts require a reviewed mapping; never stripped,
+		// never merged into ordinary text.
 		if rawT, ok := part["thought"]; ok && !isNull(rawT) {
 			var b bool
 			if err := json.Unmarshal(rawT, &b); err != nil {
@@ -535,7 +570,21 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits) ([]ResponseItem, map[C
 				return nil, nil, unrep(fmt.Sprintf("%s.parts[%d].thought", prefix, pi))
 			}
 		}
-		for _, k := range []string{"thoughtSignature", "inlineData", "fileData", "executableCode",
+		// thoughtSignature is opaque provider-private reasoning state:
+		// Gemini 4 attaches one to ordinary text parts on every
+		// response. Strict fails closed; lossy validates a bounded
+		// string and drops it, exactly as the request-side row drops
+		// signatures in conversation history.
+		if rawTS, ok := part["thoughtSignature"]; ok && !isNull(rawTS) {
+			var sig string
+			if err := json.Unmarshal(rawTS, &sig); err != nil || len(sig) > lim.MaxArgsChars {
+				return nil, nil, bad
+			}
+			if !allowDrop {
+				return nil, nil, unrep(fmt.Sprintf("%s.parts[%d].thoughtSignature", prefix, pi))
+			}
+		}
+		for _, k := range []string{"inlineData", "fileData", "executableCode",
 			"codeExecutionResult", "toolCall", "toolResponse", "mediaResolution", "videoMetadata",
 			"partMetadata", "mediaProcessing", "functionResponse"} {
 			if rawV, ok := part[k]; ok && !isNull(rawV) {
@@ -555,7 +604,7 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits) ([]ResponseItem, map[C
 			}
 		}
 		if rawFC, ok := part["functionCall"]; ok && !isNull(rawFC) {
-			name, id, hasID, args, rerr := geminiParseFunctionCall(rawFC, pi, lim, prefix)
+			name, id, hasID, args, rerr := geminiParseFunctionCall(rawFC, pi, lim, prefix, allowDrop)
 			if rerr != nil {
 				return nil, nil, rerr
 			}
@@ -594,12 +643,15 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits) ([]ResponseItem, map[C
 }
 
 // geminiParseFunctionCall validates one complete functionCall part.
-// Partial-arg streaming, willContinue and thought signatures fail
-// closed on every old path. Missing args default to the empty object.
-// The returned id is "" when the provider omitted it; callers mint a
-// response-scoped compatibility id. Names carry the tool-name grammar;
-// ids are opaque and bounded (validateCallID), never grammar-checked.
-func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix string) (name, id string, hasID bool, args json.RawMessage, rerr *RouterError) {
+// Partial-arg streaming and willContinue fail closed on every old path.
+// thoughtSignature — opaque provider reasoning state attached to tool
+// calls by Gemini 4 — fails closed when allowDrop is false and is
+// validated then dropped when true. Missing args default to the empty
+// object. The returned id is "" when the provider omitted it; callers
+// mint a response-scoped compatibility id. Names carry the tool-name
+// grammar; ids are opaque and bounded (validateCallID), never
+// grammar-checked.
+func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix string, allowDrop bool) (name, id string, hasID bool, args json.RawMessage, rerr *RouterError) {
 	bad := &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned an invalid response"}
 	unrep := func(what string) *RouterError {
 		return &RouterError{Status: 502, Code: CodeUpstreamBad,
@@ -632,7 +684,13 @@ func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix str
 		}
 	}
 	if rawTS, ok := fc["thoughtSignature"]; ok && !isNull(rawTS) {
-		return "", "", false, nil, unrep(what + ".thoughtSignature")
+		var sig string
+		if err := json.Unmarshal(rawTS, &sig); err != nil || len(sig) > lim.MaxArgsChars {
+			return "", "", false, nil, bad
+		}
+		if !allowDrop {
+			return "", "", false, nil, unrep(what + ".thoughtSignature")
+		}
 	}
 	var n string
 	if rawN, ok := fc["name"]; !ok || json.Unmarshal(rawN, &n) != nil || strings.TrimSpace(n) == "" {

@@ -21,6 +21,12 @@ type GeminiToChatSSETranslator struct {
 	// Plan restores emulated Chat customs on tool blocks. Nil or empty
 	// restores nothing.
 	Plan *ToolPlan
+	// AllowLossyDrops accepts validated routine provider/gateway response
+	// extensions (thoughtSignature, finishMessage, TEXT-modality usage
+	// details, usage.cost/usage.opencode, nonzero thoughtsTokenCount via
+	// the Reasoning fold) after bounded validation; false keeps the
+	// strict 502.
+	AllowLossyDrops bool
 }
 
 // Translate reads Gemini SSE from r and writes Chat SSE chunks to w,
@@ -29,7 +35,7 @@ type GeminiToChatSSETranslator struct {
 // terminal belong to the next generation and are left unread.
 func (t *GeminiToChatSSETranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewSSEFrameReader(r, t.Limits)
-	var dec StreamDecoder = NewGeminiStreamDecoder(t.Limits, true)
+	var dec StreamDecoder = NewGeminiStreamDecoderWithPolicy(t.Limits, true, t.AllowLossyDrops)
 	if t.Plan != nil {
 		dec = t.Plan.WrapDecoder(dec, t.Limits)
 	}

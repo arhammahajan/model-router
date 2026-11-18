@@ -15,6 +15,13 @@ import "io"
 type GeminiToAnthropicJSONArrayTranslator struct {
 	PublicModel string
 	Limits      Limits
+	// AllowLossyDrops accepts validated routine provider/gateway response
+	// extensions (thoughtSignature, finishMessage, TEXT-modality usage
+	// details, usage.cost/usage.opencode, nonzero thoughtsTokenCount via
+	// the Reasoning fold) after bounded validation; false keeps the
+	// strict 502. On Anthropic targets it also enables the lossy
+	// reasoning-breakdown projection.
+	AllowLossyDrops bool
 }
 
 // Translate reads the JSON array from r and writes Anthropic SSE events to
@@ -23,7 +30,7 @@ type GeminiToAnthropicJSONArrayTranslator struct {
 // failures emit exactly one typed error event.
 func (t *GeminiToAnthropicJSONArrayTranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewJSONArrayFrameReader(r, t.Limits)
-	dec := NewGeminiStreamDecoder(t.Limits, false)
-	enc := NewAnthropicEventEncoder(t.PublicModel, t.Limits)
+	dec := NewGeminiStreamDecoderWithPolicy(t.Limits, false, t.AllowLossyDrops)
+	enc := NewAnthropicEventEncoderWithPolicy(t.PublicModel, t.Limits, t.AllowLossyDrops)
 	return TranslateStream(frames, dec, enc, w, flush, t.Limits, DialectGemini)
 }

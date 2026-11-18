@@ -98,7 +98,7 @@ func (s *Server) serveChatToGemini(w http.ResponseWriter, r *http.Request, p *co
 	}()
 	lossHeader := protocol.EncodeLosses(kept)
 	if !gen.Stream {
-		translated, rerr := protocol.TranslateGeminiJSONToChatWithPlan(res.Body, model.Name, lim, gen.ToolPlan)
+		translated, rerr := protocol.TranslateGeminiJSONToChatWithPlanAndPolicy(res.Body, model.Name, lim, gen.ToolPlan, p.IsLossy())
 		if rerr != nil {
 			s.writeChatError(w, *rerr)
 			return rerr.Status
@@ -116,11 +116,15 @@ func (s *Server) serveChatToGemini(w http.ResponseWriter, r *http.Request, p *co
 		s.writeJSON(w, 200, translated)
 		return 200
 	}
-	return s.copyChatToGeminiStream(w, r, res, model.Name, gen.StreamIncludeUsage, lossHeader, gen.ToolPlan)
+	return s.copyChatToGeminiStream(w, r, res, model.Name, gen.StreamIncludeUsage, lossHeader, gen.ToolPlan, p.IsLossy())
 }
 
 // copyChatToGeminiStream translates an upstream Gemini stream into Chat
 // Completions SSE with commitment awareness and bounded downstream writes.
+// lossyDrops carries the provider compatibility: true accepts the
+// validated routine provider/gateway response extensions (thoughtSignature,
+// TEXT-modality usage details, usage.cost/usage.opencode); false keeps the
+// strict 502.
 // The framing decoder is selected from the reviewed upstream Content-Type:
 // text/event-stream uses the SSE translator, application/json the incremental
 // JSON-array translator. Any other content type is an ordinary pre-commit
@@ -129,18 +133,18 @@ func (s *Server) serveChatToGemini(w http.ResponseWriter, r *http.Request, p *co
 // whole generation and never repairs/retries. Post-commit failures terminate
 // the stream silently without [DONE]; the translator emits only reviewed
 // Chat chunks, so the boundary adds no error frame.
-func (s *Server) copyChatToGeminiStream(w http.ResponseWriter, r *http.Request, res *transport.Result, publicModel string, includeUsage bool, lossHeader string, plan *protocol.ToolPlan) int {
+func (s *Server) copyChatToGeminiStream(w http.ResponseWriter, r *http.Request, res *transport.Result, publicModel string, includeUsage bool, lossHeader string, plan *protocol.ToolPlan, lossyDrops bool) int {
 	media := upstreamMediaType(res.Header.Get("Content-Type"))
 	lim := protocol.DefaultLimits()
 	var translate func(io.Reader, io.Writer, func()) *protocol.RouterError
 	switch media {
 	case "text/event-stream":
 		tr := &protocol.GeminiToChatSSETranslator{PublicModel: publicModel,
-			IncludeUsage: includeUsage, Limits: lim, Plan: plan}
+			IncludeUsage: includeUsage, Limits: lim, Plan: plan, AllowLossyDrops: lossyDrops}
 		translate = tr.Translate
 	case "application/json":
 		tr := &protocol.GeminiToChatJSONArrayTranslator{PublicModel: publicModel,
-			IncludeUsage: includeUsage, Limits: lim, Plan: plan}
+			IncludeUsage: includeUsage, Limits: lim, Plan: plan, AllowLossyDrops: lossyDrops}
 		translate = tr.Translate
 	default:
 		// Unsupported encoding or protocol shape: ordinary pre-commit 502.

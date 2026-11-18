@@ -18,6 +18,12 @@ type GeminiToResponsesJSONArrayTranslator struct {
 	// Plan restores Responses namespace identities on tool blocks. Nil or
 	// empty restores nothing; native streams stay raw.
 	Plan *ToolPlan
+	// AllowLossyDrops accepts validated routine provider/gateway response
+	// extensions (thoughtSignature, finishMessage, TEXT-modality usage
+	// details, usage.cost/usage.opencode, nonzero thoughtsTokenCount via
+	// the Reasoning fold) after bounded validation; false keeps the
+	// strict 502.
+	AllowLossyDrops bool
 }
 
 // Translate reads the JSON array from r and writes Responses SSE events to
@@ -26,7 +32,7 @@ type GeminiToResponsesJSONArrayTranslator struct {
 // failures emit exactly one response.failed.
 func (t *GeminiToResponsesJSONArrayTranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewJSONArrayFrameReader(r, t.Limits)
-	var dec StreamDecoder = NewGeminiStreamDecoder(t.Limits, false)
+	var dec StreamDecoder = NewGeminiStreamDecoderWithPolicy(t.Limits, false, t.AllowLossyDrops)
 	if t.Plan != nil {
 		dec = t.Plan.WrapDecoder(dec, t.Limits)
 	}

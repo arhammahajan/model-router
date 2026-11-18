@@ -1,0 +1,74 @@
+{
+  "name": "chat_to_gemini_tool_finish_strict",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-4-argon\"\n",
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "finishReason": "STOP",
+          "finishMessage": "Model generated function call(s).",
+          "index": 0,
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "functionCall": {
+                  "name": "get_weather",
+                  "args": {"city": "Tokyo"}
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usageMetadata": {
+        "candidatesTokenCount": 22,
+        "promptTokenCount": 94,
+        "totalTokenCount": 116
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "bridge-gem",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather in Tokyo? Use the tool."
+        }
+      ],
+      "max_tokens": 200,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get current weather for a city",
+            "parameters": {
+              "type": "object",
+              "properties": {"city": {"type": "string"}},
+              "required": ["city"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": 502,
+    "client_text_contains": [
+      "has no representation",
+      "finishMessage"
+    ],
+    "client_text_absent": [
+      "Traceback",
+      "get_weather"
+    ],
+    "upstream": {
+      "path": "/v1beta/models/gemini-4-argon:generateContent",
+      "exact_requests": 1
+    }
+  }
+}

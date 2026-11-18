@@ -17,6 +17,12 @@ type GeminiToResponsesSSETranslator struct {
 	// Plan restores Responses namespace identities on tool blocks. Nil or
 	// empty restores nothing; native streams stay raw.
 	Plan *ToolPlan
+	// AllowLossyDrops accepts validated routine provider/gateway response
+	// extensions (thoughtSignature, finishMessage, TEXT-modality usage
+	// details, usage.cost/usage.opencode, nonzero thoughtsTokenCount via
+	// the Reasoning fold) after bounded validation; false keeps the
+	// strict 502.
+	AllowLossyDrops bool
 }
 
 // Translate reads Gemini SSE from r and writes Responses SSE events to w,
@@ -25,7 +31,7 @@ type GeminiToResponsesSSETranslator struct {
 // emit no bytes; post-commit failures emit exactly one response.failed.
 func (t *GeminiToResponsesSSETranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewSSEFrameReader(r, t.Limits)
-	var dec StreamDecoder = NewGeminiStreamDecoder(t.Limits, true)
+	var dec StreamDecoder = NewGeminiStreamDecoderWithPolicy(t.Limits, true, t.AllowLossyDrops)
 	if t.Plan != nil {
 		dec = t.Plan.WrapDecoder(dec, t.Limits)
 	}

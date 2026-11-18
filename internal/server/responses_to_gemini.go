@@ -99,7 +99,7 @@ func (s *Server) serveResponsesToGemini(w http.ResponseWriter, r *http.Request, 
 	}()
 	lossHeader := protocol.EncodeLosses(kept)
 	if !gen.Stream {
-		translated, rerr := protocol.TranslateGeminiJSONToResponsesWithPlan(res.Body, model.Name, lim, gen.ToolPlan)
+		translated, rerr := protocol.TranslateGeminiJSONToResponsesWithPlanAndPolicy(res.Body, model.Name, lim, gen.ToolPlan, p.IsLossy())
 		if rerr != nil {
 			s.writeIngressError(w, config.DialectOpenAIResponses, *rerr)
 			return rerr.Status
@@ -123,11 +123,15 @@ func (s *Server) serveResponsesToGemini(w http.ResponseWriter, r *http.Request, 
 		s.writeJSON(w, 200, enriched)
 		return 200
 	}
-	return s.copyResponsesToGeminiStream(w, r, res, model.Name, lossHeader, gen)
+	return s.copyResponsesToGeminiStream(w, r, res, model.Name, lossHeader, gen, p.IsLossy())
 }
 
 // copyResponsesToGeminiStream translates an upstream Gemini stream into
 // Responses SSE with commitment awareness and bounded downstream writes.
+// lossyDrops carries the provider compatibility: true accepts the
+// validated routine provider/gateway response extensions (thoughtSignature,
+// TEXT-modality usage details, usage.cost/usage.opencode); false keeps the
+// strict 502.
 // The framing decoder is selected from the reviewed upstream Content-Type:
 // text/event-stream uses the SSE translator, application/json the
 // incremental JSON-array translator. Any other content type is an ordinary
@@ -138,7 +142,7 @@ func (s *Server) serveResponsesToGemini(w http.ResponseWriter, r *http.Request, 
 // raw body) on lifecycle frames and on the post-commit failure fallback.
 // Post-commit failures keep 200 with a single response.failed event and no
 // fabricated response.completed.
-func (s *Server) copyResponsesToGeminiStream(w http.ResponseWriter, r *http.Request, res *transport.Result, publicModel, lossHeader string, gen *protocol.Generation) int {
+func (s *Server) copyResponsesToGeminiStream(w http.ResponseWriter, r *http.Request, res *transport.Result, publicModel, lossHeader string, gen *protocol.Generation, lossyDrops bool) int {
 	media := upstreamMediaType(res.Header.Get("Content-Type"))
 	lim := protocol.DefaultLimits()
 	toolsRaw, choiceRaw := responsesRequestEcho(gen)
@@ -160,9 +164,9 @@ func (s *Server) copyResponsesToGeminiStream(w http.ResponseWriter, r *http.Requ
 	}
 	switch media {
 	case "text/event-stream":
-		tr = &protocol.GeminiToResponsesSSETranslator{PublicModel: publicModel, Limits: lim, Plan: gen.ToolPlan}
+		tr = &protocol.GeminiToResponsesSSETranslator{PublicModel: publicModel, Limits: lim, Plan: gen.ToolPlan, AllowLossyDrops: lossyDrops}
 	case "application/json":
-		tr = &protocol.GeminiToResponsesJSONArrayTranslator{PublicModel: publicModel, Limits: lim, Plan: gen.ToolPlan}
+		tr = &protocol.GeminiToResponsesJSONArrayTranslator{PublicModel: publicModel, Limits: lim, Plan: gen.ToolPlan, AllowLossyDrops: lossyDrops}
 	default:
 		// Unsupported encoding or protocol shape: ordinary pre-commit 502.
 		// The upstream body is closed promptly on every path.

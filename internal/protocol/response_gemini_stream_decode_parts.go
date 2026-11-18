@@ -52,10 +52,13 @@ func (d *GeminiStreamDecoder) handleCandidate(raw json.RawMessage) ([]ResponseEv
 	}
 	if rawFM, ok := cand["finishMessage"]; ok && !isNull(rawFM) {
 		var s string
-		if err := json.Unmarshal(rawFM, &s); err != nil {
+		if err := json.Unmarshal(rawFM, &s); err != nil || len(s) > d.lim.MaxArgsChars {
 			return nil, "", false, geminiStreamBad()
 		}
-		if s != "" {
+		// Gemini 4 attaches an informational finishMessage to tool-call
+		// finishes. Strict fails closed; lossy validates the bounded
+		// string and drops it, exactly as the complete row does.
+		if s != "" && !d.allowDrop {
 			return nil, "", false, geminiStreamUnrep("response.candidates[0].finishMessage")
 		}
 	}
@@ -145,7 +148,20 @@ func (d *GeminiStreamDecoder) handlePart(praw json.RawMessage, pi int) ([]Respon
 			return nil, geminiStreamUnrep(prefix + ".thought")
 		}
 	}
-	for _, k := range []string{"thoughtSignature", "inlineData", "fileData", "executableCode", "codeExecutionResult", "toolCall", "toolResponse", "mediaResolution", "videoMetadata", "partMetadata", "mediaProcessing", "functionResponse"} {
+	// thoughtSignature is opaque provider-private reasoning state:
+	// Gemini 4 attaches one to ordinary text parts on every response.
+	// Strict fails closed; lossy validates a bounded string and drops
+	// it, exactly as the complete row does.
+	if rawTS, ok := part["thoughtSignature"]; ok && !isNull(rawTS) {
+		var sig string
+		if err := json.Unmarshal(rawTS, &sig); err != nil || len(sig) > d.lim.MaxArgsChars {
+			return nil, geminiStreamBad()
+		}
+		if !d.allowDrop {
+			return nil, geminiStreamUnrep(prefix + ".thoughtSignature")
+		}
+	}
+	for _, k := range []string{"inlineData", "fileData", "executableCode", "codeExecutionResult", "toolCall", "toolResponse", "mediaResolution", "videoMetadata", "partMetadata", "mediaProcessing", "functionResponse"} {
 		if rawV, ok := part[k]; ok && !isNull(rawV) {
 			return nil, geminiStreamUnrep(prefix + "." + k)
 		}
@@ -200,7 +216,7 @@ func (d *GeminiStreamDecoder) emitText(s string) ([]ResponseEvent, *RouterError)
 }
 
 func (d *GeminiStreamDecoder) emitTool(rawFC json.RawMessage, pi int, prefix string) ([]ResponseEvent, *RouterError) {
-	name, id, hasID, args, rerr := geminiParseFunctionCall(rawFC, pi, d.lim, "response.candidates[0].content")
+	name, id, hasID, args, rerr := geminiParseFunctionCall(rawFC, pi, d.lim, "response.candidates[0].content", d.allowDrop)
 	if rerr != nil {
 		return nil, rerr
 	}

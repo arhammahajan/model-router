@@ -14,6 +14,13 @@ import "io"
 type GeminiToAnthropicSSETranslator struct {
 	PublicModel string
 	Limits      Limits
+	// AllowLossyDrops accepts validated routine provider/gateway response
+	// extensions (thoughtSignature, finishMessage, TEXT-modality usage
+	// details, usage.cost/usage.opencode, nonzero thoughtsTokenCount via
+	// the Reasoning fold) after bounded validation; false keeps the
+	// strict 502. On Anthropic targets it also enables the lossy
+	// reasoning-breakdown projection.
+	AllowLossyDrops bool
 }
 
 // Translate reads Gemini SSE from r and writes Anthropic SSE events to w,
@@ -22,7 +29,7 @@ type GeminiToAnthropicSSETranslator struct {
 // emit no bytes; post-commit failures emit exactly one typed error event.
 func (t *GeminiToAnthropicSSETranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewSSEFrameReader(r, t.Limits)
-	dec := NewGeminiStreamDecoder(t.Limits, true)
-	enc := NewAnthropicEventEncoder(t.PublicModel, t.Limits)
+	dec := NewGeminiStreamDecoderWithPolicy(t.Limits, true, t.AllowLossyDrops)
+	enc := NewAnthropicEventEncoderWithPolicy(t.PublicModel, t.Limits, t.AllowLossyDrops)
 	return TranslateStream(frames, dec, enc, w, flush, t.Limits, DialectGemini)
 }
