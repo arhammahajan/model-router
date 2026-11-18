@@ -522,3 +522,24 @@ func TestLlamaWorkerStartStopGuards(t *testing.T) {
 	cancel()
 	w2.Stop()
 }
+
+func TestLlamaFailureBackoffCappedAtRefresh(t *testing.T) {
+	cases := []struct {
+		failures int
+		interval float64
+		want     float64
+	}{
+		{1, 30, 5},
+		{2, 30, 10},
+		{3, 30, 20},
+		{4, 30, 30},
+		{200, 30, 30},
+		{10, 600, 300},
+		{10, 0, 300},
+	}
+	for _, tc := range cases {
+		if got := llamaFailureBackoff(tc.failures, tc.interval); got != tc.want {
+			t.Errorf("llamaFailureBackoff(%d, %v) = %v, want %v", tc.failures, tc.interval, got, tc.want)
+		}
+	}
+}

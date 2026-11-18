@@ -53,7 +53,7 @@ async function discover(signal?: AbortSignal): Promise<any[]> {
       return fact.value === true && fact.kind === "configured" && fact.source === "routing.dialect";
     });
     const dialect: string = md.dialect ?? configuredDialect ?? "openai-chat";
-    const isLlama = !!md.llama_cpp;
+    const isLlama = !!md.llama_cpp || !!caps.sources?.["llama.models"] || !!caps.sources?.["llama.props"];
     const isStrata = md.engine === "strata";
     const name = m.display_name ?? md.display_name ?? (isLlama && !isStrata ? `${m.id} (llama.cpp)` : m.id);
 

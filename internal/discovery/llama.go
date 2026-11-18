@@ -323,7 +323,7 @@ func (w *LlamaWorker) RefreshOnce(ctx context.Context) bool {
 		agg = router.SourceEvent{
 			LastSuccess: priorAgg.LastSuccess,
 			LastAttempt: monoPtr(start.Mono),
-			NextAttempt: nextAfter(end.Mono, interval, w.jitter(BackoffCeiling(failures))),
+			NextAttempt: nextAfter(end.Mono, interval, w.jitter(llamaFailureBackoff(failures, interval))),
 			Failures:    failures,
 			Err:         strings.Join(aggErrs, "; "),
 		}
@@ -346,7 +346,7 @@ func (w *LlamaWorker) RefreshOnce(ctx context.Context) bool {
 		w.reg.NoteLlamaFailure(router.SourceEvent{
 			LastSuccess: priorAgg.LastSuccess,
 			LastAttempt: monoPtr(start.Mono),
-			NextAttempt: nextAfter(end.Mono, interval, w.jitter(BackoffCeiling(failures))),
+			NextAttempt: nextAfter(end.Mono, interval, w.jitter(llamaFailureBackoff(failures, interval))),
 			Failures:    failures,
 			Err:         w.sanitize(perr.Error()),
 		}, priorEv)
@@ -375,6 +375,17 @@ func (w *LlamaWorker) RefreshOnce(ctx context.Context) bool {
 	}
 	log.Printf("llama refresh succeeded (servers=%d models=%d)", n, total)
 	return true
+}
+
+// llamaFailureBackoff caps failure backoff at the configured refresh interval
+// when positive so on-demand local llama.cpp servers are discovered promptly
+// after starting, rather than waiting up to the 5-minute remote catalog cap.
+func llamaFailureBackoff(failures int, interval float64) float64 {
+	ceil := BackoffCeiling(failures)
+	if interval > 0 && ceil > interval {
+		return interval
+	}
+	return ceil
 }
 
 // signalWake wakes the scheduler after a completed attempt.
