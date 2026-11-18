@@ -1,0 +1,51 @@
+{
+ "name": "response_ir_chat_stream_reasoning_anthropic",
+ "_comment": "Same reasoning script toward Anthropic SSE: nonzero reasoning has no Anthropic representation, so after the forwarded text the stream fails post-commit (HTTP 200 with a value-free event: error). No message_delta/message_stop is synthesized and no success is fabricated.",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "upstream": {
+  "status": 200,
+  "sse_frames": [
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\n",
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":7,\"total_tokens\":19,\"completion_tokens_details\":{\"reasoning_tokens\":2}}}\n\n",
+   "data: [DONE]\n\n"
+  ]
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/messages",
+  "body": {
+   "model": "bridge-chat",
+   "max_tokens": 64,
+   "messages": [
+    {
+     "role": "user",
+     "content": "Hi"
+    }
+   ],
+   "stream": true
+  }
+ },
+ "expect": {
+  "status": 200,
+  "client_text_contains": [
+   "event: error",
+   "\"text\":\"hi\""
+  ],
+  "client_text_absent": [
+   "message_delta",
+   "message_stop",
+   "[DONE]"
+  ],
+  "upstream": {
+   "path": "/chat/completions",
+   "exact_requests": 1,
+   "body": {
+    "paths": {
+     "stream": true
+    }
+   }
+  }
+ }
+}

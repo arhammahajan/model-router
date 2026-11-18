@@ -1,0 +1,14 @@
+/model-router
+/model-router-go
+/dist/
+/router.toml
+/router-*.toml
+/router.json
+/router-*.json
+/config.toml
+/config.json
+.env
+.env.*
+*.log
+__pycache__/
+.venv/

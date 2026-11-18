@@ -1,0 +1,105 @@
+{
+  "name": "m5_custom_chat_gemini_emulation",
+  "_comment": "Reviewed wire form: the Chat tool-result content is a STRING and is preserved exactly as functionResponse.response.output (never reinterpreted as an object); call id/name echo the source history.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\ncompatibility = \"lossy\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "functionCall": {
+                  "id": "call:note 7",
+                  "name": "edit_note",
+                  "args": {
+                    "content": "ligne 1\n📝 9007199254740993"
+                  }
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_2",
+      "usageMetadata": {
+        "candidatesTokenCount": 7,
+        "promptTokenCount": 12,
+        "totalTokenCount": 19
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "bridge-gem",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Edit the note."
+        }
+      ],
+      "tools": [
+        {
+          "type": "custom",
+          "custom": {
+            "name": "edit_note",
+            "format": {
+              "type": "grammar",
+              "grammar": {
+                "syntax": "lark",
+                "definition": "start: \"réviser\""
+              }
+            }
+          }
+        }
+      ],
+      "tool_choice": {
+        "type": "custom",
+        "custom": {
+          "name": "edit_note"
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "headers": {
+        "x-goog-api-key": "gem-secret",
+        "authorization": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "tools.0.functionDeclarations.0.name": "edit_note",
+          "tools.0.functionDeclarations.0.description": "\n\nReturn content following this lark grammar:\nstart: \"réviser\"",
+          "tools.0.functionDeclarations.0.parametersJsonSchema.properties.content.type": "string",
+          "toolConfig.functionCallingConfig.allowedFunctionNames.0": "edit_note"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "choices.0.finish_reason": "tool_calls",
+        "choices.0.message.tool_calls.0.type": "custom",
+        "choices.0.message.tool_calls.0.id": "call:note 7",
+        "choices.0.message.tool_calls.0.custom.name": "edit_note",
+        "choices.0.message.tool_calls.0.custom.input": "ligne 1\n📝 9007199254740993"
+      }
+    },
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "present": true
+      }
+    }
+  }
+}

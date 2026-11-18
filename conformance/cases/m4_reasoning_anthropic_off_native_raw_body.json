@@ -1,0 +1,68 @@
+{
+  "_comment": "TDD M4 anthropic-off native path: same-protocol route forwards raw body byte-identical including disabled thinking, bigint and unknown fields untouched. GREEN on baseline (must stay green).",
+  "name": "m4_reasoning_anthropic_off_native_raw_body",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anthup]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"pub-claude\"\nprovider = \"anthup\"\nmodel = \"claude-haiku-4-5\"\n",
+  "upstream": {
+    "raw_body": {
+      "id": "msg_1",
+      "type": "message",
+      "role": "assistant",
+      "model": "m",
+      "content": [
+        {
+          "type": "text",
+          "text": "hello"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "pub-claude",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "mystery_field": {
+        "nested": [
+          9007199254740993
+        ]
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1/messages",
+      "exact_requests": 1,
+      "headers": {
+        "x-api-key": "upstream-secret"
+      },
+      "body": {
+        "paths": {
+          "model": "claude-haiku-4-5",
+          "thinking.type": "disabled",
+          "mystery_field.nested.0": 9007199254740993
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    }
+  }
+}

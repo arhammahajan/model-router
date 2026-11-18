@@ -1,0 +1,38 @@
+{
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 3\nstatuses = [429]\nbackoff_base = 0.001\nbackoff_max = 0.002\ndeadline = 1.0\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"claude-haiku\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+ "expect": {
+  "status": 504,
+  "upstream": {
+   "exact_requests": 1,
+   "path": "/v1/messages"
+  }
+ },
+ "name": "chat_retry_after_unaffordable",
+ "request": {
+  "body": {
+   "messages": [
+    {
+     "content": "Hi",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku"
+  },
+  "method": "POST",
+  "path": "/v1/chat/completions"
+ },
+ "upstream": {
+  "headers": {
+   "Content-Type": "application/json",
+   "Retry-After": "3600"
+  },
+  "raw_body": {
+   "error": {
+    "message": "busy",
+    "type": "rate_limit_error"
+   },
+   "type": "error"
+  },
+  "status": 429
+ }
+}

@@ -1,0 +1,26 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.resp]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\nsession_missing = \"reject\"\n\n\n[[models]]\nname = \"m-resp-sess\"\nprovider = \"resp\"\nmodel = \"m-up\"\n\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "error.code": "missing_session_id"
+      }
+    },
+    "status": 400,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_session_missing_reject_responses",
+  "request": {
+    "body": {
+      "input": "hello",
+      "model": "m-resp-sess"
+    },
+    "method": "POST",
+    "path": "/v1/responses"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

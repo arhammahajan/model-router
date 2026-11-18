@@ -1,0 +1,45 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anthup]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nheaders = { \"X-Catalog-Token\" = \"cat-secret\" }\n\n[catalog.model_providers]\n\"other-known\" = \"anthup\"\n\n",
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "other-known",
+          "metadata": {}
+        },
+        {
+          "id": "mystery-model",
+          "metadata": {}
+        }
+      ]
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "mystery-model",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": 404,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    },
+    "client_body": {
+      "paths": {
+        "type": "error",
+        "error.type": "not_found_error"
+      }
+    }
+  },
+  "name": "m4_catalog_unmapped_anthropic_404"
+}

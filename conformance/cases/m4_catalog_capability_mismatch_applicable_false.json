@@ -1,0 +1,67 @@
+{
+  "_comment": "Opt-in review, dialect mismatch: grok-4.7 is an openai-responses row routed via an openai-chat provider, so review facts stay unknown, go.review.applicable is false, but configured routing transport truth is preserved. REDs before impl: startup rejects metadata_source.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nmetadata_source = \"opencode-go-v1\"\n\n[catalog.model_providers]\n\"grok-4.7\" = \"chatup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "grok-4.7",
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.1.metadata.router.limits.context_window.kind": "unknown",
+        "data.1.metadata.router.limits.context_window.value": null,
+        "data.1.metadata.router.protocols.native.openai-chat.kind": "configured",
+        "data.1.metadata.router.protocols.native.openai-chat.source": "routing.dialect",
+        "data.1.metadata.router.protocols.native.openai-chat.value": true,
+        "data.1.metadata.router.protocols.native.openai-responses.kind": "unknown",
+        "data.1.metadata.router.protocols.native.openai-responses.value": null,
+        "data.1.metadata.router.protocols.translated.openai-chat.kind": "configured",
+        "data.1.metadata.router.protocols.translated.openai-chat.value": false,
+        "data.1.metadata.router.reasoning.supported.kind": "unknown",
+        "data.1.metadata.router.reasoning.supported.value": null,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.sources": {
+          "__contains__": "\"go.review\""
+        },
+        "data.1.metadata.router.sources.catalog.stale": false,
+        "data.1.metadata.router.sources.catalog.verification": "availability only",
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "client_text_contains": [
+      "\"model_source\":\"https://github.com/anomalyco/models.dev/blob/205c4d569b6670625f845d018429847f5dea7e3e/providers/opencode-go/models/grok-4.7.toml\"",
+      "\"stale_after_seconds\":2592000",
+      "\"retrieved_at\":1792957518",
+      "\"applicable\":false"
+    ],
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_mismatch_applicable_false",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "grok-4.7",
+          "metadata": {
+            "label": "c1"
+          }
+        }
+      ]
+    }
+  }
+}

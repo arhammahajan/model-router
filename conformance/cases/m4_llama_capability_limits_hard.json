@@ -1,0 +1,123 @@
+{
+  "_comment": "Hard limits precedence meta>row>metadata>props across four rows (input+output).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.4"
+      ],
+      "paths": {
+        "data.0.id": "llama-a",
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.freshness.discovery.stale": false,
+        "data.1.id": "llama-b",
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.2.id": "llama-c",
+        "data.2.object": "model",
+        "data.2.owned_by": "model-router",
+        "data.2.metadata.router.schema_version": 1,
+        "data.2.metadata.router.freshness.discovery.stale": false,
+        "data.3.id": "llama-d",
+        "data.3.object": "model",
+        "data.3.owned_by": "model-router",
+        "data.3.metadata.router.schema_version": 1,
+        "data.3.metadata.router.freshness.discovery.stale": false,
+        "data.0.metadata.router.limits.max_input_tokens.value": 100,
+        "data.0.metadata.router.limits.max_input_tokens.source": "/v1/models.meta.max_input_tokens",
+        "data.0.metadata.router.limits.max_input_tokens.kind": "reported",
+        "data.0.metadata.router.limits.max_output_tokens.value": 110,
+        "data.0.metadata.router.limits.max_output_tokens.source": "/v1/models.meta.max_output_tokens",
+        "data.1.metadata.router.limits.max_input_tokens.value": 200,
+        "data.1.metadata.router.limits.max_input_tokens.source": "/v1/models.max_input_tokens",
+        "data.1.metadata.router.limits.max_output_tokens.value": 210,
+        "data.2.metadata.router.limits.max_input_tokens.value": 300,
+        "data.2.metadata.router.limits.max_input_tokens.source": "/v1/models.metadata.max_input_tokens",
+        "data.2.metadata.router.limits.max_output_tokens.value": 310,
+        "data.3.metadata.router.limits.max_input_tokens.value": 400,
+        "data.3.metadata.router.limits.max_input_tokens.source": "/props.max_input_tokens",
+        "data.3.metadata.router.limits.max_output_tokens.value": 410
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 3,
+      "path": "/props",
+      "query": "autoload=false"
+    },
+    "client_text_contains": [
+      "\"verification\":\"upstream report\"",
+      "\"endpoint\":\"/props?autoload=false\"",
+      "\"available\":true"
+    ]
+  },
+  "name": "m4_llama_capability_limits_hard",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "status": "ok"
+        }
+      },
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "llama-a",
+              "metadata": {
+                "label": "la",
+                "max_input_tokens": 300,
+                "max_output_tokens": 310
+              },
+              "meta": {
+                "max_input_tokens": 100,
+                "max_output_tokens": 110
+              },
+              "max_input_tokens": 200,
+              "max_output_tokens": 210
+            },
+            {
+              "id": "llama-b",
+              "metadata": {
+                "label": "lb",
+                "max_input_tokens": 300,
+                "max_output_tokens": 310
+              },
+              "max_input_tokens": 200,
+              "max_output_tokens": 210
+            },
+            {
+              "id": "llama-c",
+              "metadata": {
+                "label": "lc",
+                "max_input_tokens": 300,
+                "max_output_tokens": 310
+              }
+            },
+            {
+              "id": "llama-d",
+              "metadata": {
+                "label": "ld"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "build_info": "llama.cpp b1234",
+          "max_input_tokens": 400,
+          "max_output_tokens": 410
+        }
+      }
+    ]
+  }
+}

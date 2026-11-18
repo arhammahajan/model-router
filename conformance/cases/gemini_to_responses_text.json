@@ -1,0 +1,97 @@
+{
+  "_comment": "Gemini->Responses contract. Basic text JSON: model/method in URL only, scalars mapped, usage with cached subset and reasoning share, exact totals, public model version and upstream id echoed.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "modelVersion": "gem-resp",
+        "responseId": "resp_up",
+        "usageMetadata.cachedContentTokenCount": 2,
+        "usageMetadata.candidatesTokenCount": 2,
+        "usageMetadata.promptTokenCount": 7,
+        "usageMetadata.thoughtsTokenCount": 1,
+        "usageMetadata.totalTokenCount": 10
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "input.0.content.0.text": "Hi",
+          "input.0.content.0.type": "input_text",
+          "input.0.role": "user",
+          "max_output_tokens": 16,
+          "model": "gpt-4.1",
+          "store": false,
+          "temperature": 0.5,
+          "top_p": 0.9
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer resp-secret"
+      },
+      "path": "/v1/responses"
+    }
+  },
+  "name": "gemini_to_responses_text",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1,
+        "maxOutputTokens": 16,
+        "temperature": 0.5,
+        "topP": 0.9
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:generateContent"
+  },
+  "upstream": {
+    "raw_body": {
+      "created_at": 1,
+      "id": "resp_up",
+      "model": "gpt-4.1",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "text": "hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_up",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7,
+        "input_tokens_details": {
+          "cached_tokens": 2
+        },
+        "output_tokens": 3,
+        "output_tokens_details": {
+          "reasoning_tokens": 1
+        },
+        "total_tokens": 10
+      }
+    }
+  }
+}

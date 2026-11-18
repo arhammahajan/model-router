@@ -1,0 +1,45 @@
+{
+  "name": "anthropic_to_gemini_json_array_stream",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "stream": true
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "raw_body": "[{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"a\"}],\"role\":\"model\"},\"index\":0}]},{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"b\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":7,\"candidatesTokenCount\":3,\"totalTokenCount\":10}}]"
+  },
+  "expect": {
+    "status": 200,
+    "client_text_contains": [
+      "event: message_start",
+      "text_delta",
+      "event: message_stop"
+    ],
+    "client_text_absent": [
+      "[DONE]"
+    ],
+    "sse": {
+      "integrity": "anthropic"
+    },
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:streamGenerateContent",
+      "exact_requests": 1,
+      "query": "alt=sse"
+    }
+  }
+}

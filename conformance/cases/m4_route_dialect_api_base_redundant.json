@@ -1,0 +1,63 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chat]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"prov-chat-secret\"\n[providers.chat.litellm_kwargs]\napi_base = \"{UPSTREAM}/v1/chat/completions\"\n\n[[models]]\nname = \"rd-llama\"\nprovider = \"chat\"\nmodel = \"llama3.1\"\ndialect = \"openai-chat\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "llama3.1"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer prov-chat-secret",
+        "x-api-key": {
+          "absent": true
+        }
+      },
+      "path": "/v1/chat/completions"
+    }
+  },
+  "name": "m4_route_dialect_api_base_redundant",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "rd-llama"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hello",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-1",
+      "model": "llama3.1",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 7,
+        "total_tokens": 10
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "_comment": "Gemini->Responses contract. Pre-commit upstream failure (structurally valid but unknown shape) is a typed 502 with no fabricated terminal.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_text_absent": [
+      "\"finishReason\":\"STOP\"",
+      "[DONE]",
+      "Traceback"
+    ],
+    "client_text_contains": [
+      "error"
+    ],
+    "status": 502,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/v1/responses"
+    }
+  },
+  "name": "gemini_to_responses_early_invalid_stream",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:streamGenerateContent?alt=sse"
+  },
+  "upstream": {
+    "sse_frames": [
+      "data: {\"mystery\":1}\n\n"
+    ],
+    "status": 200
+  }
+}

@@ -1,0 +1,51 @@
+{
+ "name": "response_ir_chat_stream_reasoning_responses",
+ "_comment": "Scalar reasoning accounting toward Responses SSE: nonzero reasoning_tokens 2 is carried in output_tokens_details (not dropped, not normalized away) with total 19 preserved. Same script is refused on Anthropic and split on Gemini.",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "upstream": {
+  "status": 200,
+  "sse_frames": [
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\n",
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+   "data: {\"id\":\"chatcmpl-ursn\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":7,\"total_tokens\":19,\"completion_tokens_details\":{\"reasoning_tokens\":2}}}\n\n",
+   "data: [DONE]\n\n"
+  ]
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/responses",
+  "body": {
+   "model": "bridge-resp",
+   "input": "Hi",
+   "stream": true
+  }
+ },
+ "expect": {
+  "status": 200,
+  "client_text_contains": [
+   "\"reasoning_tokens\":2",
+   "\"total_tokens\":19",
+   "response.completed"
+  ],
+  "client_text_absent": [
+   "[DONE]"
+  ],
+  "upstream": {
+   "path": "/chat/completions",
+   "exact_requests": 1,
+   "body": {
+    "paths": {
+     "stream": true
+    }
+   }
+  },
+  "sse": {
+   "sequence_numbers": true,
+   "integrity": "responses",
+   "absent": [
+    "[DONE]"
+   ]
+  }
+ }
+}

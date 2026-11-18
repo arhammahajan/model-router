@@ -1,0 +1,77 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.exactup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"secret-one\"\n\n[providers.ruleup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"secret-two\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nheaders = { \"X-Catalog-Token\" = \"cat-secret\" }\n\n[catalog.model_providers]\n\"cat-exact\" = \"exactup\"\n\n[[catalog.rules]]\nmatch = \"^cat-.*$\"\nprovider = \"ruleup\"\n\n",
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "cat-exact",
+              "metadata": {}
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "id": "chatcmpl-1",
+          "object": "chat.completion",
+          "created": 1,
+          "model": "m",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "hello"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 2,
+            "completion_tokens": 1,
+            "total_tokens": 3
+          }
+        }
+      }
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "cat-exact",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 2,
+      "path": "/chat/completions",
+      "headers": {
+        "authorization": "Bearer secret-one",
+        "x-catalog-token": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "model": "cat-exact"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    }
+  },
+  "name": "m4_catalog_exact_wins_over_rule"
+}

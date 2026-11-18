@@ -1,0 +1,78 @@
+{
+  "_comment": "TDD M4 anthropic-off null policy: explicit null budget/display on disabled means absent (existing Go guards) so none maps exactly with no loss.",
+  "name": "m4_reasoning_anthropic_off_chat_null_absent_exact",
+  "config": " [server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"chatup\"\nmodel = \"o1-mini\"\n",
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-1",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "o1-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-chat",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "thinking": {
+        "type": "disabled",
+        "budget_tokens": null,
+        "display": null
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "body": {
+        "paths": {
+          "model": "o1-mini",
+          "reasoning_effort": "none"
+        },
+        "absent": [
+          "thinking"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello",
+        "model": "bridge-chat",
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage.input_tokens": 7,
+        "usage.output_tokens": 3
+      }
+    }
+  }
+}

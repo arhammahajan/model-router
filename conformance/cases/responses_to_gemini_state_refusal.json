@@ -1,0 +1,30 @@
+{
+  "_comment": "Responses->Gemini contract. Upstream-owned state is refused pre-IO; the router keeps no conversation store.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "error.code": "unsupported_responses_state",
+        "error.type": "invalid_request_error"
+      }
+    },
+    "status": 400,
+    "upstream": {
+      "exact_requests": 0,
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent"
+    }
+  },
+  "name": "responses_to_gemini_state_refusal",
+  "request": {
+    "body": {
+      "input": "Hi",
+      "model": "bridge-gem",
+      "previous_response_id": "resp_prev"
+    },
+    "method": "POST",
+    "path": "/v1/responses"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

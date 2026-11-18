@@ -1,0 +1,22 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "status": "ready"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_static_readyz_enabled_ok",
+  "request": {
+    "method": "GET",
+    "path": "/readyz"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

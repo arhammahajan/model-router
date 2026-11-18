@@ -1,0 +1,118 @@
+{
+  "_comment": "Gemini->Responses contract. toolConfig NONE disables tools upstream; sibling declarations survive with explicit strict:false.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "done",
+        "candidates.0.finishReason": "STOP"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "gpt-4.1",
+          "store": false,
+          "tool_choice": "none",
+          "tools.0.name": "get_time",
+          "tools.0.strict": false,
+          "tools.1.name": "get_weather"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer resp-secret"
+      },
+      "path": "/v1/responses"
+    }
+  },
+  "name": "gemini_to_responses_tool_choice",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1
+      },
+      "toolConfig": {
+        "functionCallingConfig": {
+          "mode": "NONE"
+        }
+      },
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "description": "clock",
+              "name": "get_time",
+              "parametersJsonSchema": {
+                "properties": {
+                  "tz": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          ]
+        },
+        {
+          "functionDeclarations": [
+            {
+              "description": "weather",
+              "name": "get_weather",
+              "parametersJsonSchema": {
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:generateContent"
+  },
+  "upstream": {
+    "raw_body": {
+      "created_at": 1,
+      "id": "resp_up",
+      "model": "gpt-4.1",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "text": "done",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_up",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "status": "completed",
+      "usage": {
+        "input_tokens": 9,
+        "output_tokens": 2,
+        "total_tokens": 11
+      }
+    }
+  }
+}

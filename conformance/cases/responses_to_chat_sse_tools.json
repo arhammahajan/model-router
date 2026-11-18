@@ -1,0 +1,69 @@
+{
+ "name": "responses_to_chat_sse_tools",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "upstream": {
+  "status": 200,
+  "sse_frames": [
+   "data: {\"id\": \"chatcmpl-up\", \"object\": \"chat.completion.chunk\", \"created\": 1, \"model\": \"gpt-4o-mini\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\"}, \"finish_reason\": null}]}\n\n",
+   "data: {\"id\": \"chatcmpl-up\", \"object\": \"chat.completion.chunk\", \"created\": 1, \"model\": \"gpt-4o-mini\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call_up\", \"type\": \"function\", \"function\": {\"name\": \"get_time\", \"arguments\": \"\"}}]}, \"finish_reason\": null}]}\n\n",
+   "data: {\"id\": \"chatcmpl-up\", \"object\": \"chat.completion.chunk\", \"created\": 1, \"model\": \"gpt-4o-mini\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"{\\\"tz\\\":\\\"UTC\\\",\"}}]}, \"finish_reason\": null}]}\n\n",
+   "data: {\"id\": \"chatcmpl-up\", \"object\": \"chat.completion.chunk\", \"created\": 1, \"model\": \"gpt-4o-mini\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"\\\"n\\\":9007199254740993}\"}}]}, \"finish_reason\": null}]}\n\n",
+   "data: {\"id\": \"chatcmpl-up\", \"object\": \"chat.completion.chunk\", \"created\": 1, \"model\": \"gpt-4o-mini\", \"choices\": [{\"index\": 0, \"delta\": {}, \"finish_reason\": \"tool_calls\"}]}\n\n",
+   "data: {\"id\": \"chatcmpl-up\", \"object\": \"chat.completion.chunk\", \"created\": 1, \"model\": \"gpt-4o-mini\", \"choices\": [], \"usage\": {\"prompt_tokens\": 7, \"completion_tokens\": 3, \"total_tokens\": 10}}\n\n",
+   "data: [DONE]\n\n"
+  ]
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/responses",
+  "body": {
+   "model": "bridge-resp",
+   "input": "Hi",
+   "stream": true,
+   "tools": [
+    {
+     "type": "function",
+     "name": "get_time",
+     "strict": false
+    }
+   ],
+   "tool_choice": "auto"
+  }
+ },
+ "expect": {
+  "status": 200,
+  "client_text_contains": [
+   "\"call_id\":\"call_up\"",
+   "9007199254740993",
+   "response.function_call_arguments.done"
+  ],
+  "upstream": {
+   "path": "/chat/completions",
+   "exact_requests": 1,
+   "body": {
+    "paths": {
+     "stream": true,
+     "tools.0.function.name": "get_time",
+     "tool_choice": "auto"
+    }
+   }
+  },
+  "sse": {
+   "kind": "responses",
+   "absent": [
+    "[DONE]",
+    "response.output_text.delta"
+   ],
+   "counts": {
+    "response.created": 1,
+    "response.in_progress": 1,
+    "response.output_item.added": 1,
+    "response.function_call_arguments.done": 1,
+    "response.output_item.done": 1,
+    "response.completed": 1
+   },
+   "sequence_numbers": true,
+   "integrity": "responses"
+  }
+ }
+}

@@ -1,0 +1,112 @@
+{
+  "_comment": "TDD M4 slice: per-route dialect override. Current Go build rejects explicit different dialect at --validate-config (milestone 4+); HTTP expectations below describe the contracted egress (provider-owned auth, dest-keyed URL/headers/classification).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chat]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"prov-chat-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"chat\"\nmodel = \"gpt-4.1\"\ndialect = \"openai-responses\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "modelVersion": "gem-resp",
+        "responseId": "resp_up",
+        "usageMetadata.cachedContentTokenCount": 2,
+        "usageMetadata.candidatesTokenCount": 2,
+        "usageMetadata.promptTokenCount": 7,
+        "usageMetadata.thoughtsTokenCount": 1,
+        "usageMetadata.totalTokenCount": 10
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "input.0.content.0.text": "Hi",
+          "input.0.content.0.type": "input_text",
+          "input.0.role": "user",
+          "max_output_tokens": 16,
+          "model": "gpt-4.1",
+          "store": false,
+          "temperature": 0.5,
+          "top_p": 0.9
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer prov-chat-secret",
+        "x-api-key": {
+          "absent": true
+        },
+        "x-goog-api-key": {
+          "absent": true
+        }
+      },
+      "path": "/v1/responses",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "m4_route_dialect_gemini_to_responses",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1,
+        "maxOutputTokens": 16,
+        "temperature": 0.5,
+        "topP": 0.9
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer evil-client-key",
+      "X-Api-Key": "evil-client-key",
+      "X-Goog-Api-Key": "evil-client-key"
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:generateContent?key=evil-client-key"
+  },
+  "upstream": {
+    "raw_body": {
+      "created_at": 1,
+      "id": "resp_up",
+      "model": "gpt-4.1",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "text": "hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_up",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7,
+        "input_tokens_details": {
+          "cached_tokens": 2
+        },
+        "output_tokens": 3,
+        "output_tokens_details": {
+          "reasoning_tokens": 1
+        },
+        "total_tokens": 10
+      }
+    }
+  }
+}

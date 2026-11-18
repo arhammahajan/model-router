@@ -1,0 +1,71 @@
+{
+  "_comment": "Observed arch: present empty list reports all false (not unknown); absent output stays unknown. Empty vs absent distinction.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "llama-a",
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.freshness.discovery.stale": false,
+        "data.0.metadata.router.modalities.input.text.value": false,
+        "data.0.metadata.router.modalities.input.text.kind": "reported",
+        "data.0.metadata.router.modalities.input.image.value": false,
+        "data.0.metadata.router.modalities.input.image.kind": "reported",
+        "data.0.metadata.router.modalities.input.image.source": "llama.models.architecture.input_modalities",
+        "data.0.metadata.router.modalities.output.text.value": null,
+        "data.0.metadata.router.modalities.output.text.kind": "unknown"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 3,
+      "path": "/props",
+      "query": "autoload=false"
+    },
+    "client_text_contains": [
+      "\"verification\":\"upstream report\"",
+      "\"endpoint\":\"/props?autoload=false\"",
+      "\"available\":true",
+      "\"server_build\":\"llama.cpp b1234\""
+    ]
+  },
+  "name": "m4_llama_capability_arch_empty_list",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "status": "ok"
+        }
+      },
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "llama-a",
+              "metadata": {
+                "label": "la"
+              },
+              "architecture": {
+                "input_modalities": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "build_info": "llama.cpp b1234"
+        }
+      }
+    ]
+  }
+}

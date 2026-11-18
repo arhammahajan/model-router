@@ -1,0 +1,44 @@
+{
+  "_comment": "GREEN baseline control: count_tokens never carries affinity or compat. F5.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\ncount_tokens = true\nsession_header = \"x-affinity\"\nsession_missing = \"reject\"\n\n\n[[models]]\nname = \"claude-sess\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+  "expect": {
+    "status": 200,
+    "client_body": {
+      "paths": {
+        "input_tokens": 12
+      }
+    },
+    "upstream": {
+      "path": "/v1/messages/count_tokens",
+      "exact_requests": 1,
+      "headers": {
+        "x-api-key": "upstream-secret",
+        "x-affinity": {
+          "absent": true
+        }
+      }
+    }
+  },
+  "name": "m4_compat_off_count_no_affinity",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages/count_tokens",
+    "headers": {
+      "Authorization": "Bearer router-session-123e4567-e89b-42d3-a456-426614174000"
+    },
+    "body": {
+      "model": "claude-sess",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "input_tokens": 12
+    }
+  }
+}

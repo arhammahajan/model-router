@@ -1,0 +1,47 @@
+{
+  "name": "anthropic_to_gemini_strict_loss",
+  "_comment": "Anthropic tools strict:true is a known loss toward Gemini: strict refuses pre-I/O, never a silent drop.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "tools": [
+        {
+          "name": "get_time",
+          "input_schema": {
+            "type": "object"
+          },
+          "strict": true
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {}
+  },
+  "expect": {
+    "status": 400,
+    "client_text_contains": [
+      "strict"
+    ],
+    "client_body": {
+      "paths": {
+        "type": "error",
+        "error.type": "invalid_request_error"
+      }
+    },
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 0
+    }
+  }
+}

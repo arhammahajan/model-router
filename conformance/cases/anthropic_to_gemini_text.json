@@ -1,0 +1,82 @@
+{
+  "name": "anthropic_to_gemini_text",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 16,
+      "system": "Be brief.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "temperature": 0.5,
+      "top_p": 0.9
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "hello"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_1",
+      "usageMetadata": {
+        "promptTokenCount": 7,
+        "candidatesTokenCount": 3,
+        "totalTokenCount": 10
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "headers": {
+        "x-goog-api-key": "gem-secret",
+        "authorization": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "contents.0.role": "user",
+          "contents.0.parts.0.text": "Hi",
+          "systemInstruction.parts.0.text": "Be brief.",
+          "generationConfig.maxOutputTokens": 16,
+          "generationConfig.temperature": 0.5,
+          "generationConfig.topP": 0.9
+        },
+        "absent": [
+          "model",
+          "stream"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello",
+        "model": "bridge-gem",
+        "stop_reason": "end_turn",
+        "usage.input_tokens": 7,
+        "usage.output_tokens": 3
+      }
+    }
+  }
+}

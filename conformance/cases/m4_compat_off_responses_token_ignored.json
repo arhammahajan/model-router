@@ -1,0 +1,63 @@
+{
+  "_comment": "GREEN baseline control: Responses ingress never runs compat; Bearer session token is ordinary credential; no affinity. F5.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\nsession_header = \"x-affinity\"\n\n[[models]]\nname = \"m-resp\"\nprovider = \"respup\"\nmodel = \"m-up\"\n",
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1/responses",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer resp-secret",
+        "x-affinity": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "model": "m-up"
+        }
+      }
+    }
+  },
+  "name": "m4_compat_off_responses_token_ignored",
+  "request": {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "Authorization": "Bearer router-session-123e4567-e89b-42d3-a456-426614174000"
+    },
+    "body": {
+      "model": "m-resp",
+      "input": "hello"
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "id": "resp_up",
+      "object": "response",
+      "created_at": 1,
+      "status": "completed",
+      "model": "m-up",
+      "output": [
+        {
+          "id": "msg_up",
+          "type": "message",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "hello",
+              "annotations": []
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  }
+}

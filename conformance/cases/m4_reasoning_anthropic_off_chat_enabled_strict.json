@@ -1,0 +1,39 @@
+{
+  "_comment": "TDD M4 anthropic-off scope guard: enabled thinking requires a same-protocol route; strict 400 in both modes (retained, never downgraded to loss).",
+  "name": "m4_reasoning_anthropic_off_chat_enabled_strict",
+  "config": " [server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "raw_body": {}
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-chat",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 1024
+      }
+    }
+  },
+  "expect": {
+    "status": 400,
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 0
+    },
+    "client_body": {
+      "paths": {
+        "type": "error",
+        "error.type": "invalid_request_error"
+      }
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.local]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nheaders = { \"X-Prov\" = \"prov\" }\nlitellm_provider = \"openai\"\n[providers.local.litellm_kwargs]\nheaders = { \"X-Legacy\" = \"legacy-kh\" }\nextra_headers = { \"X-Legacy-Extra\" = \"legacy-extra\" }\n\n[[models]]\nname = \"native-llama\"\nprovider = \"local\"\nmodel = \"llama3.1\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "llama3.1"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret",
+        "x-legacy": {
+          "absent": true
+        },
+        "x-legacy-extra": {
+          "absent": true
+        },
+        "x-prov": "prov"
+      },
+      "path": "/chat/completions",
+      "query": ""
+    }
+  },
+  "name": "m4_provider_headers_native_ignores_legacy",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "native-llama"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hello",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-1",
+      "model": "llama3.1",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 7,
+        "total_tokens": 10
+      }
+    }
+  }
+}

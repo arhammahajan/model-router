@@ -1,0 +1,70 @@
+{
+  "_comment": "Observed tools: non-bool template flags ignored (unknown, never coerced).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "llama-a",
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.freshness.discovery.stale": false,
+        "data.0.metadata.router.tools.supported.value": null,
+        "data.0.metadata.router.tools.supported.kind": "unknown",
+        "data.0.metadata.router.tools.parallel.value": null,
+        "data.0.metadata.router.tools.parallel.kind": "unknown"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 3,
+      "path": "/props",
+      "query": "autoload=false"
+    },
+    "client_text_contains": [
+      "\"verification\":\"upstream report\"",
+      "\"endpoint\":\"/props?autoload=false\"",
+      "\"available\":true",
+      "\"server_build\":\"llama.cpp b1234\""
+    ]
+  },
+  "name": "m4_llama_capability_tools_invalid",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "status": "ok"
+        }
+      },
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "llama-a",
+              "metadata": {
+                "label": "la"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "build_info": "llama.cpp b1234",
+          "chat_template_caps": {
+            "supports_tools": "yes",
+            "supports_tool_calls": 1,
+            "supports_parallel_tool_calls": "true"
+          }
+        }
+      }
+    ]
+  }
+}

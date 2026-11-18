@@ -1,0 +1,80 @@
+{
+  "_comment": "TDD M4 slice: per-route dialect override. Current Go build rejects explicit different dialect at --validate-config (milestone 4+); HTTP expectations below describe the contracted egress (provider-owned auth, dest-keyed URL/headers/classification).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"rd-anth\"\nprovider = \"gem\"\nmodel = \"claude-haiku-4-5\"\ndialect = \"anthropic\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "claude-haiku-4-5"
+        }
+      },
+      "headers": {
+        "anthropic-version": "2023-06-01",
+        "authorization": {
+          "absent": true
+        },
+        "x-api-key": {
+          "absent": true
+        },
+        "x-goog-api-key": "gem-secret"
+      },
+      "path": "/v1/messages",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "m4_route_dialect_gemini_default_anthropic_native",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "rd-anth",
+      "mystery_field": {
+        "nested": [
+          1,
+          2,
+          3
+        ]
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer evil-client-key",
+      "X-Api-Key": "evil-client-key",
+      "X-Goog-Api-Key": "evil-client-key"
+    },
+    "method": "POST",
+    "path": "/v1/messages?key=evil-client-key"
+  },
+  "upstream": {
+    "raw_body": {
+      "content": [
+        {
+          "text": "hello",
+          "type": "text"
+        }
+      ],
+      "id": "msg_1",
+      "model": "m",
+      "role": "assistant",
+      "stop_reason": "end_turn",
+      "type": "message",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3
+      }
+    }
+  }
+}

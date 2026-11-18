@@ -1,0 +1,90 @@
+{
+  "_comment": "Raw metadata.router is overwritten. Known server runtime supplies configured mapper facts independently of injected metadata; unknown model capabilities stay unknown.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "llama-a",
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.freshness.discovery.stale": false,
+        "data.0.metadata.label": "kept",
+        "data.0.metadata.n": 7,
+        "data.0.metadata.router.reasoning.effort.supported.value": true,
+        "data.0.metadata.router.reasoning.effort.supported.kind": "configured",
+        "data.0.metadata.router.reasoning.effort.supported.source": "router.llama_thinking_map.supported",
+        "data.0.metadata.router.reasoning.effort.values.value": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "data.0.metadata.router.reasoning.effort.values.kind": "configured",
+        "data.0.metadata.router.reasoning.effort.values.source": "router.llama_thinking_map.values",
+        "data.0.metadata.router.reasoning.effort.native_parameter.value": {
+          "protocol": "openai-chat",
+          "path": "reasoning_effort"
+        },
+        "data.0.metadata.router.reasoning.effort.native_parameter.kind": "configured",
+        "data.0.metadata.router.reasoning.effort.native_parameter.source": "router.llama_thinking_map.native_parameter"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 3,
+      "path": "/props",
+      "query": "autoload=false"
+    },
+    "client_text_contains": [
+      "\"verification\":\"upstream report\"",
+      "\"endpoint\":\"/props?autoload=false\"",
+      "\"available\":true",
+      "\"server_build\":\"llama.cpp b1234\""
+    ]
+  },
+  "name": "m4_llama_capability_metadata_injection",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "status": "ok"
+        }
+      },
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "llama-a",
+              "metadata": {
+                "label": "kept",
+                "n": 7,
+                "router": {
+                  "reasoning": {
+                    "effort": {
+                      "supported": true
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "build_info": "llama.cpp b1234"
+        }
+      }
+    ]
+  }
+}

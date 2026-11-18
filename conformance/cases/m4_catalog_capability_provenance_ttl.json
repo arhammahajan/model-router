@@ -1,0 +1,64 @@
+{
+  "_comment": "Opt-in review provenance: all five provenance strings plus the review retrieved_at epoch, the exact TTL constant, and applicable true. Review stale is deliberately not pinned (clock-dependent); availability stale false is pinned. REDs before impl: startup rejects metadata_source.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nmetadata_source = \"opencode-go-v1\"\n\n[catalog.model_providers]\n\"glm-5.3-flash\" = \"chatup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "glm-5.3-flash",
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.1.metadata.router.reasoning.supported.kind": "reviewed",
+        "data.1.metadata.router.reasoning.supported.source": "go.review.reasoning.supported",
+        "data.1.metadata.router.reasoning.supported.value": true,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.sources": {
+          "__contains__": "\"go.review\""
+        },
+        "data.1.metadata.router.sources.catalog.stale": false,
+        "data.1.metadata.router.sources.catalog.verification": "availability only",
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "client_text_contains": [
+      "\"model_source\":\"https://github.com/anomalyco/models.dev/blob/205c4d569b6670625f845d018429847f5dea7e3e/providers/opencode-go/models/glm-5.3-flash.toml\"",
+      "\"source\":\"https://models.dev/api.json\"",
+      "\"reviewed_on\":\"2026-10-26\"",
+      "\"repository_revision\":\"205c4d569b6670625f845d018429847f5dea7e3e\"",
+      "\"snapshot_sha256\":\"8307a97a5bc2a5e892ce4a5af25aefc9d525a4ff3fc630d259e8087c53baf93e\"",
+      "\"verification\":\"reviewed provider-specific Models.dev records; not authenticated inference verification\"",
+      "\"retrieved_at\":1792957518",
+      "\"stale_after_seconds\":2592000",
+      "\"applicable\":true"
+    ],
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_provenance_ttl",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "glm-5.3-flash",
+          "metadata": {
+            "label": "c1"
+          }
+        }
+      ]
+    }
+  }
+}

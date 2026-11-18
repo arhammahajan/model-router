@@ -1,0 +1,32 @@
+{
+  "_comment": "TDD M4 reverse named-effort slice: well-formed reasoning.generate_summary retains the current hard refusal even in lossy mode (lossy never invents a Chat mapping for a Responses-only control). GREEN on baseline and must stay GREEN after impl. Covers the second Responses-only key and the lossy mode of the hard-refusal gate.",
+  "name": "m4_reasoning_responses_chat_generate_summary_hardrefusal_lossy",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatlossy]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\ncompatibility = \"lossy\"\n\n[[models]]\nname = \"bridge-lossy\"\nprovider = \"chatlossy\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "raw_body": {}
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/responses",
+    "body": {
+      "model": "bridge-lossy",
+      "input": "Hi",
+      "reasoning": {
+        "effort": "medium",
+        "generate_summary": "auto"
+      }
+    }
+  },
+  "expect": {
+    "status": 400,
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 0
+    },
+    "client_body": {
+      "paths": {
+        "error.code": "invalid_generation_parameter"
+      }
+    }
+  }
+}

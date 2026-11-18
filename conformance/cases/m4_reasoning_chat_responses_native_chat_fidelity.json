@@ -1,0 +1,65 @@
+{
+  "_comment": "TDD M4 reasoning slice 1, native-path control: a Chat-native route keeps the existing raw-body bypass, so reasoning_effort and unknown fields forward byte-equal with no loss report. GREEN on baseline and must stay GREEN (no native-path mutation in this unit).",
+  "name": "m4_reasoning_chat_responses_native_chat_fidelity",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.local]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"local-secret\"\n\n[[models]]\nname = \"llama3.1\"\nprovider = \"local\"\nmodel = \"llama3.1\"\n",
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-9",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "llama3.1",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "ok"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 2,
+        "completion_tokens": 1,
+        "total_tokens": 3
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "llama3.1",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "reasoning_effort": "low",
+      "future_flag": true,
+      "future_count": 9007199254740993
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "upstream": {
+      "path": "/v1/chat/completions",
+      "headers": {
+        "authorization": "Bearer local-secret"
+      },
+      "json_equal_request": true,
+      "exact_requests": 1
+    },
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "ok"
+      }
+    }
+  }
+}

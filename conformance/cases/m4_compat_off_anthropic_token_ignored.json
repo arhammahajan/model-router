@@ -1,0 +1,59 @@
+{
+  "_comment": "GREEN baseline control: Anthropic ingress never runs compat. F5.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\n\n[[models]]\nname = \"claude-sess\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1/messages",
+      "exact_requests": 1,
+      "headers": {
+        "x-api-key": "upstream-secret",
+        "x-affinity": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "model": "claude-haiku-4-5"
+        }
+      }
+    }
+  },
+  "name": "m4_compat_off_anthropic_token_ignored",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "headers": {
+      "Authorization": "Bearer router-session-123e4567-e89b-42d3-a456-426614174000"
+    },
+    "body": {
+      "model": "claude-sess",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "id": "msg_1",
+      "type": "message",
+      "role": "assistant",
+      "model": "m",
+      "content": [
+        {
+          "type": "text",
+          "text": "hello"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3
+      }
+    }
+  }
+}

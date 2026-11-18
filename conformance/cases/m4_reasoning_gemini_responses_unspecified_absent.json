@@ -1,0 +1,96 @@
+{
+  "_comment": "M4 Gemini-request reasoning GREEN control: THINKING_LEVEL_UNSPECIFIED means no control -> Absent intent, nothing upstream and no loss on ordinary Responses. Passes on baseline and must stay GREEN (source: HEAD gemini.py UNSPECIFIED emits nothing; contract 4.1).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "modelVersion": "gem-resp",
+        "responseId": "resp_up",
+        "usageMetadata.candidatesTokenCount": 3,
+        "usageMetadata.promptTokenCount": 7,
+        "usageMetadata.totalTokenCount": 10
+      }
+    },
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "absent": [
+          "contents",
+          "generationConfig",
+          "reasoning",
+          "reasoning_effort",
+          "systemInstruction",
+          "thinking_budget_tokens"
+        ],
+        "paths": {
+          "input.0.content.0.text": "Hi",
+          "input.0.role": "user",
+          "model": "gpt-4.1"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer resp-secret"
+      },
+      "path": "/v1/responses"
+    }
+  },
+  "name": "m4_reasoning_gemini_responses_unspecified_absent",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "thinkingConfig": {
+          "thinkingLevel": "THINKING_LEVEL_UNSPECIFIED"
+        }
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:generateContent"
+  },
+  "upstream": {
+    "raw_body": {
+      "created_at": 1,
+      "id": "resp_up",
+      "model": "gpt-4.1",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "text": "hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_up",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  }
+}

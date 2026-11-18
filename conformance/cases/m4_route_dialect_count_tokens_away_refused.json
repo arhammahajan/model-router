@@ -1,0 +1,32 @@
+{
+  "_comment": "TDD M4 slice: per-route dialect override. Current Go build rejects explicit different dialect at --validate-config (milestone 4+); HTTP expectations below describe the contracted egress (provider-owned auth, dest-keyed URL/headers/classification).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"anth-secret\"\ncount_tokens = true\n\n[[models]]\nname = \"rd-count\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\ndialect = \"openai-chat\"\n",
+  "expect": {
+    "client_text_contains": [
+      "count"
+    ],
+    "status": 400,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_route_dialect_count_tokens_away_refused",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "rd-count"
+    },
+    "method": "POST",
+    "path": "/v1/messages/count_tokens"
+  },
+  "upstream": {
+    "raw_body": {
+      "input_tokens": 5
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "_comment": "Opt-out control: without metadata_source the known ID glm-5.3-flash renders unknown capability with no go.review anywhere, proving no false positive by model name. GREEN on baseline and after impl.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\n\n[catalog.model_providers]\n\"glm-5.3-flash\" = \"chatup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "glm-5.3-flash",
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.1.metadata.router.limits.context_window.kind": "unknown",
+        "data.1.metadata.router.limits.context_window.value": null,
+        "data.1.metadata.router.reasoning.supported.kind": "unknown",
+        "data.1.metadata.router.reasoning.supported.value": null,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.tools.supported.value": null,
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "client_text_absent": [
+      "go.review"
+    ],
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_optout_known_id_unknown",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "glm-5.3-flash",
+          "metadata": {
+            "label": "c1"
+          }
+        }
+      ]
+    }
+  }
+}

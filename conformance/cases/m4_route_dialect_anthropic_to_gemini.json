@@ -1,0 +1,96 @@
+{
+  "_comment": "TDD M4 slice: per-route dialect override. Current Go build rejects explicit different dialect at --validate-config (milestone 4+); HTTP expectations below describe the contracted egress (provider-owned auth, dest-keyed URL/headers/classification).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chat]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"prov-chat-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"chat\"\nmodel = \"gemini-2.0-flash\"\ndialect = \"gemini\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello",
+        "model": "bridge-gem",
+        "stop_reason": "end_turn",
+        "usage.input_tokens": 7,
+        "usage.output_tokens": 3
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "absent": [
+          "model",
+          "stream"
+        ],
+        "paths": {
+          "contents.0.parts.0.text": "Hi",
+          "contents.0.role": "user",
+          "generationConfig.maxOutputTokens": 16,
+          "generationConfig.temperature": 0.5,
+          "generationConfig.topP": 0.9,
+          "systemInstruction.parts.0.text": "Be brief."
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer prov-chat-secret",
+        "x-api-key": {
+          "absent": true
+        },
+        "x-goog-api-key": {
+          "absent": true
+        }
+      },
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "query": "",
+      "query_absent": [
+        "key",
+        "alt"
+      ]
+    }
+  },
+  "name": "m4_route_dialect_anthropic_to_gemini",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-gem",
+      "system": "Be brief.",
+      "temperature": 0.5,
+      "top_p": 0.9
+    },
+    "headers": {
+      "Authorization": "Bearer evil-client-key",
+      "X-Api-Key": "evil-client-key",
+      "X-Goog-Api-Key": "evil-client-key"
+    },
+    "method": "POST",
+    "path": "/v1/messages?key=evil-client-key"
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "hello"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_1",
+      "usageMetadata": {
+        "candidatesTokenCount": 3,
+        "promptTokenCount": 7,
+        "totalTokenCount": 10
+      }
+    }
+  }
+}

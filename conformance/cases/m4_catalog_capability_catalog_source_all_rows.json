@@ -1,0 +1,70 @@
+{
+  "_comment": "Opt-in review, availability source on every catalog row: both the known and the unknown row carry sources.catalog verification availability only with stale false. REDs before impl: startup rejects metadata_source (and the availability source is missing).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nmetadata_source = \"opencode-go-v1\"\n\n[catalog.model_providers]\n\"glm-5.3-flash\" = \"chatup\"\n\"unreviewed-model\" = \"chatup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.3"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "glm-5.3-flash",
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.1.metadata.router.reasoning.supported.kind": "reviewed",
+        "data.1.metadata.router.reasoning.supported.source": "go.review.reasoning.supported",
+        "data.1.metadata.router.reasoning.supported.value": true,
+        "data.1.metadata.router.sources": {
+          "__contains__": "\"go.review\""
+        },
+        "data.1.metadata.router.sources.catalog.stale": false,
+        "data.1.metadata.router.sources.catalog.verification": "availability only",
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "data.2.id": "unreviewed-model",
+        "data.2.metadata.router.freshness.discovery.stale": false,
+        "data.2.metadata.router.reasoning.supported.kind": "unknown",
+        "data.2.metadata.router.reasoning.supported.value": null,
+        "data.2.metadata.router.schema_version": 1,
+        "data.2.metadata.router.sources.catalog.stale": false,
+        "data.2.metadata.router.sources.catalog.verification": "availability only",
+        "data.2.object": "model",
+        "data.2.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "client_text_contains": [
+      "\"applicable\":true"
+    ],
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_catalog_source_all_rows",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "glm-5.3-flash",
+          "metadata": {
+            "label": "c1"
+          }
+        },
+        {
+          "id": "unreviewed-model",
+          "metadata": {
+            "label": "c2"
+          }
+        }
+      ]
+    }
+  }
+}

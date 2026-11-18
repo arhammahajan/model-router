@@ -1,0 +1,54 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.localresp]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"resp-model\"\nprovider = \"localresp\"\nmodel = \"resp-model\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "status": "completed"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "headers": {
+        "authorization": "Bearer resp-secret"
+      },
+      "json_equal_request": true,
+      "path": "/v1/responses",
+      "exact_requests": 1
+    }
+  },
+  "name": "m5_tool_boundary_responses_hosted_search_native",
+  "request": {
+    "body": {
+      "input": "Hi",
+      "model": "resp-model",
+      "tools": [
+        {
+          "type": "web_search_preview"
+        }
+      ]
+    },
+    "method": "POST",
+    "path": "/v1/responses"
+  },
+  "upstream": {
+    "raw_body": {
+      "created_at": 1,
+      "id": "resp_1",
+      "model": "resp-model",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "text": "ok",
+              "type": "output_text"
+            }
+          ],
+          "role": "assistant",
+          "type": "message"
+        }
+      ],
+      "status": "completed"
+    }
+  }
+}

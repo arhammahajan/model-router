@@ -1,0 +1,39 @@
+{
+  "_comment": "Configured transport facts use the actual route EffectiveDialect (explicit gemini), not the provider default. Other native dialects stay unknown, never false.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-gem\"\nprovider = \"chatup\"\nmodel = \"gemini-2.0-flash\"\ndialect = \"gemini\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "m-gem",
+        "data.0.metadata.router.protocols.native.gemini.kind": "configured",
+        "data.0.metadata.router.protocols.native.gemini.source": "routing.dialect",
+        "data.0.metadata.router.protocols.native.gemini.value": true,
+        "data.0.metadata.router.protocols.native.openai-chat.kind": "unknown",
+        "data.0.metadata.router.protocols.native.openai-chat.value": null,
+        "data.0.metadata.router.protocols.translated.gemini.kind": "configured",
+        "data.0.metadata.router.protocols.translated.gemini.source": "routing.adapters",
+        "data.0.metadata.router.protocols.translated.gemini.value": false,
+        "data.0.metadata.router.protocols.translated.openai-chat.kind": "configured",
+        "data.0.metadata.router.protocols.translated.openai-chat.value": true,
+        "data.0.metadata.router.reasoning.supported.value": null,
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.owned_by": "model-router"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_capability_static_route_dialect_effective",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

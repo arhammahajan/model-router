@@ -1,0 +1,116 @@
+{
+ "_comment": "M5 honest GREEN control: same-protocol Responses bypasses flattening, so namespace groups, history identities and the forced namespaced choice travel raw and unchanged.",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.localresp]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"pub-resp\"\nprovider = \"localresp\"\nmodel = \"up-resp\"\n",
+ "expect": {
+  "client_body": {
+   "paths": {
+    "output.0.call_id": "call_up",
+    "output.0.name": "lookup",
+    "output.0.namespace": "muse",
+    "output.0.type": "function_call",
+    "status": "completed"
+   }
+  },
+  "status": 200,
+  "upstream": {
+   "body": {
+    "paths": {
+     "input.1.call_id": "call: 1",
+     "input.1.name": "lookup",
+     "input.1.namespace": "muse",
+     "input.2.call_id": "call: 1",
+     "tool_choice.name": "lookup",
+     "tool_choice.namespace": "muse",
+     "tools.0.name": "muse",
+     "tools.0.tools.0.name": "lookup",
+     "tools.0.tools.0.type": "function",
+     "tools.0.type": "namespace"
+    }
+   },
+   "exact_requests": 1,
+   "headers": {
+    "authorization": "Bearer resp-secret"
+   },
+   "path": "/v1/responses"
+  }
+ },
+ "name": "m5_namespace_native_passthrough",
+ "request": {
+  "body": {
+   "input": [
+    {
+     "content": "What time?",
+     "role": "user"
+    },
+    {
+     "arguments": "{\"tz\":\"UTC\",\"n\":9007199254740993}",
+     "call_id": "call: 1",
+     "id": "fc_1",
+     "name": "lookup",
+     "namespace": "muse",
+     "type": "function_call"
+    },
+    {
+     "call_id": "call: 1",
+     "output": "noon",
+     "type": "function_call_output"
+    }
+   ],
+   "model": "pub-resp",
+   "tool_choice": {
+    "name": "lookup",
+    "namespace": "muse",
+    "type": "function"
+   },
+   "tools": [
+    {
+     "name": "muse",
+     "tools": [
+      {
+       "description": "clock",
+       "name": "lookup",
+       "parameters": {
+        "properties": {
+         "tz": {
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "strict": false,
+       "type": "function"
+      }
+     ],
+     "type": "namespace"
+    }
+   ]
+  },
+  "method": "POST",
+  "path": "/v1/responses"
+ },
+ "upstream": {
+  "raw_body": {
+   "created_at": 1,
+   "id": "resp_up",
+   "model": "up-resp",
+   "object": "response",
+   "output": [
+    {
+     "arguments": "{\"tz\":\"UTC\",\"n\":9007199254740993}",
+     "call_id": "call_up",
+     "id": "fc_up",
+     "name": "lookup",
+     "namespace": "muse",
+     "status": "completed",
+     "type": "function_call"
+    }
+   ],
+   "status": "completed",
+   "usage": {
+    "input_tokens": 7,
+    "output_tokens": 3,
+    "total_tokens": 10
+   }
+  }
+ }
+}

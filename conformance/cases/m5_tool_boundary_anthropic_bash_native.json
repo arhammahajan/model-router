@@ -1,0 +1,69 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"claude-haiku\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "claude-haiku-4-5",
+          "tools.0.type": "bash_20250124",
+          "tools.0.name": "bash"
+        }
+      },
+      "headers": {
+        "x-api-key": "upstream-secret",
+        "anthropic-beta": "computer-use-2025-01-24"
+      },
+      "path": "/v1/messages",
+      "exact_requests": 1
+    }
+  },
+  "name": "m5_tool_boundary_anthropic_bash_native",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "claude-haiku",
+      "tools": [
+        {
+          "type": "bash_20250124",
+          "name": "bash"
+        }
+      ]
+    },
+    "method": "POST",
+    "path": "/v1/messages",
+    "headers": {
+      "anthropic-beta": "computer-use-2025-01-24"
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "content": [
+        {
+          "text": "hello",
+          "type": "text"
+        }
+      ],
+      "id": "msg_1",
+      "model": "m",
+      "role": "assistant",
+      "stop_reason": "end_turn",
+      "type": "message",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3
+      }
+    }
+  }
+}

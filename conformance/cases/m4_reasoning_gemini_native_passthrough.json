@@ -1,0 +1,69 @@
+{
+  "_comment": "M4 Gemini-request reasoning native control: same-protocol Gemini stays a raw bypass (byte/number fidelity, compat OFF) even with thinkingConfig + bigint + unknown fields; no new validation, no loss report. GREEN on baseline and must stay GREEN.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"gem-flash\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "headers": {
+        "authorization": {
+          "absent": true
+        },
+        "x-goog-api-key": "gem-secret"
+      },
+      "json_equal_request": true,
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent"
+    }
+  },
+  "name": "m4_reasoning_gemini_native_passthrough",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "thinkingConfig": {
+          "includeThoughts": true,
+          "thinkingBudget": 9007199254740993
+        }
+      },
+      "mystery_field": {
+        "nested": [
+          1,
+          2,
+          3
+        ]
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-flash:generateContent"
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "ok"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "candidatesTokenCount": 1,
+        "promptTokenCount": 2
+      }
+    }
+  }
+}

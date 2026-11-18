@@ -1,0 +1,62 @@
+{
+  "_comment": "Opt-in review, explicit false normalizes dependents: overriding reasoning.supported false suppresses reviewed effort values/defaults with the asserting evidence and keeps the reviewed conflict. Explicit null is skipped because TOML has no null literal. REDs before impl: startup rejects metadata_source and [capabilities].",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nmetadata_source = \"opencode-go-v1\"\n\n[catalog.model_providers]\n\"glm-5.3-flash\" = \"chatup\"\n\n[capabilities.overrides.\"glm-5.3-flash\".reasoning]\nsupported = false\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "glm-5.3-flash",
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.1.metadata.router.reasoning.effort.supported.kind": "override",
+        "data.1.metadata.router.reasoning.effort.supported.value": false,
+        "data.1.metadata.router.reasoning.effort.values.kind": "override",
+        "data.1.metadata.router.reasoning.effort.values.source": "override.reasoning.supported",
+        "data.1.metadata.router.reasoning.effort.values.value": null,
+        "data.1.metadata.router.reasoning.supported.conflicts.0.kind": "reviewed",
+        "data.1.metadata.router.reasoning.supported.conflicts.0.source": "go.review.reasoning.supported",
+        "data.1.metadata.router.reasoning.supported.conflicts.0.value": true,
+        "data.1.metadata.router.reasoning.supported.kind": "override",
+        "data.1.metadata.router.reasoning.supported.source": "override.reasoning.supported",
+        "data.1.metadata.router.reasoning.supported.value": false,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.sources": {
+          "__contains__": "\"go.review\""
+        },
+        "data.1.metadata.router.tools.supported.kind": "reviewed",
+        "data.1.metadata.router.tools.supported.source": "go.review.tools.supported",
+        "data.1.metadata.router.tools.supported.value": true,
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_override_false_normalize",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "glm-5.3-flash",
+          "metadata": {
+            "label": "c1"
+          }
+        }
+      ]
+    }
+  }
+}

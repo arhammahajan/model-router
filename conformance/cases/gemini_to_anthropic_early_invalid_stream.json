@@ -1,0 +1,54 @@
+{
+  "name": "gemini_to_anthropic_early_invalid_stream",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"gem-ant\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-ant:streamGenerateContent?alt=sse",
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1,
+        "maxOutputTokens": 16
+      }
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "sse_frames": [
+      "data: {\"mystery\":1}\n\n"
+    ]
+  },
+  "expect": {
+    "status": 502,
+    "client_text_contains": [
+      "error"
+    ],
+    "client_text_absent": [
+      "\"finishReason\":\"STOP\"",
+      "[DONE]",
+      "Traceback"
+    ],
+    "upstream": {
+      "path": "/v1/messages",
+      "exact_requests": 1,
+      "query": "",
+      "query_absent": [
+        "key"
+      ],
+      "body": {
+        "paths": {
+          "stream": true
+        }
+      }
+    }
+  }
+}

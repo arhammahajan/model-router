@@ -1,0 +1,39 @@
+{
+ "name": "chat_to_responses_early_invalid_stream",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+ "upstream": {
+  "status": 200,
+  "sse_frames": [
+   "data: {\"mystery\":1}\n\n"
+  ]
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "body": {
+   "model": "bridge-chat",
+   "messages": [
+    {
+     "role": "user",
+     "content": "Hi"
+    }
+   ],
+   "stream": true
+  }
+ },
+ "expect": {
+  "status": 502,
+  "no_done": true,
+  "client_text_contains": [
+   "\"error\""
+  ],
+  "client_text_absent": [
+   "\"finish_reason\"",
+   "Traceback"
+  ],
+  "upstream": {
+   "path": "/v1/responses",
+   "exact_requests": 1
+  }
+ }
+}

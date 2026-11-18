@@ -1,0 +1,74 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.expup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"explicit-secret\"\n\n[providers.catup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"catalog-secret\"\n\n[[models]]\nname = \"real-model\"\nprovider = \"expup\"\nmodel = \"real-up\"\naliases = [\"cat-alias\"]\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nheaders = { \"X-Catalog-Token\" = \"cat-secret\" }\n\n[catalog.model_providers]\n\"cat-alias\" = \"catup\"\n\n",
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "cat-alias",
+              "metadata": {}
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "id": "chatcmpl-1",
+          "object": "chat.completion",
+          "created": 1,
+          "model": "m",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "hello"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 2,
+            "completion_tokens": 1,
+            "total_tokens": 3
+          }
+        }
+      }
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "cat-alias",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 2,
+      "path": "/chat/completions",
+      "headers": {
+        "authorization": "Bearer explicit-secret"
+      },
+      "body": {
+        "paths": {
+          "model": "real-up"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    }
+  },
+  "name": "m4_catalog_alias_reserved"
+}

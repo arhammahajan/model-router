@@ -1,0 +1,55 @@
+{
+  "_comment": "Catalog proves availability, never capability: malicious row metadata (capabilities/tools, provider, dialect, context_window) is ignored for policy while display fields pass through. Deferred go-review acquisition: support stays unknown.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nheaders = { \"X-Catalog-Token\" = \"cat-secret\" }\n\n[catalog.model_providers]\n\"cat-1\" = \"chatup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.reasoning.supported.value": null,
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.owned_by": "model-router",
+        "data.1.id": "cat-1",
+        "data.1.metadata.label": "c1",
+        "data.1.metadata.n": 9007199254740993,
+        "data.1.metadata.router.reasoning.supported.kind": "unknown",
+        "data.1.metadata.router.reasoning.supported.value": null,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.tools.supported.kind": "unknown",
+        "data.1.metadata.router.tools.supported.value": null,
+        "data.1.owned_by": "model-router"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_capability_catalog_live_unknown",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "cat-1",
+          "metadata": {
+            "capabilities": {
+              "tools": true
+            },
+            "context_window": 999999,
+            "dialect": "gemini",
+            "label": "c1",
+            "n": 9007199254740993,
+            "provider": "evil-prov"
+          }
+        }
+      ]
+    }
+  }
+}

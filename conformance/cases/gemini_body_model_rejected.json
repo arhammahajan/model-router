@@ -1,0 +1,48 @@
+{
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"gem-flash\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+ "expect": {
+  "status": 400,
+  "upstream": {
+   "exact_requests": 0
+  }
+ },
+ "name": "gemini_body_model_rejected",
+ "request": {
+  "body": {
+   "contents": [
+    {
+     "parts": [
+      {
+       "text": "Hi"
+      }
+     ],
+     "role": "user"
+    }
+   ],
+   "model": "gem-flash"
+  },
+  "method": "POST",
+  "path": "/v1beta/models/gem-flash:generateContent"
+ },
+ "upstream": {
+  "raw_body": {
+   "candidates": [
+    {
+     "content": {
+      "parts": [
+       {
+        "text": "ok"
+       }
+      ],
+      "role": "model"
+     },
+     "finishReason": "STOP"
+    }
+   ],
+   "usageMetadata": {
+    "candidatesTokenCount": 1,
+    "promptTokenCount": 2
+   }
+  }
+ }
+}

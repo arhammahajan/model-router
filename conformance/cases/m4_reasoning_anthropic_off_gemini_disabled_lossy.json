@@ -1,0 +1,72 @@
+{
+  "_comment": "Corrected scope: Gemini dest is OUT of the none-exact change; disabled thinking to Gemini remains a diagnosed loss (lossy 200 drop+header). Locks preservation, not the new behavior.",
+  "name": "m4_reasoning_anthropic_off_gemini_disabled_lossy",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gemlossy]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\ncompatibility = \"lossy\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gemlossy\"\nmodel = \"gemini-2.0-flash\"\n",
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "hello"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_1",
+      "usageMetadata": {
+        "promptTokenCount": 7,
+        "candidatesTokenCount": 3,
+        "totalTokenCount": 10
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "present": true
+      }
+    },
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "body": {
+        "paths": {
+          "contents.0.parts.0.text": "Hi"
+        },
+        "absent": [
+          "thinking"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    }
+  }
+}

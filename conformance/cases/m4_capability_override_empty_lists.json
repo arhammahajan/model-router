@@ -1,0 +1,70 @@
+{
+  "_comment": "Explicit empty capability lists are valid and render [] rather than unknown null; validate all four list field forms through config and HTTP.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[capabilities.overrides.\"m-a\".reasoning.effort]\nvalues = []\n[capabilities.overrides.\"m-a\".protocols]\nknown_lossy_features = []\n[capabilities.overrides.\"m-a\".sampling.samplers]\ndefault = []\n[capabilities.overrides.\"m-a\".sampling.temperature]\nconstraints = []\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.limits.context_window.kind": "unknown",
+        "data.0.metadata.router.limits.context_window.value": null,
+        "data.0.metadata.router.limits.default_output_tokens.value": null,
+        "data.0.metadata.router.limits.max_output_tokens.value": null,
+        "data.0.metadata.router.modalities.input.image.value": null,
+        "data.0.metadata.router.modalities.input.text.value": null,
+        "data.0.metadata.router.modalities.output.text.value": null,
+        "data.0.metadata.router.protocols.known_lossy_features.value": [],
+        "data.0.metadata.router.protocols.native.gemini.kind": "unknown",
+        "data.0.metadata.router.protocols.native.gemini.value": null,
+        "data.0.metadata.router.protocols.native.openai-chat.kind": "configured",
+        "data.0.metadata.router.protocols.native.openai-chat.source": "routing.dialect",
+        "data.0.metadata.router.protocols.native.openai-chat.value": true,
+        "data.0.metadata.router.protocols.translated.gemini.kind": "configured",
+        "data.0.metadata.router.protocols.translated.gemini.value": true,
+        "data.0.metadata.router.protocols.translated.openai-chat.kind": "configured",
+        "data.0.metadata.router.protocols.translated.openai-chat.source": "routing.adapters",
+        "data.0.metadata.router.protocols.translated.openai-chat.value": false,
+        "data.0.metadata.router.reasoning.budget.max_tokens.value": null,
+        "data.0.metadata.router.reasoning.effort.values.kind": "override",
+        "data.0.metadata.router.reasoning.effort.values.value": [],
+        "data.0.metadata.router.reasoning.supported.kind": "unknown",
+        "data.0.metadata.router.reasoning.supported.value": null,
+        "data.0.metadata.router.sampling.temperature.supported.value": null,
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.sources.routing.verification": "configured transport and adapter paths only",
+        "data.0.metadata.router.streaming.kind": "unknown",
+        "data.0.metadata.router.streaming.value": null,
+        "data.0.metadata.router.structured_output.supported.value": null,
+        "data.0.metadata.router.tools.parallel.value": null,
+        "data.0.metadata.router.tools.supported.kind": "unknown",
+        "data.0.metadata.router.tools.supported.value": null,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "object": "list",
+        "data.0.metadata.router.reasoning.effort.values.source": "override.reasoning.effort.values",
+        "data.0.metadata.router.protocols.known_lossy_features.source": "override.protocols.known_lossy_features",
+        "data.0.metadata.router.protocols.known_lossy_features.kind": "override",
+        "data.0.metadata.router.sampling.samplers.default.value": [],
+        "data.0.metadata.router.sampling.samplers.default.source": "override.sampling.samplers.default",
+        "data.0.metadata.router.sampling.samplers.default.kind": "override",
+        "data.0.metadata.router.sampling.temperature.constraints.value": [],
+        "data.0.metadata.router.sampling.temperature.constraints.source": "override.sampling.temperature.constraints",
+        "data.0.metadata.router.sampling.temperature.constraints.kind": "override"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_capability_override_empty_lists",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

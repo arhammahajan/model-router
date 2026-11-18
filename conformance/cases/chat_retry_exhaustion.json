@@ -1,0 +1,34 @@
+{
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 2\nstatuses = [502]\nbackoff_base = 0.001\nbackoff_max = 0.002\ndeadline = 5.0\n\n[providers.local]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"local-secret\"\n\n[[models]]\nname = \"native-llama\"\nprovider = \"local\"\nmodel = \"llama3.1\"\n",
+ "expect": {
+  "status": 502,
+  "upstream": {
+   "exact_requests": 2,
+   "path": "/v1/chat/completions"
+  }
+ },
+ "name": "chat_retry_exhaustion",
+ "request": {
+  "body": {
+   "messages": [
+    {
+     "content": "Hi",
+     "role": "user"
+    }
+   ],
+   "model": "native-llama"
+  },
+  "method": "POST",
+  "path": "/v1/chat/completions"
+ },
+ "upstream": {
+  "headers": {
+   "Content-Type": "application/json",
+   "Retry-After": "0"
+  },
+  "raw_body": {
+   "error": "bad gateway"
+  },
+  "status": 502
+ }
+}

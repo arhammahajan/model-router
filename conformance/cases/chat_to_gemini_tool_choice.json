@@ -1,0 +1,107 @@
+{
+  "name": "chat_to_gemini_tool_choice",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "done"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_3",
+      "usageMetadata": {
+        "candidatesTokenCount": 2,
+        "promptTokenCount": 9,
+        "totalTokenCount": 11
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "bridge-gem",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_time",
+            "description": "clock",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "tz": {
+                  "type": "string"
+                }
+              }
+            },
+            "strict": false
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "strict": false
+          }
+        }
+      ],
+      "tool_choice": "none"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "headers": {
+        "x-goog-api-key": "gem-secret",
+        "authorization": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "tools.0.functionDeclarations.0.name": "get_time",
+          "tools.0.functionDeclarations.1.name": "get_weather",
+          "toolConfig.functionCallingConfig.mode": "NONE"
+        },
+        "absent": [
+          "model",
+          "stream"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "done",
+        "choices.0.finish_reason": "stop"
+      }
+    }
+  }
+}

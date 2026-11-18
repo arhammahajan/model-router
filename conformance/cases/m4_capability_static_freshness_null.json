@@ -1,0 +1,34 @@
+{
+  "_comment": "Static routes carry no discovery observation: freshness.discovery.stale is null. Ordering follows explicit config order.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[[models]]\nname = \"m-b\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.freshness.discovery.stale": null,
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.owned_by": "model-router",
+        "data.1.id": "m-b",
+        "data.1.metadata.router.freshness.discovery.stale": null,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_capability_static_freshness_null",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

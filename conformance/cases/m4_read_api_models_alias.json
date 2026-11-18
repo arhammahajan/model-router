@@ -1,0 +1,31 @@
+{
+  "_comment": "TDD M4 read slice: GET /models is the unversioned alias of /v1/models (same OpenAI list, owned_by=model-router accepted). RED on baseline (Go only serves /v1/models).",
+  "name": "m4_read_api_models_alias",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[[models]]\nname = \"m-b\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n\n[[models]]\nname = \"m-c\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "raw_body": {}
+  },
+  "request": {
+    "method": "GET",
+    "path": "/models"
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    },
+    "client_body": {
+      "paths": {
+        "object": "list",
+        "data.0.id": "m-a",
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "m-b",
+        "data.2.id": "m-c"
+      },
+      "absent": [
+        "data.3"
+      ]
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "gemini_to_anthropic_strict_loss",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"gem-ant\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-ant:generateContent",
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1,
+        "maxOutputTokens": 16,
+        "temperature": 1.5
+      }
+    }
+  },
+  "upstream": {
+    "raw_body": {}
+  },
+  "expect": {
+    "status": 400,
+    "client_text_contains": [
+      "temperature"
+    ],
+    "client_body": {
+      "paths": {
+        "error.code": 400,
+        "error.status": "INVALID_ARGUMENT",
+        "error.details.0.reason": "TRANSLATION_LOSS"
+      }
+    },
+    "upstream": {
+      "path": "/v1/messages",
+      "exact_requests": 0
+    }
+  }
+}

@@ -1,0 +1,52 @@
+# Development example: replace these dummy keys, endpoints and model IDs.
+# Native routes preserve fields; change a model's dialect to select a bridge.
+[server]
+host = "127.0.0.1"
+port = 4000
+auth_mode = "required"
+api_keys = ["replace-this-local-key"]
+allow_dynamic_routes = false
+
+[retry]
+max_attempts = 1
+
+[providers.chat]
+dialect = "openai-chat"
+base_url = "http://127.0.0.1:8000/v1"
+api_key = "replace-this-upstream-key"
+
+[providers.responses]
+dialect = "openai-responses"
+base_url = "http://127.0.0.1:8000/v1"
+api_key = "replace-this-upstream-key"
+
+[providers.anthropic]
+dialect = "anthropic"
+base_url = "http://127.0.0.1:8000"
+api_key = "replace-this-upstream-key"
+count_tokens = false
+
+[providers.gemini]
+dialect = "gemini"
+base_url = "http://127.0.0.1:8000/v1beta"
+api_key = "replace-this-upstream-key"
+
+[[models]]
+name = "example-chat"
+provider = "chat"
+model = "upstream-chat-model"
+
+[[models]]
+name = "example-responses"
+provider = "responses"
+model = "upstream-responses-model"
+
+[[models]]
+name = "example-anthropic"
+provider = "anthropic"
+model = "upstream-anthropic-model"
+
+[[models]]
+name = "example-gemini"
+provider = "gemini"
+model = "upstream-gemini-model"

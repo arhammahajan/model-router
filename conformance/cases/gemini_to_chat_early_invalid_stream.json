@@ -1,0 +1,44 @@
+{
+  "name": "gemini_to_chat_early_invalid_stream",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"gem-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "status": 200,
+    "sse_frames": [
+      "data: {\"mystery\":1}\n\n"
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-chat:streamGenerateContent?alt=sse",
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1
+      }
+    }
+  },
+  "expect": {
+    "status": 502,
+    "client_text_contains": [
+      "error"
+    ],
+    "client_text_absent": [
+      "\"finishReason\":\"STOP\"",
+      "[DONE]",
+      "Traceback"
+    ],
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1
+    }
+  }
+}

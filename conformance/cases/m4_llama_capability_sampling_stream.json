@@ -1,0 +1,96 @@
+{
+  "_comment": "Observed sampling: bigint 9007199254740993 + fraction 0.7 + list exact; native params inferred; stream false still proves streaming true.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "llama-a",
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.freshness.discovery.stale": false,
+        "data.0.metadata.router.sampling.temperature.supported.value": true,
+        "data.0.metadata.router.sampling.temperature.supported.kind": "inferred",
+        "data.0.metadata.router.sampling.temperature.default.value": 0.7,
+        "data.0.metadata.router.sampling.temperature.default.kind": "reported",
+        "data.0.metadata.router.sampling.temperature.native_parameter.value": {
+          "protocol": "openai-chat",
+          "path": "temperature"
+        },
+        "data.0.metadata.router.sampling.seed.supported.value": true,
+        "data.0.metadata.router.sampling.seed.default.value": 9007199254740993,
+        "data.0.metadata.router.sampling.seed.native_parameter.value": {
+          "protocol": "openai-chat",
+          "path": "seed"
+        },
+        "data.0.metadata.router.sampling.samplers.supported.value": true,
+        "data.0.metadata.router.sampling.samplers.default.value": [
+          "top_k"
+        ],
+        "data.0.metadata.router.sampling.samplers.native_parameter.value": {
+          "protocol": "openai-chat",
+          "path": "samplers"
+        },
+        "data.0.metadata.router.streaming.value": true,
+        "data.0.metadata.router.streaming.kind": "inferred",
+        "data.0.metadata.router.streaming.source": "llama.props.default_generation_settings.params.stream"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 3,
+      "path": "/props",
+      "query": "autoload=false"
+    },
+    "client_text_contains": [
+      "\"verification\":\"upstream report\"",
+      "\"endpoint\":\"/props?autoload=false\"",
+      "\"available\":true",
+      "\"server_build\":\"llama.cpp b1234\""
+    ]
+  },
+  "name": "m4_llama_capability_sampling_stream",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "status": "ok"
+        }
+      },
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "llama-a",
+              "metadata": {
+                "label": "la"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "build_info": "llama.cpp b1234",
+          "default_generation_settings": {
+            "params": {
+              "temperature": 0.7,
+              "seed": 9007199254740993,
+              "samplers": [
+                "top_k"
+              ],
+              "stream": false
+            }
+          }
+        }
+      }
+    ]
+  }
+}

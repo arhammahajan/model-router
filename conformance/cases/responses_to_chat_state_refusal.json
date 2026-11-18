@@ -1,0 +1,29 @@
+{
+ "name": "responses_to_chat_state_refusal",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "upstream": {
+  "raw_body": {}
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/responses",
+  "body": {
+   "model": "bridge-resp",
+   "input": "Hi",
+   "previous_response_id": "resp_prev"
+  }
+ },
+ "expect": {
+  "status": 400,
+  "upstream": {
+   "path": "/chat/completions",
+   "exact_requests": 0
+  },
+  "client_body": {
+   "paths": {
+    "error.code": "unsupported_responses_state",
+    "error.type": "invalid_request_error"
+   }
+  }
+ }
+}

@@ -1,0 +1,105 @@
+{
+  "_comment": "Gemini->Responses contract. Streamed tool success: upstream Responses SSE carries fragmented arguments; the client Gemini SSE carries the complete functionCall with exact bigint args.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_text_absent": [
+      "[DONE]",
+      "Traceback"
+    ],
+    "client_text_contains": [
+      "\"name\":\"get_time\"",
+      "9007199254740993",
+      "\"finishReason\":\"STOP\""
+    ],
+    "sse": {
+      "done": false,
+      "integrity": "gemini",
+      "joined_args": {
+        "0": {
+          "n": 9007199254740993,
+          "tz": "UTC"
+        }
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "gpt-4.1",
+          "store": false,
+          "stream": true,
+          "tools.0.name": "get_time"
+        }
+      },
+      "exact_requests": 1,
+      "path": "/v1/responses",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "gemini_to_responses_sse_tools",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1
+      },
+      "toolConfig": {
+        "functionCallingConfig": {
+          "allowedFunctionNames": [
+            "get_time"
+          ],
+          "mode": "ANY"
+        }
+      },
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "description": "clock",
+              "name": "get_time",
+              "parametersJsonSchema": {
+                "properties": {
+                  "n": {
+                    "type": "integer"
+                  },
+                  "tz": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:streamGenerateContent?alt=sse"
+  },
+  "upstream": {
+    "sse_frames": [
+      "event: response.created\ndata: {\"type\": \"response.created\", \"response\": {\"id\": \"resp_up\", \"object\": \"response\", \"created_at\": 1, \"status\": \"in_progress\", \"model\": \"gpt-4.1\", \"output\": []}, \"sequence_number\": 0}\n\n",
+      "event: response.in_progress\ndata: {\"type\": \"response.in_progress\", \"response\": {\"id\": \"resp_up\", \"object\": \"response\", \"created_at\": 1, \"status\": \"in_progress\", \"model\": \"gpt-4.1\", \"output\": []}, \"sequence_number\": 1}\n\n",
+      "event: response.output_item.added\ndata: {\"type\": \"response.output_item.added\", \"output_index\": 0, \"item\": {\"id\": \"fc_up\", \"type\": \"function_call\", \"call_id\": \"call_up\", \"name\": \"get_time\", \"arguments\": \"\", \"status\": \"in_progress\"}, \"sequence_number\": 2}\n\n",
+      "event: response.function_call_arguments.delta\ndata: {\"type\": \"response.function_call_arguments.delta\", \"output_index\": 0, \"item_id\": \"fc_up\", \"delta\": \"{\\\"tz\\\":\\\"UTC\\\",\", \"sequence_number\": 3}\n\n",
+      "event: response.function_call_arguments.delta\ndata: {\"type\": \"response.function_call_arguments.delta\", \"output_index\": 0, \"item_id\": \"fc_up\", \"delta\": \"\\\"n\\\":90071992547\", \"sequence_number\": 4}\n\n",
+      "event: response.function_call_arguments.delta\ndata: {\"type\": \"response.function_call_arguments.delta\", \"output_index\": 0, \"item_id\": \"fc_up\", \"delta\": \"40993}\", \"sequence_number\": 5}\n\n",
+      "event: response.function_call_arguments.done\ndata: {\"type\": \"response.function_call_arguments.done\", \"output_index\": 0, \"item_id\": \"fc_up\", \"arguments\": \"{\\\"tz\\\":\\\"UTC\\\",\\\"n\\\":9007199254740993}\", \"sequence_number\": 6}\n\n",
+      "event: response.output_item.done\ndata: {\"type\": \"response.output_item.done\", \"output_index\": 0, \"item\": {\"id\": \"fc_up\", \"type\": \"function_call\", \"call_id\": \"call_up\", \"name\": \"get_time\", \"arguments\": \"{\\\"tz\\\":\\\"UTC\\\",\\\"n\\\":9007199254740993}\", \"status\": \"completed\"}, \"sequence_number\": 7}\n\n",
+      "event: response.completed\ndata: {\"type\": \"response.completed\", \"response\": {\"id\": \"resp_up\", \"object\": \"response\", \"created_at\": 1, \"status\": \"completed\", \"model\": \"gpt-4.1\", \"output\": [{\"id\": \"fc_up\", \"type\": \"function_call\", \"call_id\": \"call_up\", \"name\": \"get_time\", \"arguments\": \"{\\\"tz\\\":\\\"UTC\\\",\\\"n\\\":9007199254740993}\", \"status\": \"completed\"}], \"usage\": {\"input_tokens\": 7, \"output_tokens\": 3, \"total_tokens\": 10}}, \"sequence_number\": 8}\n\n"
+    ],
+    "status": 200
+  }
+}

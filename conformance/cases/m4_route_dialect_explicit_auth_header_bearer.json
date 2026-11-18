@@ -1,0 +1,59 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"anth-secret\"\nauth_header = \"bearer\"\n\n[[models]]\nname = \"rd-anth\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\ndialect = \"anthropic\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "claude-haiku-4-5"
+        }
+      },
+      "headers": {
+        "authorization": "Bearer anth-secret",
+        "x-api-key": {
+          "absent": true
+        }
+      },
+      "path": "/v1/messages"
+    }
+  },
+  "name": "m4_route_dialect_explicit_auth_header_bearer",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "rd-anth"
+    },
+    "method": "POST",
+    "path": "/v1/messages"
+  },
+  "upstream": {
+    "raw_body": {
+      "content": [
+        {
+          "text": "hello",
+          "type": "text"
+        }
+      ],
+      "id": "msg_1",
+      "model": "m",
+      "role": "assistant",
+      "stop_reason": "end_turn",
+      "type": "message",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3
+      }
+    }
+  }
+}

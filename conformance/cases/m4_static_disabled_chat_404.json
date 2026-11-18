@@ -1,0 +1,31 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"old-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\nenabled = false\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "error.code": "model_not_found"
+      }
+    },
+    "status": 404,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_static_disabled_chat_404",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "old-chat"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

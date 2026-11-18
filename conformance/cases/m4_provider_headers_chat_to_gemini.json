@@ -1,0 +1,82 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\nheaders = { \"X-Prov\" = \"prov\" }\nlitellm_provider = \"gemini\"\n[providers.gem.litellm_kwargs]\nheaders = { \"X-Kh-Only\" = \"kh\" }\nextra_headers = { \"X-Extra-Only\" = \"extra\" }\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "contents.0.parts.0.text": "Hi"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "anthropic-beta": {
+          "absent": true
+        },
+        "authorization": {
+          "absent": true
+        },
+        "openai-beta": {
+          "absent": true
+        },
+        "x-extra-only": "extra",
+        "x-goog-api-key": "gem-secret",
+        "x-kh-only": "kh",
+        "x-prov": "prov"
+      },
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "m4_provider_headers_chat_to_gemini",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-gem"
+    },
+    "headers": {
+      "Anthropic-Beta": "prompt-caching-2024-07-31",
+      "Openai-Beta": "assistants=v2"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "hello"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_1",
+      "usageMetadata": {
+        "candidatesTokenCount": 3,
+        "promptTokenCount": 7,
+        "totalTokenCount": 10
+      }
+    }
+  }
+}

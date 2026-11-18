@@ -1,0 +1,25 @@
+{
+  "_comment": "TDD M4 read slice: models.get with a percent-encoded id decodes exactly once (space model). RED on baseline.",
+  "name": "m4_read_api_v1beta_model_get_escaped",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n",
+  "upstream": {
+    "raw_body": {}
+  },
+  "request": {
+    "method": "GET",
+    "path": "/v1beta/models/m%20a"
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    },
+    "client_body": {
+      "paths": {
+        "name": "models/m a",
+        "baseModelId": "m a",
+        "displayName": "m a"
+      }
+    }
+  }
+}

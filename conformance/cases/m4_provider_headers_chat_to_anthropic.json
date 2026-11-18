@@ -1,0 +1,76 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nheaders = { \"X-Prov\" = \"prov\", \"X-Chain\" = \"prov-wins\" }\nlitellm_provider = \"anthropic\"\n[providers.anth.litellm_kwargs]\nheaders = { \"X-Chain\" = \"kh\", \"X-Kh-Only\" = \"kh\" }\nextra_headers = { \"X-Chain\" = \"extra\", \"X-Extra-Only\" = \"extra\" }\n\n[[models]]\nname = \"bridge-claude\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "claude-haiku-4-5"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "anthropic-beta": "prompt-caching-2024-07-31",
+        "anthropic-version": "2023-06-01",
+        "authorization": {
+          "absent": true
+        },
+        "openai-beta": {
+          "absent": true
+        },
+        "x-api-key": "upstream-secret",
+        "x-chain": "prov-wins",
+        "x-extra-only": "extra",
+        "x-kh-only": "kh",
+        "x-prov": "prov"
+      },
+      "path": "/v1/messages",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "m4_provider_headers_chat_to_anthropic",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-claude"
+    },
+    "headers": {
+      "Anthropic-Beta": "prompt-caching-2024-07-31",
+      "Openai-Beta": "assistants=v2"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {
+      "content": [
+        {
+          "text": "hello",
+          "type": "text"
+        }
+      ],
+      "id": "msg_1",
+      "model": "m",
+      "role": "assistant",
+      "stop_reason": "end_turn",
+      "type": "message",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3
+      }
+    }
+  }
+}

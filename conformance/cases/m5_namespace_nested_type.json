@@ -1,0 +1,51 @@
+{
+ "_comment": "Nested namespaces are outside the admitted function and custom child shapes. The request fails validation before upstream I/O.",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "expect": {
+  "client_body": {
+   "paths": {
+    "error.code": "invalid_generation_parameter",
+    "error.type": "invalid_request_error"
+   }
+  },
+  "status": 400,
+  "upstream": {
+   "exact_requests": 0,
+   "path": "/chat/completions"
+  },
+  "client_text_contains": [
+   "tools[0].tools[0]"
+  ]
+ },
+ "name": "m5_namespace_nested_type",
+ "request": {
+  "body": {
+   "input": "Hi",
+   "model": "bridge-resp",
+   "tools": [
+    {
+     "name": "muse",
+     "tools": [
+      {
+       "name": "inner",
+       "tools": [
+        {
+         "name": "lookup",
+         "strict": false,
+         "type": "function"
+        }
+       ],
+       "type": "namespace"
+      }
+     ],
+     "type": "namespace"
+    }
+   ]
+  },
+  "method": "POST",
+  "path": "/v1/responses"
+ },
+ "upstream": {
+  "raw_body": {}
+ }
+}

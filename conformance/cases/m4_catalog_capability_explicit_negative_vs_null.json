@@ -1,0 +1,59 @@
+{
+  "_comment": "Opt-in review, explicit negative versus unreported null: the frozen row reports audio false while streaming, toggle, lossy, and budget leaves stay null unknown, never false. REDs before impl: startup rejects metadata_source.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nmetadata_source = \"opencode-go-v1\"\n\n[catalog.model_providers]\n\"glm-5.3-flash\" = \"chatup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "glm-5.3-flash",
+        "data.1.metadata.router.modalities.input.audio.kind": "reviewed",
+        "data.1.metadata.router.modalities.input.audio.source": "go.review.modalities.input.audio",
+        "data.1.metadata.router.modalities.input.audio.value": false,
+        "data.1.metadata.router.modalities.input.image.value": true,
+        "data.1.metadata.router.protocols.known_lossy_features.kind": "unknown",
+        "data.1.metadata.router.protocols.known_lossy_features.value": null,
+        "data.1.metadata.router.reasoning.budget.max_tokens.kind": "unknown",
+        "data.1.metadata.router.reasoning.budget.max_tokens.value": null,
+        "data.1.metadata.router.reasoning.toggle.supported.kind": "unknown",
+        "data.1.metadata.router.reasoning.toggle.supported.value": null,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.sources": {
+          "__contains__": "\"go.review\""
+        },
+        "data.1.metadata.router.streaming.kind": "unknown",
+        "data.1.metadata.router.streaming.value": null,
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_explicit_negative_vs_null",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "glm-5.3-flash",
+          "metadata": {
+            "label": "c1"
+          }
+        }
+      ]
+    }
+  }
+}

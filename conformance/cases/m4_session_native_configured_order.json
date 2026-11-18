@@ -1,0 +1,65 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.sess]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\nsession_source_headers = [\"thread-id\", \"session-id\"]\n\n\n[[models]]\nname = \"m-sess\"\nprovider = \"sess\"\nmodel = \"m-up\"\n\n",
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "m-up"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "session-id": {
+          "absent": true
+        },
+        "thread-id": {
+          "absent": true
+        },
+        "x-affinity": "sess-thread-1"
+      },
+      "path": "/chat/completions"
+    }
+  },
+  "name": "m4_session_native_configured_order",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "m-sess"
+    },
+    "headers": {
+      "Session-Id": "sess-codex-1",
+      "Thread-Id": "sess-thread-1"
+    },
+    "method": "POST",
+    "path": "/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hello",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-s",
+      "model": "m",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 2,
+        "total_tokens": 3
+      }
+    }
+  }
+}

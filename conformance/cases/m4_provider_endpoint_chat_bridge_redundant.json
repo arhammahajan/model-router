@@ -1,0 +1,76 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"upstream-secret\"\ntimeout = 11\n[providers.chatup.litellm_kwargs]\napi_base = \"{UPSTREAM}/v1/chat/completions\"\ntimeout = 11\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "gpt-4o-mini"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "anthropic-beta": {
+          "absent": true
+        },
+        "authorization": "Bearer upstream-secret",
+        "openai-beta": "assistants=v2",
+        "x-api-key": {
+          "absent": true
+        }
+      },
+      "path": "/v1/chat/completions",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "m4_provider_endpoint_chat_bridge_redundant",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-chat"
+    },
+    "headers": {
+      "Anthropic-Beta": "prompt-caching-2024-07-31",
+      "Openai-Beta": "assistants=v2"
+    },
+    "method": "POST",
+    "path": "/v1/messages"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hello",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-1",
+      "model": "gpt-4o-mini",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 7,
+        "total_tokens": 10
+      }
+    }
+  }
+}

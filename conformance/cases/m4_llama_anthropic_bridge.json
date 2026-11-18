@@ -1,0 +1,90 @@
+{
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+ "upstream": {
+  "sequence": [
+   {
+    "raw_body": {
+     "status": "ok"
+    }
+   },
+   {
+    "raw_body": {
+     "data": [
+      {
+       "id": "llama-test",
+       "metadata": {}
+      }
+     ]
+    }
+   },
+   {
+    "raw_body": {}
+   },
+   {
+    "raw_body": {
+     "id": "chatcmpl-1",
+     "object": "chat.completion",
+     "created": 1,
+     "model": "llama-test",
+     "choices": [
+      {
+       "index": 0,
+       "finish_reason": "stop",
+       "message": {
+        "role": "assistant",
+        "content": "hello"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 7,
+      "completion_tokens": 3,
+      "total_tokens": 10
+     }
+    }
+   }
+  ]
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/messages",
+  "body": {
+   "model": "llama-test",
+   "max_tokens": 16,
+   "messages": [
+    {
+     "role": "user",
+     "content": "Hi"
+    }
+   ]
+  }
+ },
+ "expect": {
+  "status": 200,
+  "upstream": {
+   "exact_requests": 4,
+   "path": "/v1/chat/completions",
+   "query": "",
+   "query_absent": [
+    "key"
+   ],
+   "headers": {
+    "authorization": "Bearer fake"
+   },
+   "body": {
+    "paths": {
+     "model": "llama-test"
+    }
+   }
+  },
+  "client_body": {
+   "paths": {
+    "content.0.text": "hello",
+    "stop_reason": "end_turn",
+    "type": "message",
+    "model": "llama-test"
+   }
+  }
+ },
+ "name": "m4_llama_anthropic_bridge"
+}

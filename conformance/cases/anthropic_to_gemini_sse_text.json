@@ -1,0 +1,59 @@
+{
+  "name": "anthropic_to_gemini_sse_text",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "stream": true
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "sse_frames": [
+      "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hel\"}],\"role\":\"model\"},\"index\":0}],\"modelVersion\":\"gemini-2.0-flash\",\"responseId\":\"resp_gem_9\"}\n\n",
+      "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"lo\"}],\"role\":\"model\"},\"index\":0,\"finishReason\":\"STOP\"}],\"modelVersion\":\"gemini-2.0-flash\",\"responseId\":\"resp_gem_9\",\"usageMetadata\":{\"promptTokenCount\":12,\"candidatesTokenCount\":3,\"totalTokenCount\":15}}\n\n"
+    ]
+  },
+  "expect": {
+    "status": 200,
+    "client_text_contains": [
+      "event: message_start",
+      "\"input_tokens\":0",
+      "event: content_block_start",
+      "text_delta",
+      "event: message_delta",
+      "\"stop_reason\":\"end_turn\"",
+      "\"output_tokens\":3",
+      "event: message_stop"
+    ],
+    "client_text_absent": [
+      "[DONE]"
+    ],
+    "sse": {
+      "integrity": "anthropic"
+    },
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:streamGenerateContent",
+      "exact_requests": 1,
+      "query": "alt=sse",
+      "body": {
+        "paths": {
+          "contents.0.parts.0.text": "Hi"
+        },
+        "absent": [
+          "model",
+          "stream"
+        ]
+      }
+    }
+  }
+}

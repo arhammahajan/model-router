@@ -1,0 +1,31 @@
+{
+  "_comment": "Disabled routes are excluded from the listing even with a valid override entry; every config entry still validates. Baseline rejects [capabilities] at startup.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[[models]]\nname = \"m-off\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\nenabled = false\n\n[capabilities.overrides.\"m-a\".tools]\nsupported = true\n\n[capabilities.overrides.\"m-off\".reasoning]\nsupported = true\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.metadata.router.tools.supported.kind": "override",
+        "data.0.metadata.router.tools.supported.source": "override.tools.supported",
+        "data.0.metadata.router.tools.supported.value": true,
+        "data.0.owned_by": "model-router"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_capability_override_disabled_excluded",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

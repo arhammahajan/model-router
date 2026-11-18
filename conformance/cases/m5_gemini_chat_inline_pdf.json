@@ -1,0 +1,121 @@
+{
+  "name": "m5_gemini_chat_inline_pdf",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"gem-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-up",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "gpt-4o-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10,
+        "prompt_tokens_details": {
+          "cached_tokens": 2
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1
+        }
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-chat:generateContent",
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Before"
+            },
+            {
+              "inlineData": {
+                "mimeType": "application/pdf",
+                "data": "eA==",
+                "displayName": "a b.pdf"
+              }
+            },
+            {
+              "text": "After"
+            }
+          ]
+        }
+      ],
+      "systemInstruction": {
+        "parts": [
+          {
+            "text": "Be brief."
+          }
+        ]
+      },
+      "generationConfig": {
+        "candidateCount": 1,
+        "maxOutputTokens": 16,
+        "temperature": 0.5,
+        "topP": 0.9
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret"
+      },
+      "body": {
+        "paths": {
+          "model": "gpt-4o-mini",
+          "messages.0.content": "Be brief.",
+          "max_tokens": 16,
+          "temperature": 0.5,
+          "top_p": 0.9,
+          "messages.1.content.0.type": "text",
+          "messages.1.content.0.text": "Before",
+          "messages.1.content.1.type": "file",
+          "messages.1.content.1.file.file_data": "data:application/pdf;base64,eA==",
+          "messages.1.content.1.file.filename": "a b.pdf",
+          "messages.1.content.2.type": "text",
+          "messages.1.content.2.text": "After"
+        },
+        "absent": [
+          "contents",
+          "systemInstruction",
+          "generationConfig"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "usageMetadata.promptTokenCount": 7,
+        "usageMetadata.candidatesTokenCount": 2,
+        "usageMetadata.totalTokenCount": 10,
+        "usageMetadata.cachedContentTokenCount": 2,
+        "usageMetadata.thoughtsTokenCount": 1,
+        "responseId": "chatcmpl-up",
+        "modelVersion": "gem-chat"
+      }
+    },
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    }
+  }
+}

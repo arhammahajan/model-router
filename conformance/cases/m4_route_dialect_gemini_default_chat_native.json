@@ -1,0 +1,82 @@
+{
+  "_comment": "TDD M4 slice: per-route dialect override. Current Go build rejects explicit different dialect at --validate-config (milestone 4+); HTTP expectations below describe the contracted egress (provider-owned auth, dest-keyed URL/headers/classification). Native forwarding rewrites the public rd-chat alias to llama3.1; assert that model and the complete messages array instead of equality with the public request.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"rd-chat\"\nprovider = \"gem\"\nmodel = \"llama3.1\"\ndialect = \"openai-chat\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "ok"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "headers": {
+        "authorization": {
+          "absent": true
+        },
+        "x-api-key": {
+          "absent": true
+        },
+        "x-goog-api-key": "gem-secret"
+      },
+      "path": "/v1/chat/completions",
+      "query": "",
+      "query_absent": [
+        "key"
+      ],
+      "body": {
+        "paths": {
+          "model": "llama3.1",
+          "messages": [
+            {
+              "content": "Hi",
+              "role": "user"
+            }
+          ]
+        }
+      },
+      "exact_requests": 1
+    }
+  },
+  "name": "m4_route_dialect_gemini_default_chat_native",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "rd-chat"
+    },
+    "headers": {
+      "Authorization": "Bearer evil-client-key",
+      "X-Api-Key": "evil-client-key",
+      "X-Goog-Api-Key": "evil-client-key"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions?key=evil-client-key"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "ok",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-9",
+      "model": "llama3.1",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 2,
+        "total_tokens": 3
+      }
+    }
+  }
+}

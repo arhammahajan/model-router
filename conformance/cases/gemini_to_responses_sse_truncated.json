@@ -1,0 +1,56 @@
+{
+  "_comment": "Gemini->Responses contract. Post-commit truncation toward Gemini SSE: upstream Responses SSE ends after a partial text delta with no terminal usage. The router holds HTTP 200 and emits one native sanitized error frame, with no Gemini terminal and no [DONE].",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\n\n[[models]]\nname = \"gem-resp\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_text_absent": [
+      "\"finishReason\"",
+      "[DONE]",
+      "Traceback"
+    ],
+    "client_text_contains": [
+      "\"text\":\"hel\"",
+      "error"
+    ],
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "gpt-4.1",
+          "stream": true
+        }
+      },
+      "exact_requests": 1,
+      "path": "/v1/responses"
+    }
+  },
+  "name": "gemini_to_responses_sse_truncated",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 1
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-resp:streamGenerateContent?alt=sse"
+  },
+  "upstream": {
+    "sse_frames": [
+      "event: response.created\ndata: {\"type\": \"response.created\", \"response\": {\"id\": \"resp_up\", \"object\": \"response\", \"created_at\": 1, \"status\": \"in_progress\", \"model\": \"gpt-4.1\", \"output\": []}, \"sequence_number\": 0}\n\n",
+      "event: response.in_progress\ndata: {\"type\": \"response.in_progress\", \"response\": {\"id\": \"resp_up\", \"object\": \"response\", \"created_at\": 1, \"status\": \"in_progress\", \"model\": \"gpt-4.1\", \"output\": []}, \"sequence_number\": 1}\n\n",
+      "event: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"id\":\"msg_up\",\"type\":\"message\",\"status\":\"in_progress\",\"role\":\"assistant\",\"content\":[]},\"sequence_number\":2}\n\n",
+      "event: response.content_part.added\ndata: {\"type\": \"response.content_part.added\", \"item_id\": \"msg_up\", \"output_index\": 0, \"content_index\": 0, \"part\": {\"type\": \"output_text\", \"text\": \"\"}, \"sequence_number\": 3}\n\n",
+      "event: response.output_text.delta\ndata: {\"type\": \"response.output_text.delta\", \"item_id\": \"msg_up\", \"output_index\": 0, \"content_index\": 0, \"delta\": \"hel\", \"sequence_number\": 4}\n\n"
+    ],
+    "status": 200
+  }
+}

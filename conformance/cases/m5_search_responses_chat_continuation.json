@@ -1,0 +1,135 @@
+{
+  "name": "m5_search_responses_chat_continuation",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\ncompatibility = \"lossy\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n\n[search.backends.internal]\nendpoint = \"{UPSTREAM}\"\ncount = 2\n\n[search.bindings.\"bridge-resp\"]\ntool = \"web_search_preview\"\nbackend = \"internal\"\n",
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "id": "chatcmpl-first",
+          "object": "chat.completion",
+          "created": 1,
+          "model": "up",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [
+                  {
+                    "id": "search:opaque 7",
+                    "type": "function",
+                    "function": {
+                      "name": "router_web_search",
+                      "arguments": "{\"query\":\"public \\u0065xample\"}"
+                    }
+                  }
+                ]
+              },
+              "finish_reason": "tool_calls"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 7,
+            "completion_tokens": 3,
+            "total_tokens": 10
+          }
+        }
+      },
+      {
+        "raw_body": {
+          "results": [
+            {
+              "url": "https://example.invalid/source",
+              "title": "Verified source",
+              "content": "A snippet from the source."
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "id": "chatcmpl-final",
+          "object": "chat.completion",
+          "created": 1,
+          "model": "up",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "📝 [S1] [S9]"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 11,
+            "completion_tokens": 5,
+            "total_tokens": 16
+          }
+        }
+      }
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/responses",
+    "body": {
+      "model": "bridge-resp",
+      "input": "Find a public example.",
+      "tools": [
+        {
+          "type": "web_search_preview"
+        }
+      ],
+      "include": [
+        "web_search_call.action.sources"
+      ],
+      "max_output_tokens": 16
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "present": true
+      }
+    },
+    "upstream": {
+      "exact_requests": 3,
+      "path": "/chat/completions",
+      "body": {
+        "paths": {
+          "messages.1.tool_calls.0.id": "search:opaque 7",
+          "messages.2.tool_call_id": "search:opaque 7",
+          "messages.2.role": "tool",
+          "tool_choice": "none",
+          "max_tokens": 13,
+          "messages.1.tool_calls.0.function.arguments": "{\"query\":\"public \\u0065xample\"}"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "model": "bridge-resp",
+        "tools.0.type": "web_search_preview",
+        "output.0.type": "web_search_call",
+        "output.0.action.type": "search",
+        "output.0.action.query": "public example",
+        "output.0.action.sources.0.type": "url",
+        "output.0.action.sources.0.url": "https://example.invalid/source",
+        "output.1.content.0.annotations.0.type": "url_citation",
+        "output.1.content.0.annotations.0.url": "https://example.invalid/source",
+        "output.1.content.0.annotations.0.start_index": 2,
+        "output.1.content.0.annotations.0.end_index": 6,
+        "usage.input_tokens": 18,
+        "usage.output_tokens": 8,
+        "usage.total_tokens": 26
+      },
+      "absent": [
+        "output.1.content.0.annotations.1"
+      ]
+    }
+  }
+}

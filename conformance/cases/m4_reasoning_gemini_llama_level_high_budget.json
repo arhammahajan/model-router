@@ -1,0 +1,112 @@
+{
+  "_comment": "M4 Gemini-request reasoning: thinkingLevel HIGH to known LlamaCpp maps via the named-level table to thinking_budget_tokens 16384 (not via explicit-budget gates). Future-expected (source: HEAD LLAMA_THINKING_BUDGETS high=16384 + reasoning.py llama level branch). RED on baseline: strict 400 TRANSLATION_LOSS after 3 probes.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[llama_cpp]\ntimeout = 2\nrefresh_seconds = 0\nprefix = \"\"\naliases = true\ncompatibility = \"strict\"\nservers = [{url=\"{UPSTREAM}\", name=\"localup\", api_key=\"fake\"}]\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "modelVersion": "llama-test",
+        "responseId": "chatcmpl-1",
+        "usageMetadata.candidatesTokenCount": 1,
+        "usageMetadata.promptTokenCount": 2,
+        "usageMetadata.totalTokenCount": 3
+      }
+    },
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "absent": [
+          "contents",
+          "generationConfig",
+          "reasoning",
+          "reasoning_effort",
+          "chat_template_kwargs"
+        ],
+        "paths": {
+          "model": "llama-test",
+          "thinking_budget_tokens": 16384
+        }
+      },
+      "exact_requests": 4,
+      "headers": {
+        "authorization": "Bearer fake"
+      },
+      "path": "/v1/chat/completions"
+    }
+  },
+  "name": "m4_reasoning_gemini_llama_level_high_budget",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "thinkingConfig": {
+          "thinkingLevel": "HIGH"
+        }
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/llama-test:generateContent"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "status": "ok"
+        }
+      },
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "llama-test",
+              "metadata": {}
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "build_info": "llama.cpp b1234"
+        }
+      },
+      {
+        "raw_body": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "content": "hello",
+                "role": "assistant"
+              }
+            }
+          ],
+          "created": 1,
+          "id": "chatcmpl-1",
+          "model": "llama-test",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 2,
+            "total_tokens": 3
+          }
+        }
+      }
+    ]
+  }
+}

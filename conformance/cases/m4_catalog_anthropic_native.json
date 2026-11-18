@@ -1,0 +1,83 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anthup]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nheaders = { \"X-Catalog-Token\" = \"cat-secret\" }\n\n[catalog.model_providers]\n\"cat-anth\" = \"anthup\"\n\n",
+  "upstream": {
+    "sequence": [
+      {
+        "raw_body": {
+          "data": [
+            {
+              "id": "cat-anth",
+              "metadata": {
+                "origin": "fixture"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "raw_body": {
+          "id": "msg_1",
+          "type": "message",
+          "role": "assistant",
+          "model": "m",
+          "content": [
+            {
+              "type": "text",
+              "text": "hello"
+            }
+          ],
+          "stop_reason": "end_turn",
+          "usage": {
+            "input_tokens": 7,
+            "output_tokens": 3
+          }
+        }
+      }
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "headers": {
+      "X-Api-Key": "evil-client-key"
+    },
+    "body": {
+      "model": "cat-anth",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 2,
+      "path": "/v1/messages",
+      "headers": {
+        "x-api-key": "upstream-secret",
+        "authorization": {
+          "absent": true
+        },
+        "x-catalog-token": {
+          "absent": true
+        },
+        "anthropic-version": "2023-06-01"
+      },
+      "body": {
+        "paths": {
+          "model": "cat-anth"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello"
+      }
+    }
+  },
+  "name": "m4_catalog_anthropic_native"
+}

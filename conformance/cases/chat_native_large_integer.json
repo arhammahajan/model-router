@@ -1,0 +1,58 @@
+{
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.local]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"local-secret\"\n\n[[models]]\nname = \"native-llama\"\nprovider = \"local\"\nmodel = \"llama3.1\"\n",
+ "expect": {
+  "status": 200,
+  "upstream": {
+   "body": {
+    "paths": {
+     "model": "llama3.1",
+     "mystery_field.nested.0": 9007199254740993
+    }
+   },
+   "exact_requests": 1,
+   "path": "/v1/chat/completions"
+  }
+ },
+ "name": "chat_native_large_integer",
+ "request": {
+  "body": {
+   "messages": [
+    {
+     "content": "Hi",
+     "role": "user"
+    }
+   ],
+   "model": "native-llama",
+   "mystery_field": {
+    "nested": [
+     9007199254740993
+    ]
+   }
+  },
+  "method": "POST",
+  "path": "/v1/chat/completions"
+ },
+ "upstream": {
+  "raw_body": {
+   "choices": [
+    {
+     "finish_reason": "stop",
+     "index": 0,
+     "message": {
+      "content": "ok",
+      "role": "assistant"
+     }
+    }
+   ],
+   "created": 1,
+   "id": "chatcmpl-9",
+   "model": "llama3.1",
+   "object": "chat.completion",
+   "usage": {
+    "completion_tokens": 1,
+    "prompt_tokens": 2,
+    "total_tokens": 3
+   }
+  }
+ }
+}

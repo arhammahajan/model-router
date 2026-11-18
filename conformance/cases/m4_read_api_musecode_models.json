@@ -1,0 +1,39 @@
+{
+  "_comment": "TDD M4 read slice: Muse catalog projects cached inventory; unknown limits fall back to 128000/16384; known effort values become variants with default high; unknown effort stays variant-free. RED on baseline (no muse-code route).",
+  "name": "m4_read_api_musecode_models",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[capabilities.overrides.\"m-a\".reasoning]\nsupported = true\n\n[capabilities.overrides.\"m-a\".reasoning.effort]\nsupported = true\nvalues = [\"low\", \"high\"]\n\n[[models]]\nname = \"m-b\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "raw_body": {}
+  },
+  "request": {
+    "method": "GET",
+    "path": "/muse-code/models"
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    },
+    "client_body": {
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.muse-code.limit.context": 128000,
+        "data.0.metadata.muse-code.limit.output": 16384,
+        "data.0.metadata.muse-code.reasoning": true,
+        "data.0.metadata.muse-code.variants.low.reasoningEffort": "low",
+        "data.0.metadata.muse-code.variants.high.reasoningEffort": "high",
+        "data.0.metadata.muse-code.options.reasoningEffort": "high",
+        "data.1.id": "m-b",
+        "data.1.metadata.muse-code.limit.context": 128000,
+        "data.1.metadata.muse-code.limit.output": 16384,
+        "data.1.metadata.muse-code.reasoning": false,
+        "first_id": "m-a",
+        "last_id": "m-b"
+      },
+      "absent": [
+        "data.2",
+        "data.1.metadata.muse-code.variants"
+      ]
+    }
+  }
+}

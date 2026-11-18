@@ -1,0 +1,66 @@
+{
+  "_comment": "GREEN baseline control: flag false ignores effort carrier without error; header always transport-stripped; native body byte parity.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"gem-flash\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "headers": {
+        "x-goog-api-key": "gem-secret",
+        "x-model-router-reasoning-effort": {
+          "absent": true
+        }
+      },
+      "json_equal_request": true
+    }
+  },
+  "name": "m4_compat_off_gemini_effort_stripped",
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-flash:generateContent",
+    "headers": {
+      "X-Model-Router-Reasoning-Effort": "low"
+    },
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ]
+        }
+      ],
+      "mystery_field": {
+        "nested": [
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "ok"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "candidatesTokenCount": 1,
+        "promptTokenCount": 2
+      }
+    }
+  }
+}

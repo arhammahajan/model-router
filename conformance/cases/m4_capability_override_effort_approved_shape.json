@@ -1,0 +1,35 @@
+{
+  "_comment": "Approved effort shape: values/default/native_parameter validated together (default inside values, known protocol). Baseline rejects [capabilities] at startup.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[capabilities.overrides.\"m-a\".reasoning.effort]\nsupported = true\nvalues = [\"low\", \"high\"]\ndefault = \"high\"\nnative_parameter = { protocol = \"openai-chat\", path = \"reasoning_effort\" }\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.1"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.reasoning.effort.default.kind": "override",
+        "data.0.metadata.router.reasoning.effort.default.source": "override.reasoning.effort.default",
+        "data.0.metadata.router.reasoning.effort.default.value": "high",
+        "data.0.metadata.router.reasoning.effort.native_parameter.value.path": "reasoning_effort",
+        "data.0.metadata.router.reasoning.effort.native_parameter.value.protocol": "openai-chat",
+        "data.0.metadata.router.reasoning.effort.supported.value": true,
+        "data.0.metadata.router.reasoning.effort.values.value.0": "low",
+        "data.0.metadata.router.reasoning.effort.values.value.1": "high",
+        "data.0.metadata.router.schema_version": 1
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    }
+  },
+  "name": "m4_capability_override_effort_approved_shape",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {}
+  }
+}

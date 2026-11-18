@@ -1,0 +1,43 @@
+{
+ "config": "[server]\nauth_mode = \"required\"\napi_keys = [\"client-secret\"]\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\naliases = [\"m-alias\"]\n",
+ "expect": {
+  "client_body": {
+   "absent": [
+    "discovery_cache.expired_sources"
+   ],
+   "paths": {
+    "discovery_cache.enabled": false,
+    "discovery_cache.load": "disabled",
+    "discovery_cache.write_error": null,
+    "models": 1,
+    "provider_details.0.enabled_routes": 2,
+    "provider_details.0.name": "chatup",
+    "provider_details.0.reachability": "unprobed",
+    "providers": 1,
+    "readiness.enabled_routes": 2,
+    "readiness.status": "ready",
+    "readiness.usable_routes": 2,
+    "status": "ok"
+   }
+  },
+  "client_text_absent": [
+   "client-secret",
+   "upstream-secret"
+  ],
+  "status": 200,
+  "upstream": {
+   "exact_requests": 0
+  }
+ },
+ "name": "m4_ops_diagnostics_authorized_x_api_key",
+ "request": {
+  "headers": {
+   "x-api-key": "client-secret"
+  },
+  "method": "GET",
+  "path": "/diagnostics"
+ },
+ "upstream": {
+  "raw_body": {}
+ }
+}

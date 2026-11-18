@@ -1,0 +1,53 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "type": "error"
+      }
+    },
+    "status": 502,
+    "upstream": {
+      "path": "/chat/completions"
+    }
+  },
+  "name": "anthropic_to_chat_unknown_response",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-chat"
+    },
+    "method": "POST",
+    "path": "/v1/messages"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hi",
+            "logprobs": {},
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "c",
+      "model": "m",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 1,
+        "total_tokens": 2
+      }
+    }
+  }
+}

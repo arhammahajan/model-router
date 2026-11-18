@@ -1,0 +1,73 @@
+{
+ "name": "response_ir_chat_stream_malformed_gemini",
+ "_comment": "Malformed tool arguments toward Gemini SSE: the model-generated invalid call is honestly reported as the native MALFORMED_FUNCTION_CALL terminal (HTTP 200) with authoritative usage. No ordinary STOP and no fabricated functionCall success.",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"gem-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "upstream": {
+  "status": 200,
+  "sse_frames": [
+   "data: {\"id\":\"chatcmpl-umalf\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n",
+   "data: {\"id\":\"chatcmpl-umalf\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_bad_1\",\"type\":\"function\",\"function\":{\"name\":\"get_time\",\"arguments\":\"not-json{{{\"}}]},\"finish_reason\":null}]}\n\n",
+   "data: {\"id\":\"chatcmpl-umalf\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n",
+   "data: {\"id\":\"chatcmpl-umalf\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o-mini\",\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n",
+   "data: [DONE]\n\n"
+  ]
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1beta/models/gem-chat:streamGenerateContent?alt=sse",
+  "body": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "What time?"
+      }
+     ]
+    }
+   ],
+   "tools": [
+    {
+     "functionDeclarations": [
+      {
+       "name": "get_time",
+       "parametersJsonSchema": {
+        "type": "object"
+       }
+      }
+     ]
+    }
+   ],
+   "generationConfig": {
+    "candidateCount": 1
+   }
+  }
+ },
+ "expect": {
+  "status": 200,
+  "client_text_contains": [
+   "\"finishReason\":\"MALFORMED_FUNCTION_CALL\"",
+   "\"promptTokenCount\":7"
+  ],
+  "client_text_absent": [
+   "\"functionCall\"",
+   "\"finishReason\":\"STOP\"",
+   "[DONE]",
+   "Traceback"
+  ],
+  "upstream": {
+   "path": "/chat/completions",
+   "exact_requests": 1,
+   "query": "",
+   "body": {
+    "paths": {
+     "stream": true,
+     "model": "gpt-4o-mini"
+    }
+   }
+  },
+  "sse": {
+   "integrity": "gemini"
+  }
+ }
+}

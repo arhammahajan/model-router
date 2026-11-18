@@ -1,0 +1,52 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "client_text_absent": [
+      "[DONE]"
+    ],
+    "client_text_contains": [
+      "event: message_start",
+      "\"input_tokens\":0",
+      "event: content_block_start",
+      "text_delta",
+      "event: message_delta",
+      "\"stop_reason\":\"end_turn\"",
+      "event: message_stop"
+    ],
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "stream": true
+        }
+      },
+      "path": "/chat/completions"
+    }
+  },
+  "name": "anthropic_to_chat_sse_text",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-chat",
+      "stream": true
+    },
+    "method": "POST",
+    "path": "/v1/messages"
+  },
+  "upstream": {
+    "sse_frames": [
+      "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\n",
+      "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\n",
+      "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+      "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":7,\"total_tokens\":19}}\n\n",
+      "data: [DONE]\n\n"
+    ],
+    "status": 200
+  }
+}

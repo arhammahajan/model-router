@@ -1,0 +1,74 @@
+{
+  "_comment": "Opt-in review, gemini representative gemini-4-argon: frozen audio/video/pdf input facts. REDs before impl: startup rejects metadata_source.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gemup]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"gemup\"\nmodel = \"gemini-2.0-flash\"\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nmetadata_source = \"opencode-go-v1\"\n\n[catalog.model_providers]\n\"gemini-4-argon\" = \"gemup\"\n",
+  "expect": {
+    "client_body": {
+      "absent": [
+        "data.2"
+      ],
+      "paths": {
+        "data.0.id": "m-a",
+        "data.0.metadata.router.freshness.discovery.stale": null,
+        "data.0.metadata.router.reasoning.supported.value": null,
+        "data.0.metadata.router.schema_version": 1,
+        "data.0.object": "model",
+        "data.0.owned_by": "model-router",
+        "data.1.id": "gemini-4-argon",
+        "data.1.metadata.router.freshness.discovery.stale": false,
+        "data.1.metadata.router.limits.context_window.value": 1048576,
+        "data.1.metadata.router.limits.max_output_tokens.value": 65536,
+        "data.1.metadata.router.modalities.input.audio.kind": "reviewed",
+        "data.1.metadata.router.modalities.input.audio.source": "go.review.modalities.input.audio",
+        "data.1.metadata.router.modalities.input.audio.value": true,
+        "data.1.metadata.router.modalities.input.pdf.value": true,
+        "data.1.metadata.router.modalities.input.video.value": true,
+        "data.1.metadata.router.reasoning.effort.values.value": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "data.1.metadata.router.reasoning.supported.kind": "reviewed",
+        "data.1.metadata.router.reasoning.supported.source": "go.review.reasoning.supported",
+        "data.1.metadata.router.reasoning.supported.value": true,
+        "data.1.metadata.router.sampling.temperature.supported.value": false,
+        "data.1.metadata.router.schema_version": 1,
+        "data.1.metadata.router.sources": {
+          "__contains__": "\"go.review\""
+        },
+        "data.1.metadata.router.sources.catalog.stale": false,
+        "data.1.metadata.router.sources.catalog.verification": "availability only",
+        "data.1.object": "model",
+        "data.1.owned_by": "model-router",
+        "object": "list"
+      }
+    },
+    "client_text_contains": [
+      "\"model_source\":\"https://github.com/anomalyco/models.dev/blob/205c4d569b6670625f845d018429847f5dea7e3e/providers/opencode-go/models/gemini-4-argon.toml\"",
+      "\"stale_after_seconds\":2592000",
+      "\"retrieved_at\":1792957518",
+      "\"applicable\":true"
+    ],
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    }
+  },
+  "name": "m4_catalog_capability_gemini_known_reviewed",
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "gemini-4-argon",
+          "metadata": {
+            "label": "c1"
+          }
+        }
+      ]
+    }
+  }
+}

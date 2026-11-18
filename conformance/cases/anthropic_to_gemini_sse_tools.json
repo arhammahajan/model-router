@@ -1,0 +1,58 @@
+{
+  "name": "anthropic_to_gemini_sse_tools",
+  "_comment": "Upstream Gemini SSE carries text plus one complete functionCall; downstream Anthropic block 1 input reassembles exactly via joined_tool_args (chunking-independent).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 64,
+      "messages": [
+        {
+          "role": "user",
+          "content": "What time?"
+        }
+      ],
+      "tools": [
+        {
+          "name": "get_time",
+          "input_schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "stream": true
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "sse_frames": [
+      "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Working\"}],\"role\":\"model\"},\"index\":0}],\"modelVersion\":\"gemini-2.0-flash\",\"responseId\":\"resp_gem_9\"}\n\n",
+      "data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"get_time\",\"id\":\"fc_gem_9\",\"args\":{\"tz\":\"UTC\",\"n\":9007199254740993}}}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"modelVersion\":\"gemini-2.0-flash\",\"responseId\":\"resp_gem_9\",\"usageMetadata\":{\"promptTokenCount\":12,\"candidatesTokenCount\":7,\"totalTokenCount\":19}}\n\n"
+    ]
+  },
+  "expect": {
+    "status": 200,
+    "client_text_contains": [
+      "\"id\":\"fc_gem_9\"",
+      "\"name\":\"get_time\"",
+      "\"stop_reason\":\"tool_use\"",
+      "event: message_stop"
+    ],
+    "client_text_absent": [
+      "[DONE]"
+    ],
+    "sse": {
+      "integrity": "anthropic",
+      "joined_tool_args": {
+        "1": "{\"tz\":\"UTC\",\"n\":9007199254740993}"
+      }
+    },
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:streamGenerateContent",
+      "exact_requests": 1,
+      "query": "alt=sse"
+    }
+  }
+}

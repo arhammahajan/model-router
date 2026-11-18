@@ -1,0 +1,85 @@
+{
+  "_comment": "TDD M4 slice: per-route dialect override. Current Go build rejects explicit different dialect at --validate-config (milestone 4+); HTTP expectations below describe the contracted egress (provider-owned auth, dest-keyed URL/headers/classification).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"anth-secret\"\n\n[[models]]\nname = \"rd-chat\"\nprovider = \"anth\"\nmodel = \"gpt-4o-mini\"\ndialect = \"openai-chat\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello",
+        "model": "rd-chat",
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage.input_tokens": 7,
+        "usage.output_tokens": 3
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "absent": [
+          "stream_options"
+        ],
+        "paths": {
+          "model": "gpt-4o-mini"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": {
+          "absent": true
+        },
+        "x-api-key": "anth-secret",
+        "x-goog-api-key": {
+          "absent": true
+        }
+      },
+      "path": "/chat/completions",
+      "query": "",
+      "query_absent": [
+        "key"
+      ]
+    }
+  },
+  "name": "m4_route_dialect_anthropic_default_chat_native",
+  "request": {
+    "body": {
+      "max_tokens": 16,
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "rd-chat"
+    },
+    "headers": {
+      "Authorization": "Bearer evil-client-key",
+      "X-Api-Key": "evil-client-key",
+      "X-Goog-Api-Key": "evil-client-key"
+    },
+    "method": "POST",
+    "path": "/v1/messages?key=evil-client-key"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hello",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-1",
+      "model": "gpt-4o-mini",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 7,
+        "total_tokens": 10
+      }
+    }
+  }
+}

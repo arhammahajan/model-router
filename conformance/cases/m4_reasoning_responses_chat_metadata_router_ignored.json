@@ -1,0 +1,73 @@
+{
+  "_comment": "TDD M4 reverse named-effort slice: raw model metadata.router is never a capability fact, so an injected effort.supported=false is ignored; with no override the caps are unknown-neutral and the literal passes exactly. Future-expected (source: snapshot trusted base only). RED on baseline: hard refusal 400, zero upstream IO.",
+  "name": "m4_reasoning_responses_chat_metadata_router_ignored",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\nmetadata = { label = \"kept\", router = { reasoning = { effort = { supported = false } } } }\n",
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-up",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "gpt-4o-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/responses",
+    "body": {
+      "model": "bridge-resp",
+      "input": "Hi",
+      "reasoning": {
+        "effort": "low"
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret"
+      },
+      "body": {
+        "absent": [
+          "reasoning"
+        ],
+        "paths": {
+          "model": "gpt-4o-mini",
+          "messages.0.content": "Hi",
+          "reasoning_effort": "low"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "status": "completed",
+        "output.0.content.0.text": "hello",
+        "usage.total_tokens": 10,
+        "usage.input_tokens": 7,
+        "usage.output_tokens": 3
+      }
+    }
+  }
+}

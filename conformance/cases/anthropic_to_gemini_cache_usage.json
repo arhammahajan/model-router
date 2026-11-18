@@ -1,0 +1,77 @@
+{
+  "name": "anthropic_to_gemini_cache_usage",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 16,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "hello"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_1",
+      "usageMetadata": {
+        "promptTokenCount": 12,
+        "cachedContentTokenCount": 4,
+        "candidatesTokenCount": 3,
+        "totalTokenCount": 15
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "headers": {
+        "x-goog-api-key": "gem-secret",
+        "authorization": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "contents.0.parts.0.text": "Hi"
+        },
+        "absent": [
+          "model",
+          "stream"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.text": "hello",
+        "stop_reason": "end_turn",
+        "model": "bridge-gem",
+        "usage.input_tokens": 8,
+        "usage.cache_read_input_tokens": 4,
+        "usage.output_tokens": 3
+      }
+    }
+  },
+  "_comment": "Gemini prompt includes cached tokens: 12 prompt minus 4 cache maps to Anthropic input 8 plus cache_read 4. Optional zero cache-creation fields need not be materialized."
+}

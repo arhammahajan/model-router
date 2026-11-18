@@ -1,0 +1,88 @@
+{
+  "_comment": "GREEN baseline control: flag false + ordinary credential leaves unmarked Chat body byte-semantically identical; bigint/unknown preserved; no merge.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = false\n\n[retry]\nmax_attempts = 1\n\n[providers.sess]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\n\n[[models]]\nname = \"m-sess\"\nprovider = \"sess\"\nmodel = \"m-up\"\n",
+  "expect": {
+    "status": 200,
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret",
+        "x-affinity": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "model": "m-up",
+          "messages.0.content": "First",
+          "messages.2.content": "Hi",
+          "mystery_big": 9007199254740993,
+          "mystery_obj.nested.2": 3
+        },
+        "absent": []
+      }
+    }
+  },
+  "name": "m4_compat_off_chat_unmarked_bigint",
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "headers": {
+      "Authorization": "Bearer sk-ordinary-client-key"
+    },
+    "body": {
+      "model": "m-sess",
+      "messages": [
+        {
+          "role": "system",
+          "content": "First"
+        },
+        {
+          "role": "system",
+          "content": "Second"
+        },
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "mystery_big": 9007199254740993,
+      "mystery_obj": {
+        "nested": [
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-s",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "m-up",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  }
+}

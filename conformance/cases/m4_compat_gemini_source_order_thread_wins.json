@@ -1,0 +1,85 @@
+{
+  "_comment": "F7 compat configured source order thread-id beats session-id beats fallback. RED via --validate-config.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = true\n\n[retry]\nmax_attempts = 1\n\n[providers.sess]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\nsession_source_headers = [\"thread-id\", \"session-id\"]\n\n[[models]]\nname = \"gem-chat\"\nprovider = \"sess\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "status": 200,
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "modelVersion": "gem-chat",
+        "responseId": "chatcmpl-up",
+        "usageMetadata.promptTokenCount": 7,
+        "usageMetadata.candidatesTokenCount": 3,
+        "usageMetadata.totalTokenCount": 10
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret",
+        "x-affinity": "sess-thread-1",
+        "thread-id": {
+          "absent": true
+        },
+        "session-id": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "model": "gpt-4o-mini"
+        },
+        "absent": [
+          "sessionId"
+        ]
+      }
+    }
+  },
+  "name": "m4_compat_gemini_source_order_thread_wins",
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-chat:generateContent",
+    "headers": {
+      "Authorization": "Bearer router-session-123e4567-e89b-42d3-a456-426614174000",
+      "Thread-Id": "sess-thread-1",
+      "Session-Id": "sess-codex-1"
+    },
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-up",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "gpt-4o-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  }
+}

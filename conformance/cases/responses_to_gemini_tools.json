@@ -1,0 +1,130 @@
+{
+  "_comment": "Responses->Gemini contract. Ordinary function tools: explicit strict:false, named ANY choice, exact bigint args, call identity, string tool result preserved exactly as functionResponse.response.output.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "output.0.arguments": {
+          "__contains__": "9007199254740993"
+        },
+        "output.0.call_id": "call_up",
+        "output.0.name": "get_time",
+        "output.0.type": "function_call",
+        "status": "completed",
+        "tool_choice.name": "get_time",
+        "tool_choice.type": "function",
+        "tools.0.name": "get_time",
+        "tools.0.type": "function"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "absent": [
+          "model",
+          "stream"
+        ],
+        "paths": {
+          "contents.0.parts.0.text": "What time?",
+          "contents.1.parts.0.functionCall.args.n": 9007199254740993,
+          "contents.1.parts.0.functionCall.id": "call_1",
+          "contents.1.parts.0.functionCall.name": "get_time",
+          "contents.2.parts.0.functionResponse.id": "call_1",
+          "contents.2.parts.0.functionResponse.name": "get_time",
+          "contents.2.parts.0.functionResponse.response.output": "noon",
+          "toolConfig.functionCallingConfig.allowedFunctionNames.0": "get_time",
+          "toolConfig.functionCallingConfig.mode": "ANY",
+          "tools.0.functionDeclarations.0.description": "clock",
+          "tools.0.functionDeclarations.0.name": "get_time",
+          "tools.0.functionDeclarations.0.parametersJsonSchema.properties.tz.type": "string"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": {
+          "absent": true
+        },
+        "x-goog-api-key": "gem-secret"
+      },
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent"
+    }
+  },
+  "name": "responses_to_gemini_tools",
+  "request": {
+    "body": {
+      "input": [
+        {
+          "content": "What time?",
+          "role": "user"
+        },
+        {
+          "arguments": "{\"tz\":\"UTC\",\"n\":9007199254740993}",
+          "call_id": "call_1",
+          "id": "fc_1",
+          "name": "get_time",
+          "type": "function_call"
+        },
+        {
+          "call_id": "call_1",
+          "output": "noon",
+          "type": "function_call_output"
+        }
+      ],
+      "model": "bridge-gem",
+      "tool_choice": {
+        "name": "get_time",
+        "type": "function"
+      },
+      "tools": [
+        {
+          "description": "clock",
+          "name": "get_time",
+          "parameters": {
+            "properties": {
+              "tz": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "strict": false,
+          "type": "function"
+        }
+      ]
+    },
+    "method": "POST",
+    "path": "/v1/responses"
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "functionCall": {
+                  "args": {
+                    "n": 9007199254740993,
+                    "tz": "UTC"
+                  },
+                  "id": "call_up",
+                  "name": "get_time"
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_2",
+      "usageMetadata": {
+        "candidatesTokenCount": 7,
+        "promptTokenCount": 12,
+        "totalTokenCount": 19
+      }
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+ "name": "chat_to_anthropic_tools",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.anth]\ndialect = \"anthropic\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"claude-haiku\"\nprovider = \"anth\"\nmodel = \"claude-haiku-4-5\"\n",
+ "upstream": {
+  "raw_body": {
+   "id": "msg_2",
+   "type": "message",
+   "role": "assistant",
+   "model": "m",
+   "content": [
+    {
+     "type": "text",
+     "text": "checking "
+    },
+    {
+     "type": "tool_use",
+     "id": "to_1",
+     "name": "get_time",
+     "input": {
+      "tz": "UTC"
+     }
+    }
+   ],
+   "stop_reason": "tool_use",
+   "usage": {
+    "input_tokens": 12,
+    "output_tokens": 6
+   }
+  }
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "body": {
+   "model": "claude-haiku",
+   "messages": [
+    {
+     "role": "user",
+     "content": "What time?"
+    },
+    {
+     "role": "assistant",
+     "content": "",
+     "tool_calls": [
+      {
+       "id": "call_1",
+       "type": "function",
+       "function": {
+        "name": "get_time",
+        "arguments": "{\"tz\":\"UTC\"}"
+       }
+      }
+     ]
+    },
+    {
+     "role": "tool",
+     "tool_call_id": "call_1",
+     "content": "noon"
+    }
+   ],
+   "tools": [
+    {
+     "type": "function",
+     "function": {
+      "name": "get_time",
+      "description": "clock",
+      "parameters": {
+       "type": "object",
+       "properties": {
+        "tz": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   ],
+   "tool_choice": {
+    "type": "function",
+    "function": {
+     "name": "get_time"
+    }
+   }
+  }
+ },
+ "expect": {
+  "status": 200,
+  "upstream": {
+   "path": "/v1/messages",
+   "body": {
+    "paths": {
+     "tools.0.name": "get_time",
+     "tool_choice.type": "tool",
+     "messages": {
+      "__contains__": "call_1"
+     },
+     "messages.2.content.0.tool_use_id": "call_1"
+    },
+    "absent": []
+   }
+  },
+  "client_body": {
+   "paths": {
+    "choices.0.finish_reason": "tool_calls",
+    "choices.0.message.tool_calls.0.id": "to_1",
+    "choices.0.message.tool_calls.0.function.name": "get_time"
+   }
+  }
+ }
+}

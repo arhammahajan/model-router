@@ -1,0 +1,50 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n\n[[models]]\nname = \"m-b\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\nmetadata = { n = 9007199254740993, label = \"b\" }\n\n[catalog]\nurl = \"{UPSTREAM}/catalog\"\ntimeout = 5\nrefresh_seconds = 0\nheaders = { \"X-Catalog-Token\" = \"cat-secret\" }\n\n[catalog.model_providers]\n\"cat-1\" = \"chatup\"\n\"cat-2\" = \"chatup\"\n",
+  "upstream": {
+    "raw_body": {
+      "data": [
+        {
+          "id": "cat-1",
+          "metadata": {
+            "n": 9007199254740993,
+            "label": "c1"
+          }
+        },
+        {
+          "id": "cat-2",
+          "metadata": {
+            "label": "c2"
+          }
+        }
+      ]
+    }
+  },
+  "request": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 1,
+      "path": "/catalog"
+    },
+    "client_body": {
+      "paths": {
+        "object": "list",
+        "data.0.id": "m-a",
+        "data.0.object": "model",
+        "data.1.id": "m-b",
+        "data.1.metadata.label": "b",
+        "data.1.metadata.n": 9007199254740993,
+        "data.2.id": "cat-1",
+        "data.2.metadata.n": 9007199254740993,
+        "data.3.id": "cat-2"
+      },
+      "absent": [
+        "data.4"
+      ]
+    }
+  },
+  "name": "m4_catalog_models_order_metadata"
+}

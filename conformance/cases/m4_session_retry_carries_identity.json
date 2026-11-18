@@ -1,0 +1,66 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 2\nstatuses = [502]\nbackoff_base = 0.001\nbackoff_max = 0.002\ndeadline = 5.0\n\n[providers.sess]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\n\n\n[[models]]\nname = \"m-sess\"\nprovider = \"sess\"\nmodel = \"m-up\"\n\n",
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 2,
+      "headers": {
+        "x-affinity": "sess-retry-1"
+      },
+      "path": "/chat/completions"
+    }
+  },
+  "name": "m4_session_retry_carries_identity",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "m-sess"
+    },
+    "headers": {
+      "X-Affinity": "sess-retry-1"
+    },
+    "method": "POST",
+    "path": "/chat/completions"
+  },
+  "upstream": {
+    "sequence": [
+      {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "raw_body": {
+          "error": "busy"
+        },
+        "status": 502
+      },
+      {
+        "raw_body": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "content": "hello",
+                "role": "assistant"
+              }
+            }
+          ],
+          "created": 1,
+          "id": "chatcmpl-s",
+          "model": "m",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 2,
+            "total_tokens": 3
+          }
+        }
+      }
+    ]
+  }
+}

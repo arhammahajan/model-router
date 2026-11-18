@@ -1,0 +1,42 @@
+{
+ "_comment": "M5 fixture: an empty namespaced child name is rejected 400 before any upstream IO in stream mode too.",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "expect": {
+  "client_body": {
+   "paths": {
+    "error.type": "invalid_request_error"
+   }
+  },
+  "status": 400,
+  "upstream": {
+   "exact_requests": 0,
+   "path": "/chat/completions"
+  }
+ },
+ "name": "m5_namespace_malformed_stream",
+ "request": {
+  "body": {
+   "input": "Hi",
+   "model": "bridge-resp",
+   "stream": true,
+   "tools": [
+    {
+     "name": "muse",
+     "tools": [
+      {
+       "name": "",
+       "strict": false,
+       "type": "function"
+      }
+     ],
+     "type": "namespace"
+    }
+   ]
+  },
+  "method": "POST",
+  "path": "/v1/responses"
+ },
+ "upstream": {
+  "raw_body": {}
+ }
+}

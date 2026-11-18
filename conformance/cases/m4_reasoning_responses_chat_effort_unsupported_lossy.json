@@ -1,0 +1,70 @@
+{
+  "_comment": "TDD M4 reverse named-effort slice, loss partition (lossy): explicit reasoning.effort.supported=false drops any requested effort with a loss report. Future-expected (source: reasoning.py effort_off drop + lossy apply). RED on baseline: hard refusal 400, zero upstream IO vs future 200 with loss header and one upstream request.",
+  "name": "m4_reasoning_responses_chat_effort_unsupported_lossy",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatlossy]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\ncompatibility = \"lossy\"\n\n[[models]]\nname = \"bridge-lossy\"\nprovider = \"chatlossy\"\nmodel = \"gpt-4o-mini\"\n\n[capabilities.overrides.\"bridge-lossy\".reasoning.effort]\nsupported = false\n",
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-up",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "gpt-4o-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/responses",
+    "body": {
+      "model": "bridge-lossy",
+      "input": "Hi",
+      "reasoning": {
+        "effort": "low"
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "present": true
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret"
+      },
+      "body": {
+        "absent": [
+          "reasoning",
+          "reasoning_effort"
+        ],
+        "paths": {
+          "model": "gpt-4o-mini",
+          "messages.0.role": "user"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "status": "completed",
+        "output.0.content.0.text": "hello"
+      }
+    }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "name": "anthropic_to_gemini_tools",
+  "_comment": "History coherence: assistant tool_use call_1 plus the bare-string user tool_result maps to model functionCall plus user functionResponse whose response.output is the EXACT result string (no unwrapping).",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 64,
+      "tools": [
+        {
+          "name": "get_time",
+          "description": "clock",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "tz": {
+                "type": "string"
+              },
+              "n": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "tz"
+            ]
+          }
+        }
+      ],
+      "tool_choice": {
+        "type": "tool",
+        "name": "get_time"
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "What time?"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "checking"
+            },
+            {
+              "type": "tool_use",
+              "id": "call_1",
+              "name": "get_time",
+              "input": {
+                "tz": "UTC",
+                "n": 9007199254740993
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "call_1",
+              "content": "noon"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "functionCall": {
+                  "name": "get_time",
+                  "id": "fc_gem_9",
+                  "args": {
+                    "tz": "UTC",
+                    "n": 9007199254740993
+                  }
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_9",
+      "usageMetadata": {
+        "promptTokenCount": 12,
+        "candidatesTokenCount": 7,
+        "totalTokenCount": 19
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent",
+      "exact_requests": 1,
+      "headers": {
+        "x-goog-api-key": "gem-secret",
+        "authorization": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "tools.0.functionDeclarations.0.name": "get_time",
+          "tools.0.functionDeclarations.0.description": "clock",
+          "tools.0.functionDeclarations.0.parametersJsonSchema.properties.n.type": "integer",
+          "toolConfig.functionCallingConfig.mode": "ANY",
+          "toolConfig.functionCallingConfig.allowedFunctionNames.0": "get_time",
+          "contents.0.parts.0.text": "What time?",
+          "contents.1.parts.1.functionCall.name": "get_time",
+          "contents.1.parts.1.functionCall.id": "call_1",
+          "contents.1.parts.1.functionCall.args.n": 9007199254740993,
+          "contents.2.parts.0.functionResponse.name": "get_time",
+          "contents.2.parts.0.functionResponse.id": "call_1",
+          "contents.2.parts.0.functionResponse.response.output": "noon",
+          "contents.1.parts.0.text": "checking"
+        },
+        "absent": [
+          "model",
+          "stream"
+        ]
+      }
+    },
+    "client_body": {
+      "paths": {
+        "content.0.id": "fc_gem_9",
+        "content.0.name": "get_time",
+        "stop_reason": "tool_use"
+      }
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "_comment": "M4 Gemini-request reasoning: Gemini thinkingLevel LOW to ordinary Chat carries literally as reasoning_effort low with no loss. Future-expected (source: HEAD gemini.py thinking LOW->reasoning_effort low + reasoning.py literal preservation + unknown-neutral caps). RED on baseline: strict 400 TRANSLATION_LOSS, zero upstream IO.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"gem-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello",
+        "candidates.0.finishReason": "STOP",
+        "modelVersion": "gem-chat",
+        "responseId": "chatcmpl-up",
+        "usageMetadata.candidatesTokenCount": 3,
+        "usageMetadata.promptTokenCount": 7,
+        "usageMetadata.totalTokenCount": 10
+      }
+    },
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "absent": [
+          "contents",
+          "generationConfig",
+          "reasoning",
+          "systemInstruction",
+          "thinking_budget_tokens",
+          "chat_template_kwargs"
+        ],
+        "paths": {
+          "messages.0.content": "Hi",
+          "messages.0.role": "user",
+          "model": "gpt-4o-mini",
+          "reasoning_effort": "low"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret"
+      },
+      "path": "/chat/completions"
+    }
+  },
+  "name": "m4_reasoning_gemini_chat_level_low_exact",
+  "request": {
+    "body": {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "thinkingConfig": {
+          "thinkingLevel": "LOW"
+        }
+      }
+    },
+    "method": "POST",
+    "path": "/v1beta/models/gem-chat:generateContent"
+  },
+  "upstream": {
+    "raw_body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "hello",
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1,
+      "id": "chatcmpl-up",
+      "model": "gpt-4o-mini",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 7,
+        "total_tokens": 10
+      }
+    }
+  }
+}

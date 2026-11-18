@@ -1,0 +1,76 @@
+{
+  "_comment": "GREEN baseline control: flag false ignores Gemini Bearer compat token; no affinity selected; provider auth only.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nbearer_session_compat = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\nsession_header = \"x-affinity\"\n\n[[models]]\nname = \"gem-chat\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "client_body": {
+      "paths": {
+        "candidates.0.content.parts.0.text": "hello"
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret",
+        "x-affinity": {
+          "absent": true
+        }
+      },
+      "body": {
+        "paths": {
+          "model": "gpt-4o-mini",
+          "messages.0.content": "Hi"
+        }
+      }
+    }
+  },
+  "name": "m4_compat_off_gemini_token_ignored",
+  "request": {
+    "method": "POST",
+    "path": "/v1beta/models/gem-chat:generateContent",
+    "headers": {
+      "Authorization": "Bearer router-session-123e4567-e89b-42d3-a456-426614174000"
+    },
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Hi"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-up",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "gpt-4o-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  }
+}

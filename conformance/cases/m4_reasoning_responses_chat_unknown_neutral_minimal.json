@@ -1,0 +1,77 @@
+{
+  "_comment": "TDD M4 reverse named-effort slice: unknown caps are neutral, so Responses reasoning.effort passes literally to Chat reasoning_effort. 'minimal' must never be renamed to 'low'. Future-expected (source: protocol.py closed reasoning{effort} + reasoning.py literal preservation + neutral unknown). RED on baseline: current hard refusal 'Responses reasoning requires a same-protocol route' (400 invalid_generation_parameter, zero upstream IO) unlike future exact.",
+  "name": "m4_reasoning_responses_chat_unknown_neutral_minimal",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+  "upstream": {
+    "raw_body": {
+      "id": "chatcmpl-up",
+      "object": "chat.completion",
+      "created": 1,
+      "model": "gpt-4o-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/responses",
+    "body": {
+      "model": "bridge-resp",
+      "input": "Hi",
+      "reasoning": {
+        "effort": "minimal"
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "absent": true
+      }
+    },
+    "upstream": {
+      "path": "/chat/completions",
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer upstream-secret"
+      },
+      "body": {
+        "absent": [
+          "reasoning"
+        ],
+        "paths": {
+          "model": "gpt-4o-mini",
+          "messages.0.role": "user",
+          "messages.0.content": "Hi",
+          "reasoning_effort": "minimal"
+        }
+      }
+    },
+    "client_body": {
+      "paths": {
+        "status": "completed",
+        "output.0.type": "message",
+        "output.0.status": "completed",
+        "output.0.content.0.type": "output_text",
+        "output.0.content.0.text": "hello",
+        "usage.input_tokens": 7,
+        "usage.output_tokens": 3,
+        "usage.total_tokens": 10
+      }
+    }
+  }
+}

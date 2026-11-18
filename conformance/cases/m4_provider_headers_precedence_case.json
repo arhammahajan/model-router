@@ -1,0 +1,67 @@
+{
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.respup]\ndialect = \"openai-responses\"\nbase_url = \"{UPSTREAM}/v1\"\napi_key = \"resp-secret\"\nheaders = { \"X-Dup\" = \"prov-wins\" }\nlitellm_provider = \"openai\"\n[providers.respup.litellm_kwargs]\nheaders = { \"x-dup\" = \"kh\" }\nextra_headers = { \"X-DUP\" = \"extra-wins-over-kh\" }\n\n[[models]]\nname = \"bridge-prec\"\nprovider = \"respup\"\nmodel = \"gpt-4.1\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "choices.0.message.content": "hello"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "model": "gpt-4.1"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": "Bearer resp-secret",
+        "x-dup": "prov-wins"
+      },
+      "path": "/v1/responses"
+    }
+  },
+  "name": "m4_provider_headers_precedence_case",
+  "request": {
+    "body": {
+      "messages": [
+        {
+          "content": "Hi",
+          "role": "user"
+        }
+      ],
+      "model": "bridge-prec"
+    },
+    "method": "POST",
+    "path": "/v1/chat/completions"
+  },
+  "upstream": {
+    "raw_body": {
+      "created_at": 1,
+      "id": "resp_up",
+      "model": "gpt-4.1",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "text": "hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_up",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7,
+        "output_tokens": 3,
+        "total_tokens": 10
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+ "name": "responses_to_chat_usage_cached",
+ "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"bridge-resp\"\nprovider = \"chatup\"\nmodel = \"gpt-4o-mini\"\n",
+ "upstream": {
+  "raw_body": {
+   "id": "chatcmpl-up",
+   "object": "chat.completion",
+   "created": 1,
+   "model": "gpt-4o-mini",
+   "choices": [
+    {
+     "index": 0,
+     "message": {
+      "role": "assistant",
+      "content": "hello"
+     },
+     "finish_reason": "stop"
+    }
+   ],
+   "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 5,
+    "total_tokens": 17,
+    "prompt_tokens_details": {
+     "cached_tokens": 4
+    },
+    "completion_tokens_details": {
+     "reasoning_tokens": 2
+    }
+   }
+  }
+ },
+ "request": {
+  "method": "POST",
+  "path": "/v1/responses",
+  "body": {
+   "model": "bridge-resp",
+   "input": "Hi"
+  }
+ },
+ "expect": {
+  "status": 200,
+  "upstream": {
+   "path": "/chat/completions",
+   "exact_requests": 1
+  },
+  "client_body": {
+   "paths": {
+    "status": "completed",
+    "output.0.content.0.text": "hello",
+    "usage.input_tokens": 12,
+    "usage.input_tokens_details.cached_tokens": 4,
+    "usage.output_tokens": 5,
+    "usage.output_tokens_details.reasoning_tokens": 2,
+    "usage.total_tokens": 17
+   }
+  }
+ }
+}

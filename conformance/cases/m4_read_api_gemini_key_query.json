@@ -1,0 +1,23 @@
+{
+  "_comment": "TDD M4 read slice: Gemini discovery accepts the documented ?key= credential while other ingresses use headers only. RED on baseline (no list).",
+  "name": "m4_read_api_gemini_key_query",
+  "config": "[server]\nauth_mode = \"required\"\napi_keys = [\"client-secret\"]\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.chatup]\ndialect = \"openai-chat\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"upstream-secret\"\n\n[[models]]\nname = \"m-a\"\nprovider = \"chatup\"\nmodel = \"gpt-4o\"\n",
+  "upstream": {
+    "raw_body": {}
+  },
+  "request": {
+    "method": "GET",
+    "path": "/v1beta/models?key=client-secret"
+  },
+  "expect": {
+    "status": 200,
+    "upstream": {
+      "exact_requests": 0
+    },
+    "client_body": {
+      "paths": {
+        "models.0.name": "models/m-a"
+      }
+    }
+  }
+}

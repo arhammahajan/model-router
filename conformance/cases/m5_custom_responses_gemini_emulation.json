@@ -1,0 +1,106 @@
+{
+  "_comment": "Responses->Gemini contract. Ordinary function tools: explicit strict:false, named ANY choice, exact bigint args, call identity, string tool result preserved exactly as functionResponse.response.output.",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\ncompatibility = \"lossy\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-2.0-flash\"\n",
+  "expect": {
+    "client_body": {
+      "paths": {
+        "status": "completed",
+        "output.0.type": "custom_tool_call",
+        "output.0.call_id": "call_note",
+        "output.0.name": "edit_note",
+        "output.0.input": "ligne 1\n📝 9007199254740993",
+        "tool_choice.type": "custom",
+        "tool_choice.name": "edit_note",
+        "tools.0.type": "namespace",
+        "tools.0.tools.0.type": "custom",
+        "tools.0.tools.0.name": "edit_note",
+        "tool_choice.namespace": "notebook",
+        "output.0.namespace": "notebook"
+      }
+    },
+    "status": 200,
+    "upstream": {
+      "body": {
+        "paths": {
+          "tools.0.functionDeclarations.0.name": "ns_a687efc34fd89524ade27c85b77bc99fdc060b374856c86e1915ee1a",
+          "tools.0.functionDeclarations.0.parametersJsonSchema.properties.content.type": "string",
+          "tools.0.functionDeclarations.0.parametersJsonSchema.additionalProperties": false,
+          "toolConfig.functionCallingConfig.allowedFunctionNames.0": "ns_a687efc34fd89524ade27c85b77bc99fdc060b374856c86e1915ee1a"
+        }
+      },
+      "exact_requests": 1,
+      "headers": {
+        "authorization": {
+          "absent": true
+        },
+        "x-goog-api-key": "gem-secret"
+      },
+      "path": "/v1beta/models/gemini-2.0-flash:generateContent"
+    },
+    "client_headers": {
+      "X-Model-Router-Loss": {
+        "present": true
+      }
+    }
+  },
+  "name": "m5_custom_responses_gemini_emulation",
+  "request": {
+    "body": {
+      "input": "Edit the note.",
+      "model": "bridge-gem",
+      "tool_choice": {
+        "type": "custom",
+        "name": "edit_note",
+        "namespace": "notebook"
+      },
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "notebook",
+          "tools": [
+            {
+              "type": "custom",
+              "name": "edit_note",
+              "format": {
+                "type": "text"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "method": "POST",
+    "path": "/v1/responses"
+  },
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "functionCall": {
+                  "args": {
+                    "content": "ligne 1\n📝 9007199254740993"
+                  },
+                  "id": "call_note",
+                  "name": "ns_a687efc34fd89524ade27c85b77bc99fdc060b374856c86e1915ee1a"
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "modelVersion": "gemini-2.0-flash",
+      "responseId": "resp_gem_2",
+      "usageMetadata": {
+        "candidatesTokenCount": 7,
+        "promptTokenCount": 12,
+        "totalTokenCount": 19
+      }
+    }
+  }
+}
