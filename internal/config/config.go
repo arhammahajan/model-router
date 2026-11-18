@@ -179,6 +179,8 @@ type Config struct {
 	CapabilityOverrides map[string]capability.Overrides
 	// Search is nil when [search] is absent: no search vertical, no overhead.
 	Search *SearchConfig
+	// Accounting is nil when [accounting] is absent: no usage metering.
+	Accounting *AccountingConfig
 	// modelIndex resolves public name or alias -> model entry.
 	modelIndex map[string]*Model
 }
@@ -410,7 +412,7 @@ func isReservedSessionHeader(name, sessionHeader string) bool {
 // --- top-level build ---
 
 func buildConfig(doc map[string]any) (*Config, error) {
-	topKeys := map[string]bool{"server": true, "retry": true, "providers": true, "models": true, "catalog": true, "llama_cpp": true, "discovery_cache": true, "capabilities": true, "search": true}
+	topKeys := map[string]bool{"server": true, "retry": true, "providers": true, "models": true, "catalog": true, "llama_cpp": true, "discovery_cache": true, "capabilities": true, "search": true, "accounting": true}
 	for k := range doc {
 		if !topKeys[k] {
 			return nil, fmt.Errorf("unsupported table [%s] in this build (%s)", k, migrationHint(k))
@@ -546,6 +548,18 @@ func buildConfig(doc map[string]any) (*Config, error) {
 			return nil, err
 		}
 		cfg.Search = sc
+	}
+	// accounting (optional; absent means disabled).
+	if raw, ok := doc["accounting"]; ok {
+		tab, ok := asTable(raw)
+		if !ok {
+			return nil, fmt.Errorf("accounting: must be a table")
+		}
+		ac, err := fillAccounting(tab)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Accounting = ac
 	}
 	cfg.modelIndex = map[string]*Model{}
 	for i := range cfg.Models {

@@ -48,6 +48,18 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		s.writeIngressError(w, config.DialectOpenAIResponses, *serr)
 		return
 	}
+	// Usage accounting hook, mirroring handleChat: one wrap per ingress,
+	// finished after the dispatch returns with the downstream bytes
+	// Responses-shaped on every exit of this ingress.
+	if s.acc != nil {
+		var probe map[string]json.RawMessage
+		_ = json.Unmarshal(effBody, &probe)
+		var wantStream bool
+		_ = json.Unmarshal(probe["stream"], &wantStream)
+		var finishAccounting func(int)
+		w, finishAccounting = s.beginAccounting(w, config.DialectOpenAIResponses, dest, p.model.Name, p.provider.Name, wantStream, start)
+		defer func() { finishAccounting(status) }()
+	}
 	if mode == "responses_to_chat" {
 		status = s.serveResponsesTranslated(w, r, p.provider, p.model, effBody, sess, p.snap)
 		return

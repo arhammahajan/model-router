@@ -228,6 +228,16 @@ func (s *Server) handleGemini(w http.ResponseWriter, r *http.Request) {
 		fail(derr.Status, *derr)
 		return
 	}
+	// Usage accounting hook, mirroring handleChat: one wrap per ingress,
+	// finished after the dispatch returns with the downstream bytes
+	// Gemini-shaped on every exit of this ingress. The fail closure keeps
+	// the unwrapped writer; those errors still record with zero tokens.
+	if s.acc != nil {
+		var finishAccounting func(int)
+		w, finishAccounting = s.beginAccounting(w, config.DialectGemini, dest, model.Name, provider.Name,
+			call.method == "streamGenerateContent", start)
+		defer func() { finishAccounting(status) }()
+	}
 	// Opt-in compat pre-step (Gemini generation POST only): collect
 	// carrier tokens, consume sessionId and validate/mutate the effort
 	// carrier against the SAME pinned snapshot used for planning below.

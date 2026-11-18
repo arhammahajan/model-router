@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arhammahajan/model-router/internal/accounting"
 	"github.com/arhammahajan/model-router/internal/capability"
 	"github.com/arhammahajan/model-router/internal/config"
 	"github.com/arhammahajan/model-router/internal/protocol"
@@ -29,6 +30,10 @@ type Server struct {
 	mux   *http.ServeMux
 	conns chan struct{}
 	gens  chan struct{}
+	// acc is the opt-in usage recorder, built only when
+	// [accounting] is configured; nil otherwise (every call site is
+	// nil-safe and the hot path is untouched).
+	acc *accounting.Recorder
 }
 
 // New builds a Server from validated config. It performs no I/O: it
@@ -49,6 +54,11 @@ func NewWithRegistry(cfg *config.Config, reg *router.Registry) *Server {
 		mux:   http.NewServeMux(),
 		conns: make(chan struct{}, cfg.Server.MaxConnections),
 		gens:  make(chan struct{}, cfg.Server.MaxGenerations),
+	}
+	// Usage metering is created only when the [accounting] section is
+	// present; a nil recorder leaves every request path untouched.
+	if cfg.Accounting != nil {
+		s.acc = accounting.New(cfg.Accounting.Path, cfg.Accounting.MaxFileBytes)
 	}
 	s.mux.HandleFunc("/v1/chat/completions", s.handleChat)
 	s.mux.HandleFunc("/chat/completions", s.handleChat)
@@ -548,6 +558,19 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 	dest := model.EffectiveDialect(provider)
 	translated := dest != config.DialectOpenAIChat
+	// Usage accounting hook: wraps the downstream writer only when the
+	// [accounting] section is present, so the disabled path is untouched.
+	// The deferred finish is the single response-completion seam shared
+	// by the native and translated dispatches below — they only return
+	// after the response is finished (streams after the terminal chunk) —
+	// and it drops every error: metering can never fail a request.
+	if s.acc != nil {
+		var wantStream bool
+		_ = json.Unmarshal(probe["stream"], &wantStream)
+		var finishAccounting func(int)
+		w, finishAccounting = s.beginAccounting(w, config.DialectOpenAIChat, dest, model.Name, provider.Name, wantStream, start)
+		defer func() { finishAccounting(status) }()
+	}
 	// Opt-in compat pre-step (Chat generation POST only, after the body
 	// and model checks above): strip a marked token, inject the native
 	// candidate and merge leading plain systems. Unmarked inputs pass

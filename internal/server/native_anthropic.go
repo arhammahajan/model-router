@@ -46,6 +46,18 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 		s.writeIngressError(w, config.DialectAnthropic, *serr)
 		return
 	}
+	// Usage accounting hook, mirroring handleChat: one wrap per ingress,
+	// finished after the dispatch returns with the downstream bytes
+	// Anthropic-shaped on every exit of this ingress.
+	if s.acc != nil {
+		var probe map[string]json.RawMessage
+		_ = json.Unmarshal(effBody, &probe)
+		var wantStream bool
+		_ = json.Unmarshal(probe["stream"], &wantStream)
+		var finishAccounting func(int)
+		w, finishAccounting = s.beginAccounting(w, config.DialectAnthropic, dest, p.model.Name, p.provider.Name, wantStream, start)
+		defer func() { finishAccounting(status) }()
+	}
 	if mode == "anthropic_to_chat" {
 		status = s.serveAnthropicTranslated(w, r, p.provider, p.model, effBody, sess, p.snap)
 		return
