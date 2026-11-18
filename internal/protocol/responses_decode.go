@@ -1272,6 +1272,17 @@ func decodeResponsesFunctionCall(prefix string, obj map[string]json.RawMessage, 
 	if idErr != nil {
 		return nil, idErr
 	}
+	// Router-minted wrapped identities (Gemini thought-signature
+	// passback) restore the provider identity and the opaque
+	// signature; any other value passes through untouched.
+	sig := ""
+	if s, inner, ok := unwrapGeminiSignatureID(callID); ok {
+		if err := validateCallID(inner, lim); err != nil {
+			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
+				Msg: fmt.Sprintf("'%s.call_id' %s", prefix, err.Error())}
+		}
+		callID, sig = inner, s
+	}
 	var name string
 	if rawN, ok := obj["name"]; ok && !isNull(rawN) {
 		_ = json.Unmarshal(rawN, &name)
@@ -1311,7 +1322,7 @@ func decodeResponsesFunctionCall(prefix string, obj map[string]json.RawMessage, 
 	if rerr != nil {
 		return nil, rerr
 	}
-	return &Message{Role: RoleAssistant, ToolCalls: []ToolCall{{ID: callID, Name: name, Arguments: args}}}, nil
+	return &Message{Role: RoleAssistant, ToolCalls: []ToolCall{{ID: callID, Name: name, Arguments: args, Signature: sig}}}, nil
 }
 
 // decodeResponsesFunctionCallOutput decodes one function_call_output item
@@ -1330,6 +1341,12 @@ func decodeResponsesFunctionCallOutput(prefix string, obj map[string]json.RawMes
 	callID, idErr := decodeResponsesHistoryCallID(prefix, obj["call_id"], lim)
 	if idErr != nil {
 		return nil, idErr
+	}
+	// Wrapped identities restore the provider identity so the result
+	// pairs with the unwrapped assistant call; any other value passes
+	// through untouched.
+	if _, inner, isWrapped := unwrapGeminiSignatureID(callID); isWrapped {
+		callID = inner
 	}
 	if rawID, ok := obj["id"]; ok && !isNull(rawID) {
 		var id string

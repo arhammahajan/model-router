@@ -150,8 +150,11 @@ func (d *GeminiStreamDecoder) handlePart(praw json.RawMessage, pi int) ([]Respon
 	}
 	// thoughtSignature is opaque provider-private reasoning state:
 	// Gemini 4 attaches one to ordinary text parts on every response.
-	// Strict fails closed; lossy validates a bounded string and drops
-	// it, exactly as the complete row does.
+	// Strict fails closed; lossy validates a bounded string. On
+	// functionCall parts the signature is captured and passed to
+	// emitTool, which wraps it into the public call identity; on text
+	// parts it is dropped, exactly as the complete row does.
+	partSig := ""
 	if rawTS, ok := part["thoughtSignature"]; ok && !isNull(rawTS) {
 		var sig string
 		if err := json.Unmarshal(rawTS, &sig); err != nil || len(sig) > d.lim.MaxArgsChars {
@@ -160,6 +163,7 @@ func (d *GeminiStreamDecoder) handlePart(praw json.RawMessage, pi int) ([]Respon
 		if !d.allowDrop {
 			return nil, geminiStreamUnrep(prefix + ".thoughtSignature")
 		}
+		partSig = sig
 	}
 	for _, k := range []string{"inlineData", "fileData", "executableCode", "codeExecutionResult", "toolCall", "toolResponse", "mediaResolution", "videoMetadata", "partMetadata", "mediaProcessing", "functionResponse"} {
 		if rawV, ok := part[k]; ok && !isNull(rawV) {
@@ -181,7 +185,7 @@ func (d *GeminiStreamDecoder) handlePart(praw json.RawMessage, pi int) ([]Respon
 		}
 	}
 	if rawFC, ok := part["functionCall"]; ok && !isNull(rawFC) {
-		fevs, rerr := d.emitTool(rawFC, pi, prefix)
+		fevs, rerr := d.emitTool(rawFC, pi, prefix, partSig)
 		if rerr != nil {
 			return nil, rerr
 		}
@@ -215,8 +219,8 @@ func (d *GeminiStreamDecoder) emitText(s string) ([]ResponseEvent, *RouterError)
 	return append(evs, frag), nil
 }
 
-func (d *GeminiStreamDecoder) emitTool(rawFC json.RawMessage, pi int, prefix string) ([]ResponseEvent, *RouterError) {
-	name, id, hasID, args, rerr := geminiParseFunctionCall(rawFC, pi, d.lim, "response.candidates[0].content", d.allowDrop)
+func (d *GeminiStreamDecoder) emitTool(rawFC json.RawMessage, pi int, prefix string, partSig string) ([]ResponseEvent, *RouterError) {
+	name, id, hasID, args, fcSig, rerr := geminiParseFunctionCall(rawFC, pi, d.lim, "response.candidates[0].content", d.allowDrop)
 	if rerr != nil {
 		return nil, rerr
 	}
@@ -226,6 +230,17 @@ func (d *GeminiStreamDecoder) emitTool(rawFC json.RawMessage, pi int, prefix str
 	if !hasID {
 		callID = d.mintCallID()
 		callOrigin = IdentityRouterMinted
+	}
+	// Lossy signature passback: mint the public identity carrying the
+	// opaque signature (part-level wins over a functionCall-level
+	// value), so harnesses echo it back and the Gemini encoder restores
+	// the signed part on the next turn.
+	if d.allowDrop {
+		sig := partSig
+		if sig == "" {
+			sig = fcSig
+		}
+		callID = wrapGeminiSignatureID(sig, callID)
 	}
 	if d.seenCalls[callID] {
 		return nil, &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned conflicting tool call identities"}

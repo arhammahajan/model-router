@@ -86,7 +86,7 @@
     "client_text_contains": [
       "\"finish_reason\":\"tool_calls\"",
       "\"name\":\"get_weather\"",
-      "call_3375893482179694677",
+      "gts1_eyJzIjoiRW93QkNva0JBV2tVZlJQaS8vL2tJcU51c05uVUc1VDVvSnRmekJUU3hUdFhDeXZocUZxSDFzd2NxWmJzUSIsImkiOiJjYWxsXzMzNzU4OTM0ODIxNzk2OTQ2NzcifQ",
       "Tokyo",
       "\"completion_tokens\":25",
       "\"reasoning_tokens\":3"

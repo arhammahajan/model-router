@@ -1032,6 +1032,17 @@ func decodeAnthropicToolUse(prefix string, bi int, b map[string]json.RawMessage,
 		return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: fmt.Sprintf("'%s.id' %s", what, err.Error())}
 	}
+	// Router-minted wrapped identities (Gemini thought-signature
+	// passback) restore the provider identity and the opaque signature;
+	// any other value passes through untouched.
+	sig := ""
+	if s, inner, ok := unwrapGeminiSignatureID(id); ok {
+		if err := validateCallID(inner, lim); err != nil {
+			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
+				Msg: fmt.Sprintf("'%s.id' %s", what, err.Error())}
+		}
+		id, sig = inner, s
+	}
 	if rawName, ok := b["name"]; ok && !isNull(rawName) {
 		_ = json.Unmarshal(rawName, &name)
 	}
@@ -1055,7 +1066,7 @@ func decodeAnthropicToolUse(prefix string, bi int, b map[string]json.RawMessage,
 		}
 		args = compacted
 	}
-	return &ToolCall{ID: id, Name: name, Arguments: args}, nil
+	return &ToolCall{ID: id, Name: name, Arguments: args, Signature: sig}, nil
 }
 
 // compactAnthropicInput validates that raw is a JSON object and returns its
@@ -1108,6 +1119,12 @@ func decodeAnthropicToolResult(prefix string, bi int, b map[string]json.RawMessa
 	if err := validateCallID(callID, lim); err != nil {
 		return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: fmt.Sprintf("'%s.tool_use_id' %s", what, err.Error())}
+	}
+	// Wrapped identities restore the provider identity so the result
+	// pairs with the unwrapped assistant call; any other value passes
+	// through untouched.
+	if _, inner, isWrapped := unwrapGeminiSignatureID(callID); isWrapped {
+		callID = inner
 	}
 	content := ""
 	if rawC, ok := b["content"]; ok && !isNull(rawC) {

@@ -108,6 +108,12 @@ type ToolCall struct {
 	ID        string
 	Name      string
 	Arguments json.RawMessage // compact JSON object; validated at decode (function only)
+	// Signature carries an opaque Gemini thought signature restored from
+	// a wrapped public identity (see gemini_signature_id.go). Only the
+	// Gemini destination renders it (part-level thoughtSignature beside
+	// functionCall); other destinations ignore it, exactly as they ignore
+	// any other provider-private state they cannot represent.
+	Signature string
 	// IsCustom marks a freeform custom invocation. CustomInput is the
 	// exact preserved string input; Arguments is nil for custom calls.
 	IsCustom    bool

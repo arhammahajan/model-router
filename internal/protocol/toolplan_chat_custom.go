@@ -168,6 +168,17 @@ func decodeChatCustomToolCall(mi, ci int, c map[string]json.RawMessage, lim Limi
 		return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: fmt.Sprintf("'%s.id' %s", prefix, err.Error())}
 	}
+	// Router-minted wrapped identities (Gemini thought-signature
+	// passback) restore the provider identity and the opaque
+	// signature; any other value passes through untouched.
+	sig := ""
+	if s, inner, ok := unwrapGeminiSignatureID(id); ok {
+		if err := validateCallID(inner, lim); err != nil {
+			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
+				Msg: fmt.Sprintf("'%s.id' %s", prefix, err.Error())}
+		}
+		id, sig = inner, s
+	}
 	var name string
 	if rawN, ok := obj["name"]; ok && !isNull(rawN) {
 		_ = json.Unmarshal(rawN, &name)
@@ -189,7 +200,7 @@ func decodeChatCustomToolCall(mi, ci int, c map[string]json.RawMessage, lim Limi
 		return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: fmt.Sprintf("'%s.custom.input' exceeds the size bound", prefix)}
 	}
-	return &ToolCall{ID: id, Name: name, IsCustom: true, CustomInput: input}, nil
+	return &ToolCall{ID: id, Name: name, IsCustom: true, CustomInput: input, Signature: sig}, nil
 }
 
 // decodeChatCustomChoice validates {"type":"custom","custom":{"name":...}}.

@@ -1126,6 +1126,12 @@ func decodeChatMessage(i int, item map[string]json.RawMessage, lose func(string,
 			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 				Msg: "'messages.tool_call_id' is required on tool messages"}
 		}
+		// Wrapped identities restore the provider identity so the
+		// result pairs with the unwrapped assistant call; any other
+		// value passes through untouched.
+		if _, inner, isWrapped := unwrapGeminiSignatureID(id); isWrapped {
+			id = inner
+		}
 		// Tool results carry plain text content only.
 		if rawC, ok := item["content"]; ok && !isNull(rawC) {
 			var s string
@@ -1369,6 +1375,17 @@ func decodeChatToolCall(mi, ci int, c map[string]json.RawMessage, lim Limits) (*
 		return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: fmt.Sprintf("'%s.id' %s", prefix, err.Error())}
 	}
+	// Router-minted wrapped identities (Gemini thought-signature
+	// passback) restore the provider identity and the opaque signature;
+	// any other value passes through untouched.
+	sig := ""
+	if s, inner, ok := unwrapGeminiSignatureID(id); ok {
+		if err := validateCallID(inner, lim); err != nil {
+			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
+				Msg: fmt.Sprintf("'%s.id' %s", prefix, err.Error())}
+		}
+		id, sig = inner, s
+	}
 	var name string
 	if rawN, ok := fn["name"]; ok && !isNull(rawN) {
 		_ = json.Unmarshal(rawN, &name)
@@ -1381,7 +1398,7 @@ func decodeChatToolCall(mi, ci int, c map[string]json.RawMessage, lim Limits) (*
 	if rerr != nil {
 		return nil, rerr
 	}
-	return &ToolCall{ID: id, Name: name, Arguments: args}, nil
+	return &ToolCall{ID: id, Name: name, Arguments: args, Signature: sig}, nil
 }
 
 // decodeToolArguments validates a JSON-stringified tool argument value: it

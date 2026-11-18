@@ -280,6 +280,14 @@ func c2gEncodeContents(msgs []Message) ([]any, map[string]any, *RouterError) {
 					return nil, nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 						Msg: fmt.Sprintf("'messages[%d].tool_calls' history entries require stable IDs", i)}
 				}
+				// Gemini 4 requires the opaque part-level signature on
+				// functionCall history parts; restored from the wrapped
+				// public identity at request decode. Absent signatures
+				// pass through unchanged (older models, other sources).
+				wrapSig := map[string]any{}
+				if tc.Signature != "" {
+					wrapSig["thoughtSignature"] = tc.Signature
+				}
 				if tc.IsCustom {
 					encoded, rerr := encodeCustomArgs(tc.CustomInput, DefaultLimits())
 					if rerr != nil {
@@ -287,7 +295,8 @@ func c2gEncodeContents(msgs []Message) ([]any, map[string]any, *RouterError) {
 					}
 					fc := map[string]any{"name": tc.Name, "args": json.RawMessage(append(json.RawMessage(nil), encoded...))}
 					fc["id"] = tc.ID
-					parts = append(parts, map[string]any{"functionCall": fc})
+					wrapSig["functionCall"] = fc
+					parts = append(parts, wrapSig)
 					continue
 				}
 				args := tc.Arguments
@@ -301,7 +310,8 @@ func c2gEncodeContents(msgs []Message) ([]any, map[string]any, *RouterError) {
 				// Preserve the supplied call identity exactly. Any upstream
 				// rejection of the field is preserved, never silently dropped.
 				fc["id"] = tc.ID
-				parts = append(parts, map[string]any{"functionCall": fc})
+				wrapSig["functionCall"] = fc
+				parts = append(parts, wrapSig)
 			}
 			if len(parts) == 0 {
 				return nil, nil, &RouterError{Status: 400, Code: CodeInvalidRequest,

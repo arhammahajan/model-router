@@ -573,8 +573,11 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits, allowDrop bool) ([]Res
 		// thoughtSignature is opaque provider-private reasoning state:
 		// Gemini 4 attaches one to ordinary text parts on every
 		// response. Strict fails closed; lossy validates a bounded
-		// string and drops it, exactly as the request-side row drops
-		// signatures in conversation history.
+		// string. On functionCall parts the signature is captured and
+		// wrapped into the public call identity (see the functionCall
+		// branch); on text parts it is dropped, exactly as the
+		// request-side row drops signatures in conversation history.
+		partSig := ""
 		if rawTS, ok := part["thoughtSignature"]; ok && !isNull(rawTS) {
 			var sig string
 			if err := json.Unmarshal(rawTS, &sig); err != nil || len(sig) > lim.MaxArgsChars {
@@ -583,6 +586,7 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits, allowDrop bool) ([]Res
 			if !allowDrop {
 				return nil, nil, unrep(fmt.Sprintf("%s.parts[%d].thoughtSignature", prefix, pi))
 			}
+			partSig = sig
 		}
 		for _, k := range []string{"inlineData", "fileData", "executableCode",
 			"codeExecutionResult", "toolCall", "toolResponse", "mediaResolution", "videoMetadata",
@@ -604,7 +608,7 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits, allowDrop bool) ([]Res
 			}
 		}
 		if rawFC, ok := part["functionCall"]; ok && !isNull(rawFC) {
-			name, id, hasID, args, rerr := geminiParseFunctionCall(rawFC, pi, lim, prefix, allowDrop)
+			name, id, hasID, args, fcSig, rerr := geminiParseFunctionCall(rawFC, pi, lim, prefix, allowDrop)
 			if rerr != nil {
 				return nil, nil, rerr
 			}
@@ -623,6 +627,19 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits, allowDrop bool) ([]Res
 					mintedCalls = map[CallID]struct{}{}
 				}
 				mintedCalls[CallID(id)] = struct{}{}
+			}
+			// Lossy signature passback: mint the public identity that
+			// carries the opaque signature (part-level wins over a
+			// functionCall-level value when both appear), so harnesses
+			// echo it back and the Gemini encoder restores the signed
+			// part. The provider identity stays intact inside the
+			// wrapped form.
+			if allowDrop {
+				sig := partSig
+				if sig == "" {
+					sig = fcSig
+				}
+				id = wrapGeminiSignatureID(sig, id)
 			}
 			totalArgs += len(args)
 			if totalArgs > lim.MaxStreamArgsChars {
@@ -645,13 +662,14 @@ func geminiDecodeContent(raw json.RawMessage, lim Limits, allowDrop bool) ([]Res
 // geminiParseFunctionCall validates one complete functionCall part.
 // Partial-arg streaming and willContinue fail closed on every old path.
 // thoughtSignature — opaque provider reasoning state attached to tool
-// calls by Gemini 4 — fails closed when allowDrop is false and is
-// validated then dropped when true. Missing args default to the empty
-// object. The returned id is "" when the provider omitted it; callers
-// mint a response-scoped compatibility id. Names carry the tool-name
-// grammar; ids are opaque and bounded (validateCallID), never
-// grammar-checked.
-func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix string, allowDrop bool) (name, id string, hasID bool, args json.RawMessage, rerr *RouterError) {
+// calls by Gemini 4 — fails closed when allowDrop is false; when true
+// it is validated and returned so the caller mints a wrapped public
+// identity (gemini_signature_id.go) that carries it back on the next
+// turn. Missing args default to the empty object. The returned id is ""
+// when the provider omitted it; callers mint a response-scoped
+// compatibility id. Names carry the tool-name grammar; ids are opaque
+// and bounded (validateCallID), never grammar-checked.
+func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix string, allowDrop bool) (name, id string, hasID bool, args json.RawMessage, sig string, rerr *RouterError) {
 	bad := &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream returned an invalid response"}
 	unrep := func(what string) *RouterError {
 		return &RouterError{Status: 502, Code: CodeUpstreamBad,
@@ -663,51 +681,56 @@ func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix str
 		"partialArgs": true, "willContinue": true, "thoughtSignature": true,
 	}, what)
 	if rerr != nil {
-		return "", "", false, nil, rerr
+		return "", "", false, nil, "", rerr
 	}
 	if rawPA, ok := fc["partialArgs"]; ok && !isNull(rawPA) {
 		var arr []json.RawMessage
 		if err := json.Unmarshal(rawPA, &arr); err != nil {
-			return "", "", false, nil, bad
+			return "", "", false, nil, "", bad
 		}
 		if len(arr) > 0 {
-			return "", "", false, nil, unrep(what + ".partialArgs")
+			return "", "", false, nil, "", unrep(what + ".partialArgs")
 		}
 	}
 	if rawWC, ok := fc["willContinue"]; ok && !isNull(rawWC) {
 		var b bool
 		if err := json.Unmarshal(rawWC, &b); err != nil {
-			return "", "", false, nil, bad
+			return "", "", false, nil, "", bad
 		}
 		if b {
-			return "", "", false, nil, unrep(what + ".willContinue")
+			return "", "", false, nil, "", unrep(what + ".willContinue")
 		}
 	}
+	var fcSig string
 	if rawTS, ok := fc["thoughtSignature"]; ok && !isNull(rawTS) {
 		var sig string
 		if err := json.Unmarshal(rawTS, &sig); err != nil || len(sig) > lim.MaxArgsChars {
-			return "", "", false, nil, bad
+			return "", "", false, nil, "", bad
 		}
 		if !allowDrop {
-			return "", "", false, nil, unrep(what + ".thoughtSignature")
+			return "", "", false, nil, "", unrep(what + ".thoughtSignature")
 		}
+		// Lossy: validated and returned so the caller can wrap it into
+		// the public identity; wrapGeminiSignatureID refuses oversized
+		// values and the caller keeps the plain identity then.
+		fcSig = sig
 	}
 	var n string
 	if rawN, ok := fc["name"]; !ok || json.Unmarshal(rawN, &n) != nil || strings.TrimSpace(n) == "" {
-		return "", "", false, nil, bad
+		return "", "", false, nil, "", bad
 	}
 	if err := validateToolName(n); err != nil {
-		return "", "", false, nil, bad
+		return "", "", false, nil, "", bad
 	}
 	var callID string
 	var present bool
 	if rawID, ok := fc["id"]; ok && !isNull(rawID) {
 		var s string
 		if err := json.Unmarshal(rawID, &s); err != nil || strings.TrimSpace(s) == "" {
-			return "", "", false, nil, bad
+			return "", "", false, nil, "", bad
 		}
 		if err := validateCallID(s, lim); err != nil {
-			return "", "", false, nil, bad
+			return "", "", false, nil, "", bad
 		}
 		callID, present = s, true
 	}
@@ -715,9 +738,9 @@ func geminiParseFunctionCall(raw json.RawMessage, pi int, lim Limits, prefix str
 	if rawArgs, ok := fc["args"]; ok && !isNull(rawArgs) {
 		compacted, rerr := g2cCompactArgsObject(what+".args", rawArgs, lim)
 		if rerr != nil {
-			return "", "", false, nil, rerr
+			return "", "", false, nil, "", rerr
 		}
 		out = compacted
 	}
-	return n, callID, present, out, nil
+	return n, callID, present, out, fcSig, nil
 }
