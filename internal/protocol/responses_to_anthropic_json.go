@@ -29,5 +29,5 @@ func TranslateResponsesJSONToAnthropicWithPolicy(raw []byte, publicModel string,
 	if rerr != nil {
 		return nil, rerr
 	}
-	return EncodeAnthropicResponse(resp, publicModel)
+	return EncodeAnthropicResponseWithPolicy(resp, publicModel, allowPrivateDrop)
 }

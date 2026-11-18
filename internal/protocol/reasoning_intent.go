@@ -23,6 +23,7 @@ const (
 	CompatEffortOrigin
 	// AnthropicThinkingOrigin is the Anthropic "thinking" disabled source path.
 	AnthropicThinkingOrigin
+	AnthropicEffortOrigin
 )
 
 // Path returns the static source path for diagnostics and loss fields.
@@ -40,6 +41,8 @@ func (o EffortOrigin) Path() string {
 		return "x-model-router-reasoning-effort"
 	case AnthropicThinkingOrigin:
 		return "thinking"
+	case AnthropicEffortOrigin:
+		return "output_config.effort"
 	default:
 		return ""
 	}

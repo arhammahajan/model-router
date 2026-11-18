@@ -32,6 +32,6 @@ type ResponsesToAnthropicSSETranslator struct {
 func (t *ResponsesToAnthropicSSETranslator) Translate(r io.Reader, w io.Writer, flush func()) *RouterError {
 	frames := NewSSEFrameReader(r, t.Limits)
 	dec := NewResponsesStreamDecoderWithPolicy(t.Limits, t.AllowPrivateReasoningDrop)
-	enc := NewAnthropicEventEncoder(t.PublicModel, t.Limits)
+	enc := NewAnthropicEventEncoderWithPolicy(t.PublicModel, t.Limits, t.AllowPrivateReasoningDrop)
 	return TranslateStream(frames, dec, enc, w, flush, t.Limits, DialectResponses)
 }

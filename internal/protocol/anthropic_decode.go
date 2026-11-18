@@ -111,15 +111,8 @@ func decodeAnthropicSource(raw []byte, lim Limits, dest anthropicDestination) (*
 			"temperature", "top_p", "top_k", "stop_sequences",
 			"stream", "tools", "tool_choice":
 			// handled below
-		case "thinking":
-			// Disabled decodes to the closed Off intent for the Chat and
-			// Responses destinations (planned downstream); Gemini keeps the
-			// existing diagnosed loss. Enabled/adaptive/between_tools keep
-			// the existing hard same-protocol refusal. Malformed shapes
-			// stay 400 before any loss in both modes.
-			if rerr := validateAnthropicThinking(top[key], dest, g, loseDrop); rerr != nil {
-				return nil, nil, rerr
-			}
+		case "thinking", "output_config":
+			// Validate together below so named effort is available to adaptive thinking.
 		default:
 			if knownAnthropicField(key) {
 				if isNull(top[key]) {
@@ -133,6 +126,28 @@ func decodeAnthropicSource(raw []byte, lim Limits, dest anthropicDestination) (*
 			return nil, nil, &RouterError{Status: 400, Code: CodeInvalidGeneration,
 				Msg: fmt.Sprintf("Unsupported or invalid request field for translation: %q", key)}
 		}
+	}
+	var outputConfig map[string]json.RawMessage
+	if raw := top["output_config"]; len(raw) != 0 && !isNull(raw) {
+		if rerr := validateAnthropicLossField("output_config", raw, func(string, string) {}); rerr != nil {
+			return nil, nil, rerr
+		}
+		_ = json.Unmarshal(raw, &outputConfig)
+	}
+	var effort string
+	_ = json.Unmarshal(outputConfig["effort"], &effort)
+	if raw := top["thinking"]; len(raw) != 0 {
+		if rerr := validateAnthropicThinking(raw, dest, effort, g, loseDrop); rerr != nil {
+			return nil, nil, rerr
+		}
+	}
+	if g.Reasoning.Origin() == AnthropicEffortOrigin.Path() {
+		lose("output_config.effort", "the same named level controls reasoning only on this destination", true)
+		if raw := outputConfig["format"]; len(raw) != 0 && !isNull(raw) {
+			loseDrop("output_config.format", "no reviewed bridge mapping")
+		}
+	} else if outputConfig != nil {
+		loseDrop("output_config", "no reviewed bridge mapping")
 	}
 
 	// temperature / top_p: finite numbers in the IR contract range.
@@ -277,18 +292,22 @@ func decodeAnthropicSource(raw []byte, lim Limits, dest anthropicDestination) (*
 		return nil, nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: "'messages' must contain at least one message"}
 	}
+	hasConversation := false
 	for i, item := range msgArr {
 		if item == nil {
 			return nil, nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 				Msg: "'messages' must contain objects with string roles"}
 		}
-		ms, rerr := decodeAnthropicMessage(i, item, lose, lim)
+		ms, rerr := decodeAnthropicMessage(i, item, lose, lim, dest)
 		if rerr != nil {
 			return nil, nil, rerr
 		}
+		for _, message := range ms {
+			hasConversation = hasConversation || message.Role != RoleSystem
+		}
 		g.Messages = append(g.Messages, ms...)
 	}
-	if len(g.Messages) == 0 {
+	if !hasConversation {
 		return nil, nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 			Msg: "'messages' must contain at least one translatable message"}
 	}
@@ -432,9 +451,8 @@ func knownAnthropicField(key string) bool {
 // https://ai.google.dev/api/generate-content and the thinking ranges in
 // https://ai.google.dev/gemini-api/docs/generate-content/thinking,
 // otherwise diagnosed drop, no budget-to-level table). Enabled for
-// Responses and adaptive/between_tools keep the existing hard
-// same-protocol refusal: Responses has no budget control, and
-// adaptive/between_tools have no numeric budget.
+// Responses and between_tools keep the hard refusal. Adaptive thinking with
+// explicit effort can carry that named level to Chat or Responses.
 // Provider-private thinking state must never be silently dropped.
 //
 // Reviewed contract (https://docs.anthropic.com/en/api/messages):
@@ -446,7 +464,7 @@ func knownAnthropicField(key string) bool {
 // non-null, must be summarized/omitted (malformed otherwise, 400 before
 // any loss); a well-formed admitted display is an independent diagnosed
 // dropped loss (field "thinking.display") alongside the Budget intent.
-func validateAnthropicThinking(raw json.RawMessage, dest anthropicDestination, gen *Generation, lose func(string, string)) *RouterError {
+func validateAnthropicThinking(raw json.RawMessage, dest anthropicDestination, effort string, gen *Generation, lose func(string, string)) *RouterError {
 	if isNull(raw) {
 		return nil
 	}
@@ -535,7 +553,26 @@ func validateAnthropicThinking(raw json.RawMessage, dest anthropicDestination, g
 		}
 		gen.Reasoning = intent
 		return nil
-	case "adaptive", "between_tools":
+	case "adaptive":
+		if effort == "" || dest == anthropicDestGemini {
+			return &RouterError{Status: 400, Code: CodeInvalidGeneration,
+				Msg: "Anthropic thinking requires a same-protocol route"}
+		}
+		if v := obj["budget_tokens"]; len(v) != 0 && !isNull(v) {
+			return &RouterError{Status: 400, Code: CodeInvalidGeneration,
+				Msg: "'thinking.budget_tokens' must be absent when type is 'adaptive'"}
+		}
+		if v := obj["display"]; len(v) != 0 && !isNull(v) {
+			var display string
+			if json.Unmarshal(v, &display) != nil || (display != "summarized" && display != "omitted") {
+				return &RouterError{Status: 400, Code: CodeInvalidGeneration, Msg: "Unsupported or invalid request field for translation: \"thinking.display\""}
+			}
+			lose("thinking.display", "thinking display has no equivalent control")
+		}
+		lose("thinking", "adaptive thinking mode has no equivalent control")
+		gen.Reasoning = ReasoningIntent{kind: KindNamed, level: effort, origin: AnthropicEffortOrigin}
+		return nil
+	case "between_tools":
 		return &RouterError{Status: 400, Code: CodeInvalidGeneration,
 			Msg: "Anthropic thinking requires a same-protocol route"}
 	default:
@@ -746,7 +783,7 @@ func validateAnthropicLossField(key string, raw json.RawMessage, lose func(strin
 // interleaving text with tool_use, is rejected: the IR cannot preserve the
 // cross-kind order, and reordering silently would change the conversation.
 // Pure messages expand to one or more IR messages in block order.
-func decodeAnthropicMessage(i int, item map[string]json.RawMessage, lose func(string, string, bool), lim Limits) ([]Message, *RouterError) {
+func decodeAnthropicMessage(i int, item map[string]json.RawMessage, lose func(string, string, bool), lim Limits, dest anthropicDestination) ([]Message, *RouterError) {
 	prefix := fmt.Sprintf("messages[%d]", i)
 	for key := range item {
 		switch key {
@@ -759,6 +796,16 @@ func decodeAnthropicMessage(i int, item map[string]json.RawMessage, lose func(st
 	var role string
 	if rawR, ok := item["role"]; ok && !isNull(rawR) {
 		_ = json.Unmarshal(rawR, &role)
+	}
+	// Claude Code can put a plain system message after user content.
+	// The OpenAI targets can carry it in that position.
+	if role == "system" && dest != anthropicDestGemini {
+		var text string
+		if json.Unmarshal(item["content"], &text) != nil || text == "" {
+			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
+				Msg: fmt.Sprintf("'%s.content' must be a non-empty string for system messages", prefix)}
+		}
+		return []Message{{Role: RoleSystem, Texts: []TextContent{{Text: text}}}}, nil
 	}
 	if role != "user" && role != "assistant" {
 		return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,

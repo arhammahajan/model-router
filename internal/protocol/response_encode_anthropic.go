@@ -28,12 +28,11 @@ func EncodeAnthropicResponse(resp Response, publicModel string) ([]byte, *Router
 
 // EncodeAnthropicResponseWithPolicy renders a source-validated Response
 // as Anthropic Messages with narrow lossy policy:
-// allowChatReasoningDrop drops the Chat-source scalar reasoning breakdown
+// allowReasoningBreakdownDrop drops the Chat or Responses scalar reasoning breakdown
 // for Anthropic, preserving aggregate output_tokens (output_tokens stays
-// completion). Responses/Gemini reasoning and strict Anthropic are
-// unchanged; only source==Chat with dest==Anthropic is affected.
-func EncodeAnthropicResponseWithPolicy(resp Response, publicModel string, allowChatReasoningDrop bool) ([]byte, *RouterError) {
-	if rerr := CheckRepresentableWithPolicy(resp, DialectAnthropic, allowChatReasoningDrop); rerr != nil {
+// completion). Strict mode and other targets keep their existing behavior.
+func EncodeAnthropicResponseWithPolicy(resp Response, publicModel string, allowReasoningBreakdownDrop bool) ([]byte, *RouterError) {
+	if rerr := CheckRepresentableWithPolicy(resp, DialectAnthropic, allowReasoningBreakdownDrop); rerr != nil {
 		return nil, rerr
 	}
 	stop, rerr := anthropicResponseStop(resp)
@@ -208,7 +207,7 @@ func TranslateChatJSONToAnthropic(raw []byte, publicModel string, lim Limits) ([
 // with narrow lossy compatibility policy: allowPrivateDrop drops
 // substantive reasoning_content at decode, drops the known gateway usage
 // extensions (cost, opencode) after validation, and projects the
-// Chat-source reasoning breakdown for Anthropic (aggregate output_tokens
+// Chat or Responses reasoning breakdown for Anthropic (aggregate output_tokens
 // preserved). False keeps the strict 502s.
 func TranslateChatJSONToAnthropicWithPolicy(raw []byte, publicModel string, lim Limits, allowPrivateDrop bool) ([]byte, *RouterError) {
 	resp, rerr := DecodeChatResponseWithPolicy(raw, lim, allowPrivateDrop)

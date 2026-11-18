@@ -372,7 +372,7 @@ func (d *ResponsesStreamDecoder) onArgsDone(body map[string]json.RawMessage) *Ro
 	ev := "response.function_call_arguments.done"
 	if _, rerr := responsesStreamObject(mustRaw(body), map[string]bool{
 		"type": true, "sequence_number": true, "output_index": true,
-		"item_id": true, "arguments": true,
+		"item_id": true, "arguments": true, "name": true,
 	}, ev); rerr != nil {
 		return rerr
 	}
@@ -401,6 +401,15 @@ func (d *ResponsesStreamDecoder) onArgsDone(body map[string]json.RawMessage) *Ro
 	}
 	if s.kind != "tool" {
 		return rsBad()
+	}
+	if rawName, ok := body["name"]; ok && !isNull(rawName) {
+		var name string
+		if json.Unmarshal(rawName, &name) != nil {
+			return rsBad()
+		}
+		if name != s.name {
+			return &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: "Upstream stream changed its tool identity"}
+		}
 	}
 	if s.argsDone || s.itemDone {
 		return &RouterError{Status: 502, Code: CodeUpstreamBad,

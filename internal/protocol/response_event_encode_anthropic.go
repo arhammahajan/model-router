@@ -50,11 +50,11 @@ import (
 type AnthropicEventEncoder struct {
 	publicModel string
 	lim         Limits
-	// allowChatReasoningDrop projects the Chat-source reasoning breakdown
+	// allowReasoningBreakdownDrop projects the Chat or Responses reasoning breakdown
 	// for Anthropic (aggregate output_tokens preserved). False keeps the
 	// strict 502. Responses/Gemini accounting unchanged; only
 	// source==Chat with dest==Anthropic is affected.
-	allowChatReasoningDrop bool
+	allowReasoningBreakdownDrop bool
 
 	msgID     string
 	committed bool
@@ -93,26 +93,26 @@ type AnthropicEventEncoder struct {
 
 // NewAnthropicEventEncoder creates the Anthropic target stream encoder
 // for one generation. Public model stamps message_start; lim bounds
-// encoded frames. Strict: Chat-source reasoning refuses in Anthropic.
+// encoded frames. Strict mode rejects nonzero reasoning breakdowns.
 func NewAnthropicEventEncoder(publicModel string, lim Limits) *AnthropicEventEncoder {
 	return NewAnthropicEventEncoderWithPolicy(publicModel, lim, false)
 }
 
 // NewAnthropicEventEncoderWithPolicy creates the Anthropic target stream
-// encoder with narrow lossy policy: allowChatReasoningDrop drops the
-// Chat-source scalar reasoning breakdown, preserving aggregate
-// output_tokens. Responses/Gemini and strict Anthropic unchanged.
-func NewAnthropicEventEncoderWithPolicy(publicModel string, lim Limits, allowChatReasoningDrop bool) *AnthropicEventEncoder {
+// encoder with narrow lossy policy: allowReasoningBreakdownDrop drops the
+// Chat or Responses scalar reasoning breakdown, preserving aggregate
+// output_tokens. Strict mode rejects nonzero reasoning breakdowns.
+func NewAnthropicEventEncoderWithPolicy(publicModel string, lim Limits, allowReasoningBreakdownDrop bool) *AnthropicEventEncoder {
 	return &AnthropicEventEncoder{
-		publicModel:            publicModel,
-		lim:                    lim,
-		allowChatReasoningDrop: allowChatReasoningDrop,
-		msgID:                  newAnthropicMessageID(),
-		anthIdx:                map[ItemID]int{},
-		kinds:                  map[ItemID]BlockKind{},
-		toolName:               map[ItemID]string{},
-		toolCall:               map[ItemID]CallID{},
-		minted:                 map[CallID]struct{}{},
+		publicModel:                 publicModel,
+		lim:                         lim,
+		allowReasoningBreakdownDrop: allowReasoningBreakdownDrop,
+		msgID:                       newAnthropicMessageID(),
+		anthIdx:                     map[ItemID]int{},
+		kinds:                       map[ItemID]BlockKind{},
+		toolName:                    map[ItemID]string{},
+		toolCall:                    map[ItemID]CallID{},
+		minted:                      map[CallID]struct{}{},
 	}
 }
 
@@ -262,7 +262,7 @@ func (e *AnthropicEventEncoder) startUsage() (map[string]any, *RouterError) {
 	if err := u.ValidateAuthoritative(); err != nil {
 		return nil, err
 	}
-	if err := CheckUsageRepresentableWithPolicy(u, e.source, DialectAnthropic, e.allowChatReasoningDrop); err != nil {
+	if err := CheckUsageRepresentableWithPolicy(u, e.source, DialectAnthropic, e.allowReasoningBreakdownDrop); err != nil {
 		return nil, err
 	}
 	return encodeAnthropicUsage(u)
@@ -437,7 +437,7 @@ func (e *AnthropicEventEncoder) encodeIdentity(v ProviderIdentityEvent) *EncodeE
 // CheckRepresentableWithPolicy plus the shared stop/usage mapping;
 // argument bytes are never inspected by the Anthropic gate, so tool items
 // carry EmptyArgs placeholders while identities, kinds, usage, finish,
-// and malformed counts are exact. Lossy Chat reasoning is projected by
+// and malformed counts are exact. Lossy reasoning is projected by
 // dropping the breakdown and preserving aggregate output_tokens.
 func (e *AnthropicEventEncoder) encodeCompletion(w io.Writer, flush func(), complete CompletionEvent) *EncodeError {
 	if !e.hasStart {
@@ -479,7 +479,7 @@ func (e *AnthropicEventEncoder) encodeCompletion(w io.Writer, flush func(), comp
 		ModelOrigin:       e.modelOrigin,
 		RouterMintedCalls: e.minted,
 	}
-	if rerr := CheckRepresentableWithPolicy(summary, DialectAnthropic, e.allowChatReasoningDrop); rerr != nil {
+	if rerr := CheckRepresentableWithPolicy(summary, DialectAnthropic, e.allowReasoningBreakdownDrop); rerr != nil {
 		return &EncodeError{Err: rerr, WriteFailed: false}
 	}
 	stop, rerr := anthropicResponseStop(summary)

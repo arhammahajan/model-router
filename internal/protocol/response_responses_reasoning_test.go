@@ -168,11 +168,9 @@ func TestResponsesReasoningFullTranslatorsWithPolicy(t *testing.T) {
 			t.Fatalf("strict translator must 502, got %v", rerr)
 		}
 	}
-	// Lossy translators succeed with visible text only (Chat/Gemini/
-	// Responses render reasoning_tokens; Anthropic refuses it at the
-	// target gate by design).
+	// Lossy translators preserve visible text and discard private reasoning.
 	for _, fn := range []func([]byte, string, Limits, bool) ([]byte, *RouterError){
-		TranslateResponsesJSONToChatWithPolicy, TranslateResponsesJSONToGeminiWithPolicy,
+		TranslateResponsesJSONToChatWithPolicy, TranslateResponsesJSONToGeminiWithPolicy, TranslateResponsesJSONToAnthropicWithPolicy,
 	} {
 		out, rerr := fn([]byte(raw), "public", DefaultLimits(), true)
 		if rerr != nil {
@@ -184,9 +182,6 @@ func TestResponsesReasoningFullTranslatorsWithPolicy(t *testing.T) {
 		if !strings.Contains(string(out), "hello") {
 			t.Fatalf("translator output lost visible message: %s", out)
 		}
-	}
-	if _, rerr := TranslateResponsesJSONToAnthropicWithPolicy([]byte(raw), "public", DefaultLimits(), true); rerr == nil || rerr.Status != 502 {
-		t.Fatalf("lossy anthropic with reasoning tokens must still refuse at target gate, got %v", rerr)
 	}
 	// Policy false keeps the strict refusal.
 	if _, rerr := TranslateResponsesJSONToChatWithPolicy([]byte(raw), "public", DefaultLimits(), false); rerr == nil || rerr.Status != 502 {

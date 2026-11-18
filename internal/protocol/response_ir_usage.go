@@ -320,22 +320,20 @@ func (u ResponseUsage) ValidateAuthoritative() *RouterError {
 // counts into the Chat prompt today.
 //
 // Strict: nonzero reasoning refuses in Anthropic for every source.
-// Lossy (CheckRepresentableWithPolicy with allowChatReasoningForAnthropic
-// true) projects the Chat-source reasoning breakdown for Anthropic: the
+// Lossy (CheckRepresentableWithPolicy with allowAnthropicReasoningProjection
+// true) projects the Chat or Responses reasoning breakdown for Anthropic: the
 // breakdown is dropped while aggregate output_tokens is preserved
-// (output_tokens stays completion). Responses/Gemini accounting and strict
-// Anthropic are unchanged; only source==Chat with dest==Anthropic is
-// affected.
+// (output_tokens stays completion). Other destinations keep their accounting.
 func CheckRepresentable(resp Response, dest Dialect) *RouterError {
 	return CheckRepresentableWithPolicy(resp, dest, false)
 }
 
 // CheckRepresentableWithPolicy enforces the destination contract with
-// narrow lossy policy: allowChatReasoningForAnthropic drops the
-// Chat-source scalar reasoning breakdown for the Anthropic target,
+// narrow lossy policy: allowAnthropicReasoningProjection drops the
+// Chat or Responses scalar reasoning breakdown for the Anthropic target,
 // preserving aggregate output_tokens. All other source/destination
 // combinations behave strictly.
-func CheckRepresentableWithPolicy(resp Response, dest Dialect, allowChatReasoningForAnthropic bool) *RouterError {
+func CheckRepresentableWithPolicy(resp Response, dest Dialect, allowAnthropicReasoningProjection bool) *RouterError {
 	unrep := func(what string) *RouterError {
 		return &RouterError{Status: 502, Code: CodeUpstreamBad,
 			Msg: fmt.Sprintf("Upstream response feature %q has no %s representation", what, string(dest))}
@@ -366,7 +364,7 @@ func CheckRepresentableWithPolicy(resp Response, dest Dialect, allowChatReasonin
 		return unrep("response.stop_reason")
 	}
 
-	if rerr := CheckUsageRepresentableWithPolicy(resp.Usage, source, dest, allowChatReasoningForAnthropic); rerr != nil {
+	if rerr := CheckUsageRepresentableWithPolicy(resp.Usage, source, dest, allowAnthropicReasoningProjection); rerr != nil {
 		return rerr
 	}
 
@@ -498,21 +496,19 @@ func CheckRepresentableWithPolicy(resp Response, dest Dialect, allowChatReasonin
 // finish state merely to reuse the complete-response policy.
 //
 // Strict: nonzero reasoning refuses in Anthropic for every source.
-// Lossy (allowChatReasoningForAnthropic true) projects Chat-source
+// Lossy (allowAnthropicReasoningProjection true) projects Chat and Responses
 // reasoning for Anthropic: the breakdown is dropped, aggregate
-// output_tokens (completion) is preserved. Responses/Gemini accounting
-// and strict Anthropic are unchanged.
+// output_tokens (completion) is preserved. Non-Anthropic targets and
+// strict Anthropic are unchanged.
 func CheckUsageRepresentable(usage ResponseUsage, source, dest Dialect) *RouterError {
 	return CheckUsageRepresentableWithPolicy(usage, source, dest, false)
 }
 
 // CheckUsageRepresentableWithPolicy applies source-aware target policy
-// with narrow lossy policy: allowChatReasoningForAnthropic drops the
-// Chat-source scalar reasoning breakdown for the Anthropic target,
-// preserving aggregate output_tokens. Only source==Chat with
-// dest==Anthropic is affected; Responses/Gemini reasoning and strict
-// Anthropic still refuse.
-func CheckUsageRepresentableWithPolicy(usage ResponseUsage, source, dest Dialect, allowChatReasoningForAnthropic bool) *RouterError {
+// with narrow lossy policy: allowAnthropicReasoningProjection drops the
+// Chat or Responses scalar reasoning breakdown for the Anthropic target,
+// preserving aggregate output_tokens. Strict mode and other targets keep their existing behavior.
+func CheckUsageRepresentableWithPolicy(usage ResponseUsage, source, dest Dialect, allowAnthropicReasoningProjection bool) *RouterError {
 	unrep := func(what string) *RouterError {
 		return &RouterError{Status: 502, Code: CodeUpstreamBad, Msg: fmt.Sprintf("Upstream response feature %q has no %s representation", what, string(dest))}
 	}
@@ -520,16 +516,15 @@ func CheckUsageRepresentableWithPolicy(usage ResponseUsage, source, dest Dialect
 	// Scalar reasoning accounting: refuses only where no reviewed
 	// mapping exists. Anthropic has no reasoning usage field. Strict
 	// refuses every source there (Chat->Anthropic, Responses->Anthropic
-	// proven). Lossy projects Chat reasoning for Anthropic by dropping
-	// the breakdown while preserving aggregate output_tokens; Responses
-	// reasoning still refuses in Anthropic even in lossy, and Gemini
+	// proven). Lossy projects Chat and Responses reasoning for Anthropic by dropping
+	// the breakdown while preserving aggregate output_tokens. Gemini
 	// thoughts still refuse outside Gemini. Chat and Responses reasoning
 	// travel to Chat, Gemini (thoughts), and Responses natively.
 	if nonzero(usage.Reasoning) && dest == DialectAnthropic {
-		if !(allowChatReasoningForAnthropic && source == DialectChat) {
+		if !(allowAnthropicReasoningProjection && (source == DialectChat || source == DialectResponses)) {
 			return unrep("response.usage.reasoning_tokens")
 		}
-		// Lossy Chat->Anthropic: fall through, breakdown dropped,
+		// Lossy Anthropic projection: fall through, breakdown dropped,
 		// aggregate preserved by the target encoders (output_tokens stays
 		// completion).
 	}

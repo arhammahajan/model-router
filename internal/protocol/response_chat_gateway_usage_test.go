@@ -394,13 +394,14 @@ func TestChatAnthropicReasoningProjectionUnchanged(t *testing.T) {
 		t.Fatalf("zero reasoning must encode lossy: %v", rerr)
 	}
 
-	// Responses-source reasoning still refuses in Anthropic even in lossy.
+	// Responses-source reasoning uses the same lossy Anthropic projection.
 	respResp := respWithUsage(t, DialectResponses, usageWith(t, DialectResponses, 5, 7, func(u ResponseUsage) (ResponseUsage, *RouterError) {
 		three := 3
 		return u.WithReasoning(&three)
 	}))
-	if _, rerr := EncodeAnthropicResponseWithPolicy(respResp, "public", true); rerr == nil {
-		t.Fatal("Responses reasoning must still refuse in Anthropic even lossy")
+	out, rerr := EncodeAnthropicResponseWithPolicy(respResp, "public", true)
+	if rerr != nil || !strings.Contains(string(out), `"output_tokens":7`) || strings.Contains(string(out), "reasoning_tokens") {
+		t.Fatalf("Responses aggregate must survive lossy projection: %s, %v", out, rerr)
 	}
 	// Gemini-source thoughts still refuse outside Gemini even in lossy.
 	thoughts := 2
