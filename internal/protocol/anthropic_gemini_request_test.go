@@ -177,7 +177,9 @@ func TestA2GTopKThinkingMaxTokens(t *testing.T) {
 		"messages":[{"role":"user","content":"hi"}]}`)
 	// Thinking: explicit disabled is a diagnosed loss; enabled admits the
 	// well-formed Budget intent (planner gates the exact wire on the pinned
-	// canonical native fact); adaptive requires a same-protocol route.
+	// canonical native fact); bare adaptive (no output_config.effort)
+	// requires a same-protocol route, while adaptive with an explicit
+	// effort decodes to the closed Named intent with diagnosed losses.
 	rawDis := `{"model":"m","max_tokens":8,"thinking":{"type":"disabled"},
 		"messages":[{"role":"user","content":"hi"}]}`
 	if _, losses := mustA2GDecode(t, rawDis); !a2gLossFields(losses)["thinking"] {

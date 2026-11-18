@@ -1,0 +1,63 @@
+{
+  "name": "anthropic_to_gemini_claude_code_adaptive_strict",
+  "config": "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n\n[retry]\nmax_attempts = 1\n\n[providers.gem]\ndialect = \"gemini\"\nbase_url = \"{UPSTREAM}\"\napi_key = \"gem-secret\"\n\n[[models]]\nname = \"bridge-gem\"\nprovider = \"gem\"\nmodel = \"gemini-4-argon\"\n",
+  "upstream": {
+    "raw_body": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {"text": "pong"}
+            ]
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "usageMetadata": {
+        "candidatesTokenCount": 1,
+        "promptTokenCount": 9,
+        "totalTokenCount": 10
+      }
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "bridge-gem",
+      "max_tokens": 512,
+      "stream": false,
+      "system": [
+        {"type": "text", "text": "You are Claude Code."}
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "Reply with just the word: ping"
+        },
+        {
+          "role": "system",
+          "content": "Environment context"
+        }
+      ],
+      "thinking": {"type": "adaptive"},
+      "output_config": {"effort": "medium"},
+      "metadata": {"user_id": "user_1"}
+    }
+  },
+  "expect": {
+    "status": 400,
+    "client_text_contains": [
+      "Translation would lose or approximate"
+    ],
+    "client_text_absent": [
+      "Traceback",
+      "\"text\":\"pong\""
+    ],
+    "upstream": {
+      "exact_requests": 0
+    }
+  }
+}

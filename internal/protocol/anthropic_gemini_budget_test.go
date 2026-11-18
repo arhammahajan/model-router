@@ -81,7 +81,8 @@ func TestAnthGemBudgetDecodeAdmits(t *testing.T) {
 	if !found {
 		t.Fatalf("display loss missing: %v", losses)
 	}
-	// Responses still refuses; adaptive/between_tools refuse everywhere.
+	// Responses still refuses; bare adaptive/between_tools refuse everywhere
+	// (adaptive with an explicit effort decodes to the named intent).
 	if _, _, rerr := DecodeAnthropicForResponses([]byte(raw), DefaultLimits()); rerr == nil || rerr.Status != 400 {
 		t.Fatalf("responses must refuse: %v", rerr)
 	}

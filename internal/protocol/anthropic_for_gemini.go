@@ -33,7 +33,10 @@
 //     positive budget decodes to the closed Budget intent for the shared
 //     planner (exact generationConfig.thinkingConfig.thinkingBudget only
 //     on the pinned canonical native thinkingBudget fact, otherwise a
-//     diagnosed drop); adaptive/between_tools require a same-protocol
+//     diagnosed drop); adaptive with an explicit output_config.effort
+//     decodes to the closed Named intent (the adaptive mode itself is a
+//     diagnosed dropped loss; the named level maps via the shared
+//     planner); bare adaptive/between_tools require a same-protocol
 //     route.
 //
 // Null policy mirrors the sibling decoders: explicit null on an optional

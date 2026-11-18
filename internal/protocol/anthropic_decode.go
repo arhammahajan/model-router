@@ -298,7 +298,7 @@ func decodeAnthropicSource(raw []byte, lim Limits, dest anthropicDestination) (*
 			return nil, nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
 				Msg: "'messages' must contain objects with string roles"}
 		}
-		ms, rerr := decodeAnthropicMessage(i, item, lose, lim, dest)
+		ms, rerr := decodeAnthropicMessage(i, item, lose, lim)
 		if rerr != nil {
 			return nil, nil, rerr
 		}
@@ -451,8 +451,13 @@ func knownAnthropicField(key string) bool {
 // https://ai.google.dev/api/generate-content and the thinking ranges in
 // https://ai.google.dev/gemini-api/docs/generate-content/thinking,
 // otherwise diagnosed drop, no budget-to-level table). Enabled for
-// Responses and between_tools keep the hard refusal. Adaptive thinking with
-// explicit effort can carry that named level to Chat or Responses.
+// Responses and between_tools keep the hard refusal. Adaptive thinking
+// with explicit effort (output_config.effort, the Claude Code carrier)
+// decodes to the closed Named intent on every destination: the named
+// level maps via the shared planner's destination gates (Gemini exact
+// thinkingLevel only on the pinned native fact, otherwise diagnosed
+// drop), and the adaptive mode itself is an independent diagnosed
+// dropped loss. Bare adaptive keeps the hard refusal everywhere.
 // Provider-private thinking state must never be silently dropped.
 //
 // Reviewed contract (https://docs.anthropic.com/en/api/messages):
@@ -554,7 +559,16 @@ func validateAnthropicThinking(raw json.RawMessage, dest anthropicDestination, e
 		gen.Reasoning = intent
 		return nil
 	case "adaptive":
-		if effort == "" || dest == anthropicDestGemini {
+		// Adaptive mode with an explicit named level (Claude Code sends
+		// thinking:{"type":"adaptive"} plus output_config.effort on every
+		// effort-capable request) decodes to the closed Named intent on
+		// every destination, with the adaptive mode itself a diagnosed
+		// dropped loss. The Gemini named-level gate stays in the shared
+		// planner: exact thinkingLevel only on the pinned native fact,
+		// otherwise a diagnosed drop, never a guessed budget-to-level
+		// table. Bare adaptive (no level) and between_tools keep the hard
+		// refusal everywhere.
+		if effort == "" {
 			return &RouterError{Status: 400, Code: CodeInvalidGeneration,
 				Msg: "Anthropic thinking requires a same-protocol route"}
 		}
@@ -783,7 +797,7 @@ func validateAnthropicLossField(key string, raw json.RawMessage, lose func(strin
 // interleaving text with tool_use, is rejected: the IR cannot preserve the
 // cross-kind order, and reordering silently would change the conversation.
 // Pure messages expand to one or more IR messages in block order.
-func decodeAnthropicMessage(i int, item map[string]json.RawMessage, lose func(string, string, bool), lim Limits, dest anthropicDestination) ([]Message, *RouterError) {
+func decodeAnthropicMessage(i int, item map[string]json.RawMessage, lose func(string, string, bool), lim Limits) ([]Message, *RouterError) {
 	prefix := fmt.Sprintf("messages[%d]", i)
 	for key := range item {
 		switch key {
@@ -798,8 +812,11 @@ func decodeAnthropicMessage(i int, item map[string]json.RawMessage, lose func(st
 		_ = json.Unmarshal(rawR, &role)
 	}
 	// Claude Code can put a plain system message after user content.
-	// The OpenAI targets can carry it in that position.
-	if role == "system" && dest != anthropicDestGemini {
+	// The OpenAI targets carry it in position; the Gemini destination
+	// hoists it into systemInstruction via the shared encoder (the same
+	// hoisting the Chat ingress already uses for role:system messages),
+	// so it decodes identically on every destination.
+	if role == "system" {
 		var text string
 		if json.Unmarshal(item["content"], &text) != nil || text == "" {
 			return nil, &RouterError{Status: 400, Code: CodeInvalidRequest,
