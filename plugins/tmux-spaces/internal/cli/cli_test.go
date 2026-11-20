@@ -1,0 +1,128 @@
+package cli
+
+import (
+	"errors"
+	"strings"
+	"testing"
+)
+
+func TestRunDispatch(t *testing.T) {
+	fc := &FakeClient{Up: true}
+	fc.Snap = serverSnapshotForStatus()
+	env := testEnv(fc)
+
+	if code := Run(nil, env); code != ExitOK {
+		t.Errorf("bare = %d", code)
+	}
+	if got := stdoutOf(t, env); !strings.Contains(got, "usage:") {
+		t.Errorf("bare help = %q", got)
+	}
+	if code := Run([]string{"bogus"}, env); code != ExitUsage {
+		t.Errorf("bogus = %d", code)
+	}
+	if code := Run([]string{"help"}, env); code != ExitOK {
+		t.Errorf("help = %d", code)
+	}
+	if code := Run([]string{"help", "wait"}, env); code != ExitOK {
+		t.Errorf("help wait = %d", code)
+	}
+	if code := Run([]string{"help", "bogus"}, env); code != ExitUsage {
+		t.Errorf("help bogus = %d", code)
+	}
+	if code := Run([]string{"--help"}, env); code != ExitOK {
+		t.Errorf("--help = %d", code)
+	}
+}
+
+func TestRunNoClient(t *testing.T) {
+	env := testEnv(nil)
+	if code := Run([]string{"panes"}, env); code != ExitError {
+		t.Errorf("panes without client = %d", code)
+	}
+	if code := Run([]string{"help"}, env); code != ExitOK {
+		t.Errorf("help without client = %d", code)
+	}
+}
+
+func TestParseFlags(t *testing.T) {
+	f, err := parseFlags([]string{"--session", "s1", "--json", "pos"}, []string{"session"}, []string{"json"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.str["session"] != "s1" || !f.set["json"] || len(f.pos) != 1 || f.pos[0] != "pos" {
+		t.Errorf("parsed = %+v", f)
+	}
+	if _, err := parseFlags([]string{"--bogus"}, nil, nil, nil); err == nil {
+		t.Errorf("unknown flag should error")
+	}
+	if _, err := parseFlags([]string{"--session"}, []string{"session"}, nil, nil); err == nil {
+		t.Errorf("missing value should error")
+	}
+	if _, err := parseFlags([]string{"--json=x"}, nil, []string{"json"}, nil); err == nil {
+		t.Errorf("bool with value should error")
+	}
+	f, err = parseFlags([]string{"-y", "pos"}, nil, []string{"yes"}, map[string]string{"y": "yes"})
+	if err != nil || !f.set["yes"] {
+		t.Errorf("alias = %+v %v", f, err)
+	}
+	f, err = parseFlags([]string{"--", "--json"}, nil, []string{"json"}, nil)
+	if err != nil || len(f.pos) != 1 || f.pos[0] != "--json" {
+		t.Errorf("double-dash = %+v %v", f, err)
+	}
+	if _, err := parseFlags([]string{"--help"}, nil, nil, nil); !errors.Is(err, errHelp) {
+		t.Errorf("help = %v", err)
+	}
+}
+
+func TestBucketOf(t *testing.T) {
+	cases := map[string]string{
+		"blocked": BucketNeeds, "needs_you": BucketNeeds,
+		"failed": BucketFailed, "error": BucketFailed,
+		"done": BucketDone, "working": BucketWorking,
+		"": BucketIdle, "idle": BucketIdle, "weird": BucketIdle,
+	}
+	for in, want := range cases {
+		if got := bucketOf(in); got != want {
+			t.Errorf("bucketOf(%q) = %q want %q", in, got, want)
+		}
+	}
+	if bucketPriority(BucketNeeds) >= bucketPriority(BucketFailed) ||
+		bucketPriority(BucketFailed) >= bucketPriority(BucketDone) {
+		t.Errorf("priority order broken")
+	}
+}
+
+func TestCanonicalApp(t *testing.T) {
+	if canonicalApp("claude") != "claude-code" || canonicalApp("cursor") != "cursor-agent" {
+		t.Errorf("canonical mapping broken")
+	}
+	if canonicalApp("codex") != "codex" {
+		t.Errorf("passthrough broken")
+	}
+}
+
+func TestInboxCommand(t *testing.T) {
+	fc := &FakeClient{Up: true}
+	env := testEnv(fc)
+
+	if code := Run([]string{"inbox", "--help"}, env); code != ExitOK {
+		t.Errorf("inbox --help = %d", code)
+	}
+	if code := Run([]string{"help", "inbox"}, env); code != ExitOK {
+		t.Errorf("help inbox = %d", code)
+	}
+	if code := Run([]string{"inbox"}, env); code != ExitError {
+		t.Errorf("inbox without RunInbox = %d, want ExitError", code)
+	}
+	called := false
+	env.RunInbox = func(_ Env, _ []string) int {
+		called = true
+		return ExitOK
+	}
+	if code := Run([]string{"inbox"}, env); code != ExitOK || !called {
+		t.Errorf("inbox wired = %d called=%v", code, called)
+	}
+	if code := Run([]string{"inbox", "extra"}, env); code != ExitUsage {
+		t.Errorf("inbox with extra positional = %d, want ExitUsage", code)
+	}
+}
