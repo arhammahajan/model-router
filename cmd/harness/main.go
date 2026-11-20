@@ -60,6 +60,7 @@ func usage(w *os.File) {
        harness agents [--json]
        harness status [--json]
        harness spaces [command] [args...]
+       harness conversations [list|search|sync|status] [options]
        harness models                     pick a model from the router (table when headless)
        harness usage [--days N] [--by day|model] [--json] [PATH]
        harness doctor [--json]           whole-stack health report
@@ -131,6 +132,8 @@ func run(args []string) int {
 		return runStatus(args[1:])
 	case "spaces":
 		return runSpaces(args[1:])
+	case "conversations", "chats":
+		return runConversationsCLI(args[1:])
 	case "usage":
 		return runUsage(args[1:])
 	case "models":
@@ -143,7 +146,7 @@ func run(args []string) int {
 		// is named; route that bare form to the zj surface too.
 		return runSpaces(args)
 	case "__shim", "__layout", "__prepare-restore", "__resume-wrap",
-		"__space-harnesses", "__space-launch-agent", "__shim-profile":
+		"__space-harnesses", "__space-launch-agent", "__shim-profile", "__space-conversations":
 		// Internal helpers re-exec this binary by its resolved path (see
 		// zjcli SelfPath and zjspace), so argv[0] is not `zj` when they
 		// run. Route them to the zj surface like `hook-server --daemon`;
@@ -190,6 +193,11 @@ func topicHelp(topic string) int {
 		fmt.Println("harness profile describe <name> [--agent <agent>] [args...]")
 	case "agents":
 		fmt.Println("harness agents [--json]")
+	case "conversations", "chats":
+		fmt.Println("harness conversations [list] [--agent A] [--cwd D] [--limit N] [--include-archived] [--refresh] [--json]")
+		fmt.Println("harness conversations search <query> [--agent A] [--cwd D] [--scope all|user|titles] [--limit N] [--json]")
+		fmt.Println("harness conversations sync [--metadata-only] [--max-sources N] [--json]")
+		fmt.Println("harness conversations status [--json]")
 	default:
 		return failUsage("unknown help topic: %s", topic)
 	}
@@ -1728,6 +1736,8 @@ func bindSpacesSeams() {
 		}
 		return spacecore.Serve(foreground, port)
 	}
+	spaceresume.RecordConversationOverlay = recordConversationOverlay
+	spaceresume.SpaceConversationsFunc = runSpaceConversations
 }
 
 // runSpacesResume routes the hook and resume commands to spaceresume.
@@ -1762,6 +1772,8 @@ func runSpacesResume(args []string) int {
 		return spaceresume.HookServer(rest)
 	case "__space-hooks":
 		return spaceresume.SpaceHooks(rest)
+	case "__space-conversations":
+		return spaceresume.SpaceConversations(rest)
 	case "__space-agents":
 		return spaceresume.SpaceAgents()
 	case "__space-snapshot":
