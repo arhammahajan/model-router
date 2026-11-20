@@ -77,6 +77,15 @@ func buildEnv(client *tmux.Client) cli.Env {
 		}
 		return cli.ExitOK
 	}
+	env.RunConversations = func(e cli.Env, args []string) int {
+		opts := parseConversationsOptions(args)
+		opts.HomeDir = homeDir()
+		if err := tui.Run(backend, opts); err != nil {
+			fmt.Fprintf(e.Stderr, "tmux-spaces conversations: %v\n", err)
+			return cli.ExitError
+		}
+		return cli.ExitOK
+	}
 	env.HookHealth = func() (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -143,6 +152,21 @@ func parsePopupOptions(args []string) tui.Options {
 				i++
 				opts.Target = args[i]
 			}
+		}
+	}
+	return opts
+}
+
+func parseConversationsOptions(args []string) tui.Options {
+	opts := tui.Options{
+		InitialMode: tui.ModeConversations,
+	}
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--query" && i+1 < len(args) {
+			i++
+			opts.InitialQuery = args[i]
+		} else if q, ok := strings.CutPrefix(args[i], "--query="); ok {
+			opts.InitialQuery = q
 		}
 	}
 	return opts
@@ -965,6 +989,103 @@ func (b *tuiBackend) removeCachedOutcome(outcome model.OutcomeEntry) {
 		kept = append(kept, o)
 	}
 	b.lastOutcomes = kept
+}
+
+var _ tui.ConversationsBackend = (*tuiBackend)(nil)
+
+func (b *tuiBackend) LoadConversations(ctx context.Context, refresh, includeArchived bool) (model.ConversationSnapshot, error) {
+	return model.FetchConversations(ctx, refresh, includeArchived)
+}
+
+func (b *tuiBackend) SearchConversations(ctx context.Context, req model.ConversationSearchRequest) ([]model.ConversationSearchHit, error) {
+	resp, err := model.SearchConversations(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Hits, nil
+}
+
+func (b *tuiBackend) OpenConversation(ctx context.Context, conv model.ConversationEntry, forceNewTab bool) error {
+	_ = forceNewTab
+	agent := resurrect.CanonicalAgent(conv.Agent)
+	if agent == "" {
+		agent = resurrect.CanonicalAgent(conv.App)
+	}
+	if agent == "" {
+		agent = model.CanonicalConversationAgent(conv.Agent)
+	}
+	if agent == "" {
+		agent = strings.TrimSpace(conv.Agent)
+	}
+	if agent == "" {
+		agent = strings.TrimSpace(conv.App)
+	}
+	if agent == "" {
+		return fmt.Errorf("conversation has no agent to open")
+	}
+
+	// Open in the current tmux session by default, falling back to conv.Space
+	// or the first running session.
+	targetSession := ""
+	if cur, err := b.client.CurrentSession(ctx); err == nil && strings.TrimSpace(cur) != "" {
+		targetSession = strings.TrimSpace(cur)
+	}
+	if targetSession == "" {
+		if sessions, err := b.client.ListSessions(ctx); err == nil {
+			wantSpace := strings.TrimSpace(conv.Space)
+			for _, s := range sessions {
+				if wantSpace != "" && s.Name == wantSpace {
+					targetSession = s.Name
+					break
+				}
+			}
+			if targetSession == "" && len(sessions) > 0 {
+				targetSession = sessions[0].Name
+			}
+		}
+	}
+	if targetSession == "" {
+		return fmt.Errorf("could not determine target space")
+	}
+
+	cwd := strings.TrimSpace(conv.CWD)
+	if cwd != "" && b.dirExists != nil && !b.dirExists(cwd) {
+		cwd = ""
+	}
+
+	profile := strings.TrimSpace(conv.Profile)
+	sessionID := conv.ResumeSessionID()
+	harnessPath := ""
+	if b.lookPath != nil {
+		if p, err := b.lookPath("harness"); err == nil && p != "" {
+			harnessPath = p
+		}
+	}
+
+	cmd := buildConversationOpenCommand(agent, profile, sessionID, cwd, strings.TrimSpace(conv.Title), b.selfPath, harnessPath)
+	if len(cmd) == 0 {
+		return fmt.Errorf("could not build resume command for %s", agent)
+	}
+
+	label := agent
+	if profile != "" && profile != "default" {
+		label = profile
+	}
+	if err := b.client.NewWindow(ctx, targetSession, cwd, label, cmd...); err != nil {
+		return err
+	}
+	// Best-effort overlay update so space and last_opened_ms stay fresh.
+	_ = model.RecordConversationOpen(ctx, conv, targetSession, b.now().UnixMilli())
+	if cur, err := b.client.CurrentSession(ctx); err != nil || cur != targetSession {
+		if err := b.client.SwitchToSpace(ctx, targetSession); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildConversationOpenCommand(agent, profile, sessionID, cwd, title, selfPath, harnessPath string) []string {
+	return buildOutcomeOpenCommand(agent, profile, sessionID, cwd, title, "", selfPath, harnessPath)
 }
 
 // isHarnessManagedAgent reports whether agent is registered in the `harness`

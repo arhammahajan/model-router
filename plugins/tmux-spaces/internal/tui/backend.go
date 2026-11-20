@@ -56,6 +56,14 @@ type OutcomesBackend interface {
 	OpenOutcome(ctx context.Context, outcome model.OutcomeEntry) error
 }
 
+// ConversationsBackend is an optional extension of Backend for listing,
+// searching, and reopening unified coding-agent conversations across harnesses.
+type ConversationsBackend interface {
+	LoadConversations(ctx context.Context, refresh, includeArchived bool) (model.ConversationSnapshot, error)
+	SearchConversations(ctx context.Context, req model.ConversationSearchRequest) ([]model.ConversationSearchHit, error)
+	OpenConversation(ctx context.Context, conv model.ConversationEntry, forceNewTab bool) error
+}
+
 // Mode selects which screen the TUI shows.
 type Mode int
 
@@ -69,6 +77,7 @@ const (
 	ModeHookDetail
 	ModeAgents
 	ModeInbox
+	ModeConversations
 )
 
 // Options configures a TUI run.

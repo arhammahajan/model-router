@@ -44,6 +44,7 @@ All keys are bound in the `prefix` table.
 | --------------- | -------------------- | ----------------------------- |
 | `prefix + s`    | `tmux-spaces popup`  | Navigator (spaces/panes/TUI)  |
 | `prefix + i`    | `tmux-spaces inbox`  | Attention Inbox (agents + live previews across spaces) |
+| `prefix + y`    | `tmux-spaces conversations` | Conversations (fuzzy + full-message search & resume across harnesses) |
 | `prefix + a`    | `tmux-spaces agents` | Agents selector TUI           |
 | `prefix + N`    | `tmux-spaces popup --new` | Create a new space       |
 
@@ -55,14 +56,15 @@ To move it to the top, set `status-position top` after loading the plugin.
 Set these before the `run-shell` line (shown with defaults):
 
 ```tmux
-set -g @spaces-key 's'            # Navigator key
-set -g @spaces-inbox-key 'i'      # Attention Inbox key
-set -g @spaces-agents-key 'a'     # Agents selector key
-set -g @spaces-new-key 'N'        # New-space key
-set -g @spaces-popup-width '86%'  # display-popup width
-set -g @spaces-popup-height '82%' # display-popup height
-set -g @spaces-border 'rounded'   # display-popup border style
-set -g @spaces-pane-border 'on'   # show agent (and `— <profile>`) on top pane border
+set -g @spaces-key 's'               # Navigator key
+set -g @spaces-inbox-key 'i'         # Attention Inbox key
+set -g @spaces-conversations-key 'y' # Conversations search/resume key
+set -g @spaces-agents-key 'a'        # Agents selector key
+set -g @spaces-new-key 'N'           # New-space key
+set -g @spaces-popup-width '86%'     # display-popup width
+set -g @spaces-popup-height '82%'    # display-popup height
+set -g @spaces-border 'rounded'      # display-popup border style
+set -g @spaces-pane-border 'on'      # show agent (and `— <profile>`) on top pane border
 ```
 
 ## Status bar integration
@@ -194,7 +196,14 @@ server is missing.
 ```sh
 tmux-spaces popup [--new]
 tmux-spaces inbox
+tmux-spaces conversations [--query Q]
+tmux-spaces chats [--query Q]       # alias
 tmux-spaces agents
 ```
 
-Open the Navigator / Attention Inbox / Agents TUI (wired by the full binary).
+Open the Navigator / Attention Inbox / Conversations / Agents TUI (wired by the full binary).
+In the Conversations popup (`prefix + y`), start typing immediately for instant fuzzy filtering
+plus debounced full-message search across all coding harnesses (use `@<agent>` inline filters,
+`Tab`/`Shift-Tab` to cycle harnesses, `Alt-c` for current workspace, `Ctrl-s` to cycle search
+scope, `Ctrl-a` to include archived/`/tmp` chats, `Enter` to focus a live pane or resume in a new
+tab, and `Ctrl-o` to always open in a new tab).

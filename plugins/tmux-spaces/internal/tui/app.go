@@ -125,6 +125,22 @@ type Model struct {
 	inboxTick      int
 	returnMode     Mode
 
+	conversations       []model.ConversationEntry
+	convSyncedMs        int64
+	convIndexedMessages int
+	convPendingSources  int
+	convLoading         bool
+	convRefreshing      bool
+	convHarnessFilter   string
+	convWorkspaceOnly   bool
+	convScope           string
+	convIncludeArchived bool
+	convSearchSeq       int
+	convSearchInFlight  bool
+	convSearchHits      map[string]model.ConversationSearchHit
+	convSearchHitOrder  []model.ConversationSearchHit
+	convLastSearchQuery string
+
 	pendingTarget string
 	quitting      bool
 }
@@ -132,19 +148,21 @@ type Model struct {
 // New creates a Model. Exported for tests and the Run helper.
 func New(backend Backend, opts Options) Model {
 	m := Model{
-		backend:       backend,
-		opts:          opts,
-		mode:          opts.InitialMode,
-		filter:        model.FilterAll,
-		query:         opts.InitialQuery,
-		cursor:        len([]rune(opts.InitialQuery)),
-		collapsed:     map[string]bool{},
-		expandedBg:    map[string]bool{},
-		bgDetails:     map[string]*model.HookDetail{},
-		previews:      map[string]string{},
-		gitInfo:       map[string]*model.GitInfo{},
-		lastClickRow:  -1,
-		pendingTarget: strings.TrimSpace(opts.Target),
+		backend:        backend,
+		opts:           opts,
+		mode:           opts.InitialMode,
+		filter:         model.FilterAll,
+		query:          opts.InitialQuery,
+		cursor:         len([]rune(opts.InitialQuery)),
+		collapsed:      map[string]bool{},
+		expandedBg:     map[string]bool{},
+		bgDetails:      map[string]*model.HookDetail{},
+		previews:       map[string]string{},
+		gitInfo:        map[string]*model.GitInfo{},
+		convScope:      "all",
+		convSearchHits: map[string]model.ConversationSearchHit{},
+		lastClickRow:   -1,
+		pendingTarget:  strings.TrimSpace(opts.Target),
 	}
 	if opts.InitialQuery != "" && m.mode == ModeNavigate {
 		m.mode = ModeSearch
@@ -162,6 +180,13 @@ func New(backend Backend, opts Options) Model {
 		m.agentFilter = opts.InitialQuery
 		m.agentCur = len([]rune(m.agentFilter))
 	}
+	if m.mode == ModeConversations {
+		m.convLoading = true
+		m.convRefreshing = true
+		if _, tokens := model.ParseConversationQuery(opts.InitialQuery); len(tokens) > 0 {
+			m.convSearchSeq = 1
+		}
+	}
 	return m
 }
 
@@ -177,6 +202,17 @@ func (m Model) Init() tea.Cmd {
 		// Load spaces once so launchAgent knows the current space and CWD,
 		// without starting a polling tick (Agents view stays static).
 		return tea.Batch(m.loadHarnessesCmd(), m.loadSpacesCmd())
+	}
+	if m.mode == ModeConversations {
+		cmds := []tea.Cmd{
+			m.loadConversationsCmd(false, m.convIncludeArchived),
+			m.loadConversationsCmd(true, m.convIncludeArchived),
+			m.loadSpacesCmd(),
+		}
+		if m.convSearchSeq > 0 {
+			cmds = append(cmds, convDebounceCmd(m.convSearchSeq))
+		}
+		return tea.Batch(cmds...)
 	}
 	if m.mode == ModeRename && m.renameStandalone {
 		return m.loadSpacesCmd()
@@ -307,14 +343,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampSelection()
 		return m, nil
 	case tickMsg:
-		if m.mode == ModeAgents {
-			// Static in Agents mode: no polling flicker.
+		if m.mode == ModeAgents || m.mode == ModeConversations {
+			// Static in Agents and Conversations modes: no polling flicker.
 			return m, nil
 		}
 		return m, tea.Batch(m.loadSpacesCmd(), m.tickCmd())
+	case conversationsMsg:
+		return m.handleConversationsMsg(msg)
+	case convSearchDebounceMsg:
+		return m.handleConvSearchDebounce(msg)
+	case convSearchResultMsg:
+		return m.handleConvSearchResult(msg)
 	case spacesMsg:
 		if msg.err != "" {
-			m.toast = msg.err
+			if m.mode != ModeConversations {
+				m.toast = msg.err
+			}
 			return m, nil
 		}
 		m.spaces = msg.spaces
@@ -328,7 +372,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeRename && m.renameStandalone && m.renameOld == "" {
 			m.prefillStandaloneRename()
 		}
-		if m.pendingTarget != "" && m.mode != ModeAgents && m.mode != ModeInbox {
+		if m.pendingTarget != "" && m.mode != ModeAgents && m.mode != ModeInbox && m.mode != ModeConversations {
 			target := m.pendingTarget
 			m.pendingTarget = ""
 			if m.spaceExists(target) {
@@ -345,7 +389,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 			m.clampSelection()
 		}
-		if !m.gitFetching && m.mode != ModeAgents && m.mode != ModeRename {
+		if !m.gitFetching && m.mode != ModeAgents && m.mode != ModeRename && m.mode != ModeConversations {
 			if cwds := m.collectCWDs(); len(cwds) > 0 {
 				if cmd := m.loadGitStatusCmd(cwds, false); cmd != nil {
 					m.gitFetching = true
@@ -533,9 +577,12 @@ func (m *Model) visibleRows() []Row {
 
 func (m *Model) clampSelection() {
 	n := 0
-	if m.mode == ModeInbox {
+	switch m.mode {
+	case ModeInbox:
 		n = len(m.inboxItems())
-	} else {
+	case ModeConversations:
+		n = len(m.conversationItems())
+	default:
 		n = len(m.visibleRows())
 	}
 	if n == 0 {
@@ -1142,11 +1189,15 @@ func (m *Model) activateSelected() {
 // ---------------------------------------------------------------------------
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Global Ctrl-r refresh (navigator modes + agents + inbox).
+	// Global Ctrl-r refresh (navigator modes + agents + inbox + conversations).
 	if msg.Type == tea.KeyCtrlR {
 		if m.mode == ModeAgents {
 			m.agentsLoading = true
 			return m, m.loadHarnessesCmd()
+		}
+		if m.mode == ModeConversations {
+			m.convRefreshing = true
+			return m, tea.Batch(m.loadConversationsCmd(true, m.convIncludeArchived), m.loadSpacesCmd())
 		}
 		if m.mode == ModeNavigate || m.mode == ModeSearch || m.mode == ModeHelp || m.mode == ModeInbox {
 			cmds := []tea.Cmd{m.loadSpacesCmd()}
@@ -1185,6 +1236,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleAgents(msg)
 	case ModeInbox:
 		return m.handleInbox(msg)
+	case ModeConversations:
+		return m.handleConversations(msg)
 	}
 	return m, nil
 }
@@ -1943,6 +1996,10 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.moveInboxSelection(-1)
 			return m, nil
 		}
+		if m.mode == ModeConversations {
+			m.moveConvSelection(-1)
+			return m, nil
+		}
 		if m.mode == ModeHookDetail {
 			if m.hookScroll > 0 {
 				m.hookScroll--
@@ -1959,6 +2016,10 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.mode == ModeInbox {
 			m.moveInboxSelection(1)
+			return m, nil
+		}
+		if m.mode == ModeConversations {
+			m.moveConvSelection(1)
 			return m, nil
 		}
 		if m.mode == ModeHookDetail {
@@ -1979,6 +2040,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleLeftClick(x, y int) (tea.Model, tea.Cmd) {
 	if m.mode == ModeInbox {
 		return m.handleInboxLeftClick(x, y)
+	}
+	if m.mode == ModeConversations {
+		return m.handleConvLeftClick(x, y)
 	}
 	if m.mode == ModeAgents {
 		idx := y - agentsListTop()

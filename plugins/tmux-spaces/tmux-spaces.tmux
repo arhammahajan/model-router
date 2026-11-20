@@ -48,6 +48,7 @@ SPACES_KEY="$(get_tmux_option "@spaces-key" "s")"
 SPACES_AGENTS_KEY="$(get_tmux_option "@spaces-agents-key" "a")"
 SPACES_NEW_KEY="$(get_tmux_option "@spaces-new-key" "N")"
 SPACES_INBOX_KEY="$(get_tmux_option "@spaces-inbox-key" "i")"
+SPACES_CHATS_KEY="$(get_tmux_option "@spaces-conversations-key" "y")"
 POPUP_WIDTH="$(get_tmux_option "@spaces-popup-width" "86%")"
 POPUP_HEIGHT="$(get_tmux_option "@spaces-popup-height" "82%")"
 POPUP_BORDER="$(get_tmux_option "@spaces-border" "rounded")"
@@ -86,6 +87,7 @@ tmux bind-key "$SPACES_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT
 tmux bind-key "$SPACES_AGENTS_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN agents"
 tmux bind-key "$SPACES_NEW_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN popup --new"
 tmux bind-key "$SPACES_INBOX_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN inbox"
+tmux bind-key "$SPACES_CHATS_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN conversations"
 
 # Replace tmux's modal status-line `command-prompt` for renaming tabs (,) and
 # spaces ($) with a non-blocking 1-line bottom-bar popup covering the status

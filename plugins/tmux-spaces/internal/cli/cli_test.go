@@ -126,3 +126,39 @@ func TestInboxCommand(t *testing.T) {
 		t.Errorf("inbox with extra positional = %d, want ExitUsage", code)
 	}
 }
+
+func TestConversationsCommand(t *testing.T) {
+	fc := &FakeClient{Up: true}
+	env := testEnv(fc)
+
+	if code := Run([]string{"conversations", "--help"}, env); code != ExitOK {
+		t.Errorf("conversations --help = %d", code)
+	}
+	if code := Run([]string{"chats", "-h"}, env); code != ExitOK {
+		t.Errorf("chats -h = %d", code)
+	}
+	if code := Run([]string{"help", "conversations"}, env); code != ExitOK {
+		t.Errorf("help conversations = %d", code)
+	}
+	if code := Run([]string{"help", "chats"}, env); code != ExitOK {
+		t.Errorf("help chats = %d", code)
+	}
+	if code := Run([]string{"conversations"}, env); code != ExitError {
+		t.Errorf("conversations without RunConversations = %d, want ExitError", code)
+	}
+
+	var gotArgs []string
+	env.RunConversations = func(_ Env, args []string) int {
+		gotArgs = append([]string(nil), args...)
+		return ExitOK
+	}
+	if code := Run([]string{"chats", "--query", "@claude retry"}, env); code != ExitOK {
+		t.Errorf("chats wired = %d", code)
+	}
+	if len(gotArgs) != 2 || gotArgs[0] != "--query" || gotArgs[1] != "@claude retry" {
+		t.Errorf("gotArgs = %v", gotArgs)
+	}
+	if code := Run([]string{"conversations", "extra"}, env); code != ExitUsage {
+		t.Errorf("conversations with extra positional = %d, want ExitUsage", code)
+	}
+}

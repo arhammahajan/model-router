@@ -68,3 +68,25 @@ func cmdInbox(args []string, env Env) int {
 	}
 	return env.RunInbox(env, args)
 }
+
+// cmdConversations opens the unified Conversations search/resume TUI.
+func cmdConversations(args []string, env Env) int {
+	f, err := parseFlags(args, []string{"query"}, nil, nil)
+	if err != nil {
+		if err == errHelp {
+			env.outf("usage: tmux-spaces conversations [--query Q]\n")
+			return ExitOK
+		}
+		env.errf("tmux-spaces conversations: %s\n", err)
+		return ExitUsage
+	}
+	if len(f.pos) > 0 {
+		env.errf("usage: tmux-spaces conversations [--query Q]\n")
+		return ExitUsage
+	}
+	if env.RunConversations == nil {
+		env.errf("tmux-spaces conversations: TUI not wired (cmd/tmux-spaces must provide RunConversations)\n")
+		return ExitError
+	}
+	return env.RunConversations(env, args)
+}

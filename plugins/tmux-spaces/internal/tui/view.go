@@ -278,6 +278,8 @@ func (m Model) renderFull(width, height int) string {
 			return styleHeader.Render("Agents")
 		case ModeInbox:
 			return styleHeader.Render("Inbox")
+		case ModeConversations:
+			return styleHeader.Render("Conversations")
 		default:
 			return styleHeader.Render("Spaces")
 		}
@@ -299,6 +301,8 @@ func (m Model) renderFull(width, height int) string {
 		return m.renderAgents(width, height)
 	case ModeInbox:
 		return m.renderInbox(width, height)
+	case ModeConversations:
+		return m.renderConversations(width, height)
 	}
 	return m.renderNavigator(width, height)
 }

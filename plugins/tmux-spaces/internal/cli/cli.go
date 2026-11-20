@@ -80,6 +80,8 @@ type Env struct {
 	RunAgents func(Env, []string) int
 	// RunInbox launches the Attention Inbox TUI (wired by cmd/tmux-spaces).
 	RunInbox func(Env, []string) int
+	// RunConversations launches the Conversations search/resume TUI (wired by cmd/tmux-spaces).
+	RunConversations func(Env, []string) int
 	// RunChild runs the __shim child process, returning its exit code.
 	RunChild func(bin string, args []string) int
 	// RunShell runs the interactive shell for __shim --hold.
@@ -390,6 +392,8 @@ func Run(args []string, env Env) int {
 		return cmdAgentsCMD(rest, env)
 	case "inbox":
 		return cmdInbox(rest, env)
+	case "conversations", "chats":
+		return cmdConversations(rest, env)
 	case "resurrect":
 		if env.RunResurrect == nil {
 			env.errf("tmux-spaces resurrect: not wired\n")
@@ -423,6 +427,7 @@ usage: tmux-spaces <command> [args]
   popup [--new]                    open the Navigator TUI
   agents                           open the Agents selector TUI
   inbox                            open the Attention Inbox TUI
+  conversations|chats [--query Q]  search & resume agent conversations
   help [command]                   show help
 `)
 }
@@ -461,6 +466,8 @@ func cmdHelp(args []string, env Env) int {
 		env.outf("usage: tmux-spaces agents\n")
 	case "inbox":
 		env.outf("usage: tmux-spaces inbox\n")
+	case "conversations", "chats":
+		env.outf("usage: tmux-spaces conversations [--query Q]\n")
 	default:
 		env.errf("tmux-spaces: unknown command %q\n", args[0])
 		return ExitUsage
