@@ -78,15 +78,41 @@ func CollectGitStatus(ctx context.Context, dir string, run CommandRunner) *model
 	if repoRoot == "" {
 		return nil
 	}
-	repoKey := canonicalPath(commonDir)
+	canonCommon := canonicalPath(commonDir)
+	canonGit := canonicalPath(gitDir)
+	repoKey := canonCommon
 	if repoKey == "" {
 		repoKey = canonicalPath(repoRoot)
 	}
+	isWorktree := canonCommon != "" && canonGit != "" && canonGit != canonCommon
+	mainRoot := repoRoot
+	if isWorktree {
+		if filepath.Base(canonCommon) == ".git" {
+			mainRoot = filepath.Dir(canonCommon)
+		} else {
+			mainRoot = canonCommon
+		}
+	}
+	repoName := filepath.Base(mainRoot)
+	if repoName == "" || repoName == "." || repoName == "/" {
+		repoName = filepath.Base(repoRoot)
+	}
+	wtName := ""
+	if isWorktree {
+		wtName = filepath.Base(canonGit)
+		if wtName == "" || wtName == "." || wtName == ".git" {
+			wtName = filepath.Base(repoRoot)
+		}
+	}
 
 	info := &model.GitInfo{
-		RepoKey:    repoKey,
-		RepoRoot:   repoRoot,
-		IsRebasing: isRebasingDir(gitDir),
+		RepoKey:      repoKey,
+		RepoRoot:     repoRoot,
+		MainRepoRoot: mainRoot,
+		RepoName:     repoName,
+		IsWorktree:   isWorktree,
+		WorktreeName: wtName,
+		IsRebasing:   isRebasingDir(gitDir),
 	}
 
 	// Single porcelain v2 status gives branch, upstream, ahead/behind, and dirty state.
@@ -231,10 +257,12 @@ func parsePorcelainV2(data []byte) porcelainObservation {
 }
 
 func discoverBaseBranch(ctx context.Context, repoRoot, branch string, run CommandRunner) string {
-	// Respect per-branch workmux-base config if set.
-	if out, code, err := run(ctx, repoRoot, nil, "git", "--no-optional-locks", "config", "--local", "branch."+branch+".workmux-base"); err == nil && code == 0 {
-		if v := strings.TrimSpace(string(out)); v != "" {
-			return v
+	// Respect per-branch spaces-base or workmux-base config if set.
+	for _, key := range []string{"branch." + branch + ".spaces-base", "branch." + branch + ".workmux-base"} {
+		if out, code, err := run(ctx, repoRoot, nil, "git", "--no-optional-locks", "config", "--local", key); err == nil && code == 0 {
+			if v := strings.TrimSpace(string(out)); v != "" {
+				return v
+			}
 		}
 	}
 	// Try origin/HEAD symbolic ref.

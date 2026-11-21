@@ -11,14 +11,18 @@ import (
 
 // sessionListFormat is the -F format for ListSessions.
 const sessionListFormat = "#{session_id}\x1f#{session_name}\x1f" +
-	"#{session_attached}\x1f#{session_created}\x1f#{session_windows}"
+	"#{session_attached}\x1f#{session_created}\x1f#{session_windows}\x1f" +
+	"#{@spaces_worktree_path}\x1f#{@spaces_worktree_name}\x1f" +
+	"#{@spaces_worktree_base}\x1f#{@spaces_worktree_managed}"
 
 // windowListFormat is the -F format for ListWindows.
 const windowListFormat = "#{session_name}\x1f#{window_id}\x1f#{window_index}\x1f" +
 	"#{window_name}\x1f#{window_active}\x1f#{window_bell_flag}\x1f" +
 	"#{window_activity_flag}\x1f#{window_silence_flag}\x1f#{window_layout}\x1f" +
 	"#{window_last_flag}\x1f#{window_zoomed_flag}\x1f#{window_width}\x1f" +
-	"#{window_height}\x1f#{window_activity}"
+	"#{window_height}\x1f#{window_activity}\x1f" +
+	"#{@spaces_worktree_path}\x1f#{@spaces_worktree_name}\x1f" +
+	"#{@spaces_worktree_base}\x1f#{@spaces_worktree_managed}"
 
 // spacesOptions are the native per-pane tmux user options maintained by
 // hooks/shims and read back by ListPanes.
@@ -305,7 +309,8 @@ func (c *Client) KillWindow(ctx context.Context, target string) error {
 }
 
 // NewWindow creates a window in session (appended at the end), optionally in
-// cwd with name, running command when provided.
+// cwd with name, running command when provided. When name is empty, `-n` is
+// omitted so tmux keeps `automatic-rename` active (displaying the active process).
 func (c *Client) NewWindow(ctx context.Context, session, cwd, name string, command ...string) error {
 	args := []string{"new-window"}
 	if session != "" {
@@ -321,6 +326,52 @@ func (c *Client) NewWindow(ctx context.Context, session, cwd, name string, comma
 		args = append(args, "--")
 		args = append(args, command...)
 	}
+	_, err := c.run(ctx, args...)
+	return err
+}
+
+// NewWindowReturningID creates a window like NewWindow and returns its tmux
+// window ID (e.g. "@12") via `-P -F #{window_id}`.
+func (c *Client) NewWindowReturningID(ctx context.Context, session, cwd, name string, command ...string) (string, error) {
+	args := []string{"new-window", "-P", "-F", "#{window_id}"}
+	if session != "" {
+		args = append(args, "-t", session+":")
+	}
+	if cwd != "" {
+		args = append(args, "-c", cwd)
+	}
+	if name != "" {
+		args = append(args, "-n", name)
+	}
+	if len(command) > 0 {
+		args = append(args, "--")
+		args = append(args, command...)
+	}
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// SetWindowOption sets a per-window tmux user option on windowID.
+func (c *Client) SetWindowOption(ctx context.Context, windowID, option, value string) error {
+	args := []string{"set-option", "-w"}
+	if windowID != "" {
+		args = append(args, "-t", windowID)
+	}
+	args = append(args, normalizeOption(option), value)
+	_, err := c.run(ctx, args...)
+	return err
+}
+
+// SetSessionOption sets a per-session tmux user option on session.
+func (c *Client) SetSessionOption(ctx context.Context, session, option, value string) error {
+	args := []string{"set-option"}
+	if session != "" {
+		args = append(args, "-t", session)
+	}
+	args = append(args, normalizeOption(option), value)
 	_, err := c.run(ctx, args...)
 	return err
 }

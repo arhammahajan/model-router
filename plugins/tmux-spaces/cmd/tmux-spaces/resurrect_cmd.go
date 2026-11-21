@@ -11,6 +11,7 @@ import (
 	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/model"
 	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/resurrect"
 	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/tmux"
+	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/worktree"
 )
 
 func saveSpacesToStore(ctx context.Context, client *tmux.Client, store *resurrect.Store, onlySpace string) (int, error) {
@@ -26,10 +27,16 @@ func saveSpacesToStore(ctx context.Context, client *tmux.Client, store *resurrec
 		hooks = &hs
 	}
 	captured := resurrect.CaptureSpaces(snap, hooks, time.Now())
+	wtMgr := worktree.NewManager()
 	saved := 0
 	for _, sp := range captured {
 		if onlySpace != "" && sp.Name != onlySpace {
 			continue
+		}
+		if sp.WorktreePath != "" && sp.MainRepoRoot == "" {
+			if repo, rerr := wtMgr.DiscoverRepo(ctx, sp.WorktreePath); rerr == nil && repo != nil {
+				sp.MainRepoRoot = repo.MainRoot
+			}
 		}
 		if err := store.Save(sp); err != nil {
 			return saved, err

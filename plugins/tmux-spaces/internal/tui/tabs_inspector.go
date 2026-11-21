@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -96,20 +97,20 @@ func (m Model) renderTabInspectorWithHits(sp model.Space, tab TabItem, width, he
 		}
 	}
 
-	// 4. Git & Pull Request Card.
+	// 4. Git, Worktree & Pull Request Card.
 	var activeGit *model.GitInfo
 	if selPane != nil && selPane.Git != nil {
 		activeGit = selPane.Git
 	} else {
 		activeGit = tab.Git
 	}
-	if activeGit != nil {
+	if activeGit != nil || strings.TrimSpace(tab.Window.WorktreePath) != "" || strings.TrimSpace(tab.Window.WorktreeName) != "" {
 		addBlank()
 		relCWD := tab.CWD
 		if selPane != nil && selPane.CWD != "" {
 			relCWD = selPane.CWD
 		}
-		body = append(body, m.renderInspectorGitSection(activeGit, relCWD, width)...)
+		body = append(body, m.renderInspectorGitSection(activeGit, tab.Window, relCWD, width)...)
 	}
 
 	// 5. Compact 2-column Details Grid at the bottom (all technical/runtime metadata).
@@ -151,6 +152,9 @@ func (m Model) renderTabInspectorWithHits(sp model.Space, tab TabItem, width, he
 	}
 	if tab.Window.Zoomed {
 		metaRight = append(metaRight, stMantle(ColorMauve, true).Render("zoomed"))
+	}
+	if wtLbl := inspectorWorktreeLabel(activeGit, tab.Window); wtLbl != "" {
+		metaRight = append(metaRight, stMantle(ColorMauve, true).Render("⎇ ")+stMantle(ColorTeal, false).Render(truncate(wtLbl, 18)))
 	}
 	if len(tab.Panes) > 1 {
 		metaRight = append(metaRight, stMantle(ColorSubtext0, false).Render(fmt.Sprintf("%d panes", len(tab.Panes))))
@@ -683,8 +687,26 @@ func renderAlignedBGList(items []model.HookChild, nowMs int64, width int) []stri
 	return out
 }
 
-// renderInspectorGitSection renders aligned Branch / PR / CI rows.
-func (m Model) renderInspectorGitSection(g *model.GitInfo, cwd string, width int) []string {
+func inspectorWorktreeLabel(g *model.GitInfo, w model.Window) string {
+	if g != nil && g.IsWorktree {
+		if s := strings.TrimSpace(g.WorktreeName); s != "" {
+			return s
+		}
+		if s := strings.TrimSpace(g.Branch); s != "" {
+			return s
+		}
+	}
+	if s := strings.TrimSpace(w.WorktreeName); s != "" {
+		return s
+	}
+	if p := strings.TrimSpace(w.WorktreePath); p != "" {
+		return filepath.Base(p)
+	}
+	return ""
+}
+
+// renderInspectorGitSection renders aligned Worktree / Main repo / Branch / PR / CI rows.
+func (m Model) renderInspectorGitSection(g *model.GitInfo, w model.Window, cwd string, width int) []string {
 	st := func(fg string, bold bool) lipgloss.Style {
 		s := lipgloss.NewStyle().Foreground(lipgloss.Color(fg))
 		if bold {
@@ -692,15 +714,68 @@ func (m Model) renderInspectorGitSection(g *model.GitInfo, cwd string, width int
 		}
 		return s
 	}
-	rel := relativeRepoLabel(g.RepoRoot, cwd, m.opts.HomeDir)
+	isWT := (g != nil && g.IsWorktree) || strings.TrimSpace(w.WorktreePath) != "" || strings.TrimSpace(w.WorktreeName) != ""
+	subtitle := ""
+	if g != nil {
+		subtitle = relativeRepoLabel(g.RepoRoot, cwd, m.opts.HomeDir)
+		if isWT {
+			repo := strings.TrimSpace(g.RepoName)
+			if repo != "" {
+				subtitle = "worktree · " + repo
+			} else if subtitle != "" {
+				subtitle = "worktree · " + subtitle
+			} else {
+				subtitle = "worktree"
+			}
+		}
+	} else if isWT {
+		subtitle = "worktree"
+	}
+
 	var out []string
-	out = append(out, renderSectionLabel("GIT", rel, ColorTeal, width))
+	out = append(out, renderSectionLabel("GIT", subtitle, ColorTeal, width))
 
 	const labelW = 9
 	valW := maxInt(14, width-4-labelW-2)
 	addRow := func(label, styledVal string) {
 		lbl := st(ColorOverlay0, false).Render(fmt.Sprintf("%-*s", labelW, label))
 		out = append(out, fitCellWidth("  "+lbl+"  "+ansi.Truncate(styledVal, valW, "…"), width))
+	}
+
+	// Worktree + Main repo rows when backed by a linked worktree.
+	if isWT {
+		wtName := inspectorWorktreeLabel(g, w)
+		managed := (g != nil && g.Managed) || w.WorktreeManaged
+		repoName := ""
+		if g != nil {
+			repoName = strings.TrimSpace(g.RepoName)
+		}
+		if wtName != "" {
+			wtVal := st(ColorMauve, true).Render("⎇ ") + st(ColorText, true).Render(truncate(wtName, 26))
+			var meta []string
+			if repoName != "" {
+				meta = append(meta, "from "+repoName)
+			}
+			if managed {
+				meta = append(meta, "managed")
+			}
+			if len(meta) > 0 {
+				wtVal += "  " + st(ColorOverlay0, false).Render("("+strings.Join(meta, " · ")+")")
+			}
+			addRow("Worktree", wtVal)
+		}
+		if g != nil && strings.TrimSpace(g.MainRepoRoot) != "" {
+			addRow("Main repo", st(ColorSubtext0, false).Render(shortenPath(g.MainRepoRoot, m.opts.HomeDir)))
+		} else if wtPath := strings.TrimSpace(w.WorktreePath); wtPath != "" {
+			addRow("Path", st(ColorSubtext0, false).Render(shortenPath(wtPath, m.opts.HomeDir)))
+		}
+		if g == nil && strings.TrimSpace(w.WorktreeBase) != "" {
+			addRow("Base", st(ColorOverlay0, false).Render(w.WorktreeBase))
+		}
+	}
+
+	if g == nil {
+		return out
 	}
 
 	// Branch + diff + ahead/behind + flags.

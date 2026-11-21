@@ -86,9 +86,12 @@ func CaptureSpaces(snap tmux.ServerSnapshot, hooks *model.HookSnapshot, now time
 		sort.Slice(wins, func(i, j int) bool { return wins[i].Index < wins[j].Index })
 
 		spaceSnap := SpaceSnapshot{
-			Version:   SnapshotVersion,
-			Name:      sess.Name,
-			SavedAtMs: nowMs,
+			Version:      SnapshotVersion,
+			Name:         sess.Name,
+			SavedAtMs:    nowMs,
+			WorktreePath: sess.WorktreePath,
+			WorktreeName: sess.WorktreeName,
+			WorktreeBase: sess.WorktreeBase,
 		}
 		var firstCWD string
 		for _, w := range wins {
@@ -103,11 +106,14 @@ func CaptureSpaces(snap tmux.ServerSnapshot, hooks *model.HookSnapshot, now time
 				return rawPanes[i].NumericID < rawPanes[j].NumericID
 			})
 			ws := WindowSnapshot{
-				Index:  w.Index,
-				Name:   w.Name,
-				Layout: w.Layout,
-				Active: w.Active,
-				Panes:  make([]PaneSnapshot, 0, len(rawPanes)),
+				Index:        w.Index,
+				Name:         w.Name,
+				Layout:       w.Layout,
+				Active:       w.Active,
+				WorktreePath: w.WorktreePath,
+				WorktreeName: w.WorktreeName,
+				WorktreeBase: w.WorktreeBase,
+				Panes:        make([]PaneSnapshot, 0, len(rawPanes)),
 			}
 			for _, p := range rawPanes {
 				if p.CurrentPath != "" {

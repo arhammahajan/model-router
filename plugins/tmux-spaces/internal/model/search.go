@@ -80,8 +80,17 @@ func PaneScore(pane Pane, query string) (int, bool) {
 		(screenTitle != "" && strings.Contains(screenTitle, q)) {
 		return 40, true
 	}
-	if pane.Git != nil && pane.Git.Branch != "" && strings.Contains(strings.ToLower(pane.Git.Branch), q) {
-		return 42, true
+	if pane.Git != nil {
+		if pane.Git.Branch != "" && strings.Contains(strings.ToLower(pane.Git.Branch), q) {
+			return 42, true
+		}
+		if pane.Git.IsWorktree {
+			if q == "worktree" || q == "wt" ||
+				(pane.Git.WorktreeName != "" && strings.Contains(strings.ToLower(pane.Git.WorktreeName), q)) ||
+				(pane.Git.RepoName != "" && strings.Contains(strings.ToLower(pane.Git.RepoName), q)) {
+				return 43, true
+			}
+		}
 	}
 	if app != "" && strings.Contains(app, q) {
 		return 45, true
@@ -116,6 +125,17 @@ func gitMatchesQuery(g *GitInfo, q string) bool {
 	}
 	if g.Branch != "" && strings.Contains(strings.ToLower(g.Branch), q) {
 		return true
+	}
+	if g.IsWorktree {
+		if q == "worktree" || q == "wt" {
+			return true
+		}
+		if g.WorktreeName != "" && strings.Contains(strings.ToLower(g.WorktreeName), q) {
+			return true
+		}
+		if g.RepoName != "" && strings.Contains(strings.ToLower(g.RepoName), q) {
+			return true
+		}
 	}
 	return gitPRMatchesQuery(g, q)
 }

@@ -46,10 +46,11 @@ All keys are bound in the `prefix` table.
 | `prefix + i`    | `tmux-spaces inbox`  | Attention Inbox (agents + live previews across spaces) |
 | `prefix + y`    | `tmux-spaces conversations` | Conversations (fuzzy + full-message search & resume across harnesses) |
 | `prefix + u`    | `tmux-spaces shared` | Shared MCP servers & skills browser (`~/dev/dots/harnesses/shared`) |
-| `prefix + T`    | `tmux-spaces tabs`   | Tabs inspector (all tabs in current workspace with full pane, git/PR & agent telemetry) |
-| `prefix + c`    | `tmux-spaces tabs --new` | Create a new tab inside the Tabs popup |
+| `prefix + T`    | `tmux-spaces tabs`   | Tabs inspector (all tabs in current workspace with full pane, git/worktree/PR & agent telemetry) |
+| `prefix + c`    | `tmux-spaces tabs --new` | Create a new tab inside the Tabs popup (optional name + existing/new git worktree) |
 | `prefix + a`    | `tmux-spaces agents` | Agents selector TUI           |
-| `prefix + N`    | `tmux-spaces popup --new` | Create a new space       |
+| `prefix + N`    | `tmux-spaces popup --new` | Create a new space (with optional git worktree) |
+| `prefix + W`    | `tmux-spaces worktrees` | Git worktrees manager & cleanup TUI |
 
 ## tmux options
 
@@ -68,11 +69,20 @@ set -g @spaces-tabs-key 'T'          # Current-workspace Tabs inspector key
 set -g @spaces-new-tab-key 'c'       # New-tab key (opens Tabs popup in new-tab flow; set 'off' to keep tmux default)
 set -g @spaces-agents-key 'a'        # Agents selector key
 set -g @spaces-new-key 'N'           # New-space key
+set -g @spaces-worktrees-key 'W'     # Worktrees manager key
 set -g @spaces-popup-width '86%'     # display-popup width
 set -g @spaces-popup-height '82%'    # display-popup height
 set -g @spaces-border 'rounded'      # display-popup border style
 set -g @spaces-pane-border 'on'      # show agent (and `— <profile>`) on top pane border
 ```
+
+## Git worktree-backed spaces & tabs
+
+- **`prefix + c` / `n` in Tabs (New tab):** Opens the Tabs popup's New Tab dialog inside the current workspace with an optional tab name (leave empty to preserve tmux's `automatic-rename` showing the active process) and lets you pick an **Existing** worktree or create a **New worktree** (`Esc` returns to the Tabs popup).
+- **`prefix + N` / `n` in Spaces (New space):** Includes the same Existing / New worktree picker when the chosen folder is inside a git repository, with optional Space name (auto-derived from the worktree when omitted).
+- **Auto-assigned worktree names:** When the Branch field is left empty, names are assigned in priority order: explicit branch → tab/space name → active coding harness conversation title → active harness prompt → `<agent>-<adj>-<noun>` → collision-free `<adj>-<noun>` fallback. Press `Ctrl-g` to regenerate, or `Ctrl-t` / `Alt-w` to toggle Existing vs New worktree.
+- **Display & management:** Linked worktrees display `⎇ <branch>` badges, multi-worktree indicators (`⎇ N wt`), and worktree details (`wt <name> (<repo>) · base <base>`, `Worktree`, and `Main repo` rows) across the **Spaces**, **Tabs**, and **Inbox** popups. Press `W` in Spaces or Tabs (or `prefix + W`) for the Worktrees manager (`Enter` to jump/open, `x` for safe removal with dirty/unmerged checks, `p` to prune stale & merged orphaned worktrees), or toggle `w` when closing a worktree-backed space or tab.
+- **Storage overrides:** Managed worktrees default to `${XDG_DATA_HOME:-~/.local/share}/tmux-spaces/worktrees/<repo>/<name>` and metadata to `worktrees.json` (overridable via `TMUX_SPACES_WORKTREE_DIR`, `TMUX_SPACES_WORKTREE_STATE`, and `TMUX_SPACES_WORKTREE_PREFIX`).
 
 ## Status bar integration
 
@@ -202,6 +212,7 @@ server is missing.
 
 ```sh
 tmux-spaces popup [--new]
+tmux-spaces worktrees|wt [list|new|remove|prune] ...
 tmux-spaces inbox
 tmux-spaces conversations [--query Q]
 tmux-spaces chats [--query Q]       # alias

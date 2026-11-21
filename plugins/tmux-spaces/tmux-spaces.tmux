@@ -47,6 +47,7 @@ get_tmux_option() {
 SPACES_KEY="$(get_tmux_option "@spaces-key" "s")"
 SPACES_AGENTS_KEY="$(get_tmux_option "@spaces-agents-key" "a")"
 SPACES_NEW_KEY="$(get_tmux_option "@spaces-new-key" "N")"
+SPACES_WORKTREES_KEY="$(get_tmux_option "@spaces-worktrees-key" "W")"
 SPACES_INBOX_KEY="$(get_tmux_option "@spaces-inbox-key" "i")"
 SPACES_CHATS_KEY="$(get_tmux_option "@spaces-conversations-key" "y")"
 SPACES_SHARED_KEY="$(get_tmux_option "@spaces-shared-key" "u")"
@@ -90,6 +91,7 @@ esac
 tmux bind-key "$SPACES_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN popup"
 tmux bind-key "$SPACES_AGENTS_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN agents"
 tmux bind-key "$SPACES_NEW_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN popup --new"
+tmux bind-key "$SPACES_WORKTREES_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN worktrees"
 tmux bind-key "$SPACES_INBOX_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN inbox"
 tmux bind-key "$SPACES_CHATS_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN conversations"
 if [ -n "$SPACES_SHARED_DIR" ]; then

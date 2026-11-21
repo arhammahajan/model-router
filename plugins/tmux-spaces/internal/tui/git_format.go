@@ -11,21 +11,38 @@ import (
 
 type cellStyleFn func(fg string, bold bool) lipgloss.Style
 
-// renderGitBranchBadge formats the git branch name (with optional rebase marker).
+// renderGitBranchBadge formats the git branch name (with optional worktree
+// indicator glyph and rebase marker).
 func renderGitBranchBadge(g *model.GitInfo, maxLen int, st cellStyleFn) string {
 	if g == nil {
 		return ""
 	}
 	br := strings.TrimSpace(g.Branch)
-	if br == "" && !g.IsRebasing {
+	wt := strings.TrimSpace(g.WorktreeName)
+	if br == "" && !g.IsRebasing && (!g.IsWorktree || wt == "") {
 		return ""
 	}
 	var b strings.Builder
 	if g.IsRebasing {
 		b.WriteString(st(ColorYellow, true).Render("R"))
-		if br != "" {
+		if br != "" || (g.IsWorktree && wt != "") {
 			b.WriteString(st(ColorYellow, false).Render(" "))
 		}
+	}
+	if g.IsWorktree {
+		b.WriteString(st(ColorMauve, true).Render("⎇ "))
+		label := br
+		if label == "" {
+			label = wt
+		}
+		if label != "" {
+			avail := maxLen - 2
+			if avail < 6 {
+				avail = 6
+			}
+			b.WriteString(st(ColorTeal, false).Render(truncate(label, avail)))
+		}
+		return b.String()
 	}
 	if br != "" {
 		b.WriteString(st(ColorTeal, false).Render(truncate(br, maxLen)))
@@ -166,6 +183,9 @@ func gitInfoEquivalent(a, b *model.GitInfo) bool {
 		return false
 	}
 	if a.Branch != b.Branch ||
+		a.IsWorktree != b.IsWorktree ||
+		a.WorktreeName != b.WorktreeName ||
+		a.RepoRoot != b.RepoRoot ||
 		a.IsRebasing != b.IsRebasing ||
 		a.HasConflict != b.HasConflict ||
 		a.IsDirty != b.IsDirty ||
@@ -197,7 +217,7 @@ func gitInfoEquivalent(a, b *model.GitInfo) bool {
 	return true
 }
 
-// renderGitDetailStyled builds a styled git/PR/CI summary for the bottom
+// renderGitDetailStyled builds a styled git/worktree/PR/CI summary for the bottom
 // inspector footer in both the Spaces and Inbox popups.
 func renderGitDetailStyled(g *model.GitInfo, bg string, st cellStyleFn) string {
 	if g == nil {
@@ -206,8 +226,24 @@ func renderGitDetailStyled(g *model.GitInfo, bg string, st cellStyleFn) string {
 	var parts []string
 	sep := st(ColorSurface1, false).Render(" · ")
 
+	if g.IsWorktree {
+		wtLabel := strings.TrimSpace(g.WorktreeName)
+		if wtLabel == "" {
+			wtLabel = strings.TrimSpace(g.Branch)
+		}
+		if wtLabel != "" {
+			wtPart := st(ColorMauve, true).Render("wt " + truncate(wtLabel, 24))
+			if repo := strings.TrimSpace(g.RepoName); repo != "" {
+				wtPart += st(ColorOverlay0, false).Render(" (" + truncate(repo, 18) + ")")
+			}
+			parts = append(parts, wtPart)
+		}
+	}
 	if br := renderGitBranchBadge(g, 32, st); br != "" {
 		parts = append(parts, br)
+	}
+	if g.IsWorktree && strings.TrimSpace(g.BaseBranch) != "" && g.BaseBranch != g.Branch {
+		parts = append(parts, st(ColorOverlay0, false).Render("base "+truncate(g.BaseBranch, 18)))
 	}
 	if diff := renderGitDiffBadge(g, bg, st); diff != "" {
 		parts = append(parts, diff)
@@ -249,15 +285,31 @@ func renderGitDetailStyled(g *model.GitInfo, bg string, st cellStyleFn) string {
 	return strings.Join(parts, sep)
 }
 
-// formatGitDetailSummary builds a concise plain-text git/PR/CI summary for the
+// formatGitDetailSummary builds a concise plain-text git/worktree/PR/CI summary for the
 // bottom detail footer in both the Spaces and Inbox popups.
 func formatGitDetailSummary(g *model.GitInfo) string {
 	if g == nil {
 		return ""
 	}
 	var parts []string
+	if g.IsWorktree {
+		wtLabel := strings.TrimSpace(g.WorktreeName)
+		if wtLabel == "" {
+			wtLabel = strings.TrimSpace(g.Branch)
+		}
+		if wtLabel != "" {
+			s := "wt " + wtLabel
+			if repo := strings.TrimSpace(g.RepoName); repo != "" {
+				s += " (" + repo + ")"
+			}
+			parts = append(parts, s)
+		}
+	}
 	if g.Branch != "" {
 		b := g.Branch
+		if g.IsWorktree {
+			b = "⎇ " + b
+		}
 		if g.IsRebasing {
 			b = "R " + b
 		}

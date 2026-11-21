@@ -97,6 +97,55 @@ func TestCollectGitStatusCommittedAndUncommitted(t *testing.T) {
 	}
 }
 
+func TestCollectGitStatusLinkedWorktreeAndSpacesBase(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	mainDir := filepath.Join(t.TempDir(), "myrepo")
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, mainDir, "init", "-q", "-b", "main")
+	runGitTest(t, mainDir, "config", "user.name", "Test User")
+	runGitTest(t, mainDir, "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(mainDir, "a.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, mainDir, "add", "a.txt")
+	runGitTest(t, mainDir, "commit", "-q", "-m", "init")
+
+	// Main checkout reports IsWorktree=false.
+	mainInfo := CollectGitStatus(context.Background(), mainDir, nil)
+	if mainInfo == nil || mainInfo.IsWorktree || mainInfo.RepoName != "myrepo" {
+		t.Fatalf("unexpected main checkout GitInfo: %+v", mainInfo)
+	}
+
+	// Linked worktree reports IsWorktree=true, WorktreeName, MainRepoRoot, RepoName, and spaces-base.
+	wtDir := filepath.Join(t.TempDir(), "wt-auth-fix")
+	runGitTest(t, mainDir, "worktree", "add", "-q", "-b", "feat/auth-fix", wtDir, "main")
+	runGitTest(t, wtDir, "config", "--local", "branch.feat/auth-fix.spaces-base", "main")
+
+	wtInfo := CollectGitStatus(context.Background(), wtDir, nil)
+	if wtInfo == nil {
+		t.Fatal("expected GitInfo for linked worktree")
+	}
+	if !wtInfo.IsWorktree {
+		t.Fatalf("expected IsWorktree=true, got %+v", wtInfo)
+	}
+	if wtInfo.WorktreeName != "wt-auth-fix" {
+		t.Fatalf("WorktreeName = %q, want wt-auth-fix", wtInfo.WorktreeName)
+	}
+	if wtInfo.RepoName != "myrepo" {
+		t.Fatalf("RepoName = %q, want myrepo", wtInfo.RepoName)
+	}
+	if wtInfo.BaseBranch != "main" {
+		t.Fatalf("BaseBranch = %q, want main", wtInfo.BaseBranch)
+	}
+	if wtInfo.RepoKey != mainInfo.RepoKey {
+		t.Fatalf("RepoKey mismatch: wt=%q main=%q", wtInfo.RepoKey, mainInfo.RepoKey)
+	}
+}
+
 func TestParsePorcelainV2AheadBehindAndDetached(t *testing.T) {
 	raw := strings.Join([]string{
 		"# branch.oid 0123456789abcdef0123456789abcdef01234567",

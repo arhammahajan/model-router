@@ -84,14 +84,42 @@ type Model struct {
 	bgDetails  map[string]*model.HookDetail
 	toast      string
 
-	newName          string
-	newNameCur       int
-	newCWD           string
-	newCWDCur        int
-	newField         int // 0 = name, 1 = cwd
-	newError         string
-	newIsTab         bool
-	newTabSession    string
+	newName       string
+	newNameCur    int
+	newNameEdited bool
+	newCWD        string
+	newCWDCur     int
+	newField      int // 0 = name, 1 = cwd, 2 = worktree mode, 3 = list/branch, 4 = base
+	newError      string
+	newIsTab      bool
+	newTabSession string
+
+	wtCtx           model.WorktreeContext
+	wtLoading       bool
+	wtUseNew        bool
+	wtExistingIdx   int
+	wtBranch        string
+	wtBranchCur     int
+	wtBaseIdx       int
+	wtAutoSeed      int64
+	wtAutoBranch    string
+	wtAutoDirName   string
+	wtAutoSource    string
+	wtHarnessApp    string
+	wtHarnessTitle  string
+	wtHarnessPrompt string
+
+	worktrees            []model.WorktreeEntry
+	worktreesLoading     bool
+	worktreesStandalone  bool
+	wtSelected           int
+	wtQuery              string
+	wtQueryCur           int
+	wtSearching          bool
+	wtRemoveTarget       model.WorktreeEntry
+	wtRemoveSafety       WorktreeRemoveSafety
+	wtRemoveForce        bool
+	wtRemoveDeleteBranch bool
 	renameOld        string
 	renameText       string
 	renameCur        int
@@ -100,15 +128,21 @@ type Model struct {
 	renameWindowID   string
 	renameStandalone bool
 
-	confirmSpace      string
-	confirmWindows    int
-	confirmPanes      int
-	confirmExited     bool
-	confirmWindow     bool
-	confirmWindowID   string
-	confirmWindowName string
-	confirmWindowBusy bool
-	confirmWindowLast bool
+	confirmSpace           string
+	confirmWindows         int
+	confirmPanes           int
+	confirmExited          bool
+	confirmWindow          bool
+	confirmWindowID        string
+	confirmWindowName      string
+	confirmWindowBusy      bool
+	confirmWindowLast      bool
+	confirmWorktreePath    string
+	confirmWorktreeName    string
+	confirmWorktreeBranch  string
+	confirmWorktreeManaged bool
+	confirmRemoveWorktree  bool
+	confirmWorktreeSafety  WorktreeRemoveSafety
 
 	hookSession string
 	hookPaneNum int
@@ -202,6 +236,10 @@ func New(backend Backend, opts Options) Model {
 		}
 		m.mode = ModeNewSpace
 	}
+	if m.mode == ModeWorktrees {
+		m.worktreesStandalone = true
+		m.worktreesLoading = true
+	}
 	if opts.OpenRenameWindow || opts.OpenRenameSpace {
 		m.mode = ModeRename
 		m.renameStandalone = true
@@ -254,6 +292,9 @@ func (m Model) Init() tea.Cmd {
 	}
 	if m.mode == ModeRename && m.renameStandalone {
 		return m.loadSpacesCmd()
+	}
+	if m.mode == ModeWorktrees {
+		return tea.Batch(m.loadSpacesCmd(), m.loadAllWorktreesCmd())
 	}
 	return tea.Batch(m.tickCmd(), m.loadSpacesCmd())
 }
@@ -358,6 +399,9 @@ func (m *Model) collectCWDs() []string {
 			add(p.CWD)
 		}
 	}
+	for _, o := range m.outcomes {
+		add(o.CWD)
+	}
 	return cwds
 }
 
@@ -391,11 +435,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampSelection()
 		return m, nil
 	case tickMsg:
-		if m.mode == ModeAgents || m.mode == ModeConversations || m.mode == ModeShared {
-			// Static in Agents, Conversations, and Shared modes: no polling flicker.
+		if m.mode == ModeAgents || m.mode == ModeConversations || m.mode == ModeShared || m.mode == ModeWorktrees || m.mode == ModeConfirmRemoveWorktree {
+			// Static in modal/secondary modes: no polling flicker.
 			return m, nil
 		}
 		return m, tea.Batch(m.nextLoadSpacesCmd(), m.tickCmd())
+	case wtInspectMsg:
+		return m.handleWtInspectMsg(msg)
+	case wtPromptDetailMsg:
+		return m.handleWtPromptDetailMsg(msg)
+	case wtListMsg:
+		return m.handleWtListMsg(msg)
+	case wtSafetyMsg:
+		return m.handleWtSafetyMsg(msg)
 	case sharedMsg:
 		return m.handleSharedMsg(msg)
 	case conversationsMsg:
@@ -422,11 +474,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectInitialActiveTab()
 		}
 		m.clampSelection()
+		var cmds []tea.Cmd
 		if m.mode == ModeNewSpace && !m.newIsTab && m.newName == "" && m.newCWD == "" {
 			m.prefillNewSpace("")
+			if cmd := m.initNewSpaceWorktrees(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 		if m.mode == ModeNewSpace && m.newIsTab && m.newTabSession == "" {
-			m.prefillNewTab()
+			if cmd := m.prefillNewTab(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if m.mode == ModeWorktrees && len(m.worktrees) == 0 {
+			if cmd := m.loadAllWorktreesCmd(); cmd != nil {
+				m.worktreesLoading = true
+				cmds = append(cmds, cmd)
+			}
 		}
 		if m.mode == ModeRename && m.renameStandalone && m.renameOld == "" {
 			m.prefillStandaloneRename()
@@ -448,8 +512,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 			m.clampSelection()
 		}
-		var cmds []tea.Cmd
-		if !m.gitFetching && m.mode != ModeAgents && m.mode != ModeRename && m.mode != ModeConversations {
+		if !m.gitFetching && m.mode != ModeAgents && m.mode != ModeRename && m.mode != ModeConversations && m.mode != ModeWorktrees {
 			if cwds := m.collectCWDs(); len(cwds) > 0 {
 				if cmd := m.loadGitStatusCmd(cwds, false); cmd != nil {
 					m.gitFetching = true
@@ -943,15 +1006,20 @@ func (m *Model) prefillNewSpace(prefill string) {
 	name := uniqueName(base, m.spaceExists)
 	m.newName = name
 	m.newNameCur = len([]rune(name))
+	m.newNameEdited = strings.TrimSpace(prefill) != ""
 	m.newCWD = cwd
 	m.newCWDCur = len([]rune(cwd))
 	m.newField = 0
 	m.newError = ""
 }
 
-func (m *Model) openNew(prefill string) {
+func (m *Model) openNew(prefill string) tea.Cmd {
+	m.returnMode = ModeNavigate
+	m.newIsTab = false
+	m.newTabSession = ""
 	m.prefillNewSpace(prefill)
 	m.mode = ModeNewSpace
+	return m.initNewSpaceWorktrees()
 }
 
 func (m *Model) requestRename() {
@@ -1004,7 +1072,13 @@ func (m *Model) prefillStandaloneRename() {
 	m.renameError = ""
 }
 
-func (m *Model) requestKill() {
+func (m *Model) requestKill() tea.Cmd {
+	m.confirmWorktreePath = ""
+	m.confirmWorktreeName = ""
+	m.confirmWorktreeBranch = ""
+	m.confirmWorktreeManaged = false
+	m.confirmRemoveWorktree = false
+	m.confirmWorktreeSafety = WorktreeRemoveSafety{}
 	if r := m.selectedRow(); r != nil && r.Kind == RowExited && r.ExitedIdx < len(m.exited) {
 		ex := m.exited[r.ExitedIdx]
 		m.confirmSpace = ex.Name
@@ -1012,17 +1086,17 @@ func (m *Model) requestKill() {
 		m.confirmPanes = ex.PaneCount
 		m.confirmExited = true
 		m.mode = ModeConfirmKill
-		return
+		return nil
 	}
 	name := m.selectedSpaceName()
 	if name == "" {
-		return
+		return nil
 	}
 	for _, sp := range m.spaces {
 		if sp.Name == name {
 			if sp.IsCurrent {
 				m.toast = "This is the current space. Switch away before closing it."
-				return
+				return nil
 			}
 			m.confirmSpace = name
 			m.confirmWindows = len(sp.Windows)
@@ -1036,9 +1110,77 @@ func (m *Model) requestKill() {
 			m.confirmPanes = len(sp.Panes)
 			m.confirmExited = false
 			m.mode = ModeConfirmKill
-			return
+
+			// Detect if this space is backed by a linked worktree not shared by another running space.
+			wtPath := sp.WorktreePath
+			wtName := sp.WorktreeName
+			wtBranch := ""
+			wtManaged := sp.WorktreeManaged
+			if sp.Git != nil && sp.Git.IsWorktree {
+				if wtPath == "" {
+					wtPath = sp.Git.RepoRoot
+				}
+				if wtName == "" {
+					wtName = sp.Git.WorktreeName
+				}
+				wtBranch = sp.Git.Branch
+				if sp.Git.Managed {
+					wtManaged = true
+				}
+			}
+			if wtPath != "" && !m.worktreeUsedByOtherSpace(sp.Name, wtPath) {
+				m.confirmWorktreePath = wtPath
+				m.confirmWorktreeName = wtName
+				if m.confirmWorktreeName == "" {
+					m.confirmWorktreeName = path.Base(wtPath)
+				}
+				m.confirmWorktreeBranch = wtBranch
+				m.confirmWorktreeManaged = wtManaged
+				return m.inspectWorktreeSafetyCmd(wtPath)
+			}
+			return nil
 		}
 	}
+	return nil
+}
+
+func (m *Model) worktreeUsedByOtherSpace(excludeSpace, wtPath string) bool {
+	for _, sp := range m.spaces {
+		if sp.Name == excludeSpace {
+			continue
+		}
+		if sameCleanPath(sp.WorktreePath, wtPath) || sameCleanPath(sp.CWD, wtPath) || isSubPath(sp.CWD, wtPath) {
+			return true
+		}
+		for _, p := range sp.Panes {
+			if sameCleanPath(p.CWD, wtPath) || isSubPath(p.CWD, wtPath) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (m *Model) worktreeUsedByOtherWindow(excludeWinID, wtPath string) bool {
+	for _, sp := range m.spaces {
+		for _, w := range sp.Windows {
+			if w.ID != "" && w.ID == excludeWinID {
+				continue
+			}
+			if sameCleanPath(w.WorktreePath, wtPath) || isSubPath(w.WorktreePath, wtPath) {
+				return true
+			}
+		}
+		for _, p := range sp.Panes {
+			if p.WindowID != "" && p.WindowID == excludeWinID {
+				continue
+			}
+			if sameCleanPath(p.CWD, wtPath) || isSubPath(p.CWD, wtPath) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (m *Model) toggleExpandSelectedPane(forceExpand *bool) tea.Cmd {
@@ -1230,10 +1372,10 @@ func (m *Model) launchAgent(agent, profile string) {
 // actions
 // ---------------------------------------------------------------------------
 
-func (m *Model) activateSelected() {
+func (m *Model) activateSelected() tea.Cmd {
 	r := m.selectedRow()
 	if r == nil {
-		return
+		return nil
 	}
 	ctx := context.Background()
 	switch r.Kind {
@@ -1241,7 +1383,7 @@ func (m *Model) activateSelected() {
 		name := m.spaces[r.SpaceIdx].Name
 		if err := m.backend.OpenSpace(ctx, name); err != nil {
 			m.toast = err.Error()
-			return
+			return nil
 		}
 		m.quitting = true
 	case RowPane:
@@ -1249,27 +1391,28 @@ func (m *Model) activateSelected() {
 		p := sp.Panes[r.PaneIdx]
 		if err := m.backend.FocusPane(ctx, sp.Name, p.WindowID, p.ID); err != nil {
 			m.toast = err.Error()
-			return
+			return nil
 		}
 		m.quitting = true
 	case RowExited:
 		if r.ExitedIdx >= len(m.exited) {
-			return
+			return nil
 		}
 		rb, ok := m.backend.(ResurrectBackend)
 		if !ok {
 			m.toast = "Restore is not available."
-			return
+			return nil
 		}
 		name := m.exited[r.ExitedIdx].Name
 		if err := rb.RestoreSpace(ctx, name); err != nil {
 			m.toast = "Restore failed: " + err.Error()
-			return
+			return nil
 		}
 		m.quitting = true
 	case RowCreate:
-		m.openNew(r.CreateName)
+		return m.openNew(r.CreateName)
 	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1290,6 +1433,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeShared {
 			m.sharedLoading = true
 			return m, m.loadSharedCmd()
+		}
+		if m.mode == ModeWorktrees {
+			m.worktreesLoading = true
+			return m, tea.Batch(m.nextLoadSpacesCmd(), m.loadAllWorktreesCmd())
 		}
 		if m.mode == ModeNavigate || m.mode == ModeSearch || m.mode == ModeHelp || m.mode == ModeInbox || m.mode == ModeTabs {
 			cmds := []tea.Cmd{m.nextLoadSpacesCmd()}
@@ -1327,6 +1474,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleRename(msg)
 	case ModeConfirmKill:
 		return m.handleConfirm(msg)
+	case ModeConfirmRemoveWorktree:
+		return m.handleConfirmRemoveWorktree(msg)
 	case ModeHookDetail:
 		return m.handleHookDetail(msg)
 	case ModeAgents:
@@ -1339,6 +1488,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleShared(msg)
 	case ModeTabs:
 		return m.handleTabs(msg)
+	case ModeWorktrees:
+		return m.handleWorktrees(msg)
 	}
 	return m, nil
 }
@@ -1364,11 +1515,11 @@ func (m Model) handleNavigate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		return m, tea.Quit
 	case tea.KeyEnter:
-		m.activateSelected()
+		cmd := m.activateSelected()
 		if m.quitting {
 			return m, tea.Quit
 		}
-		return m, nil
+		return m, cmd
 	case tea.KeyUp:
 		m.moveSelection(-1)
 		return m, nil
@@ -1439,11 +1590,13 @@ func (m Model) handleNavigate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmd := m.toggleExpandSelectedPane(nil)
 			return m, cmd
 		case "n":
-			m.openNew("")
+			return m, m.openNew("")
+		case "W":
+			return m, m.openWorktreesView()
 		case "r":
 			m.requestRename()
 		case "x":
-			m.requestKill()
+			return m, m.requestKill()
 		case " ":
 			return m, m.toggleSpaceOrPaneExpand()
 		case "b":
@@ -1516,11 +1669,11 @@ func (m Model) handleSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case tea.KeyEnter:
 		m.mode = ModeNavigate
-		m.activateSelected()
+		cmd := m.activateSelected()
 		if m.quitting {
 			return m, tea.Quit
 		}
-		return m, nil
+		return m, cmd
 	case tea.KeyUp:
 		m.moveSelection(-1)
 		return m, nil
@@ -1654,91 +1807,7 @@ func nextFilter(f model.AttentionFilter, backwards bool) model.AttentionFilter {
 // --- New Space dialog ---
 
 func (m Model) handleNewSpace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		m.newIsTab = false
-		m.mode = m.exitOverlayMode()
-		m.newError = ""
-		m.clampSelection()
-		if m.mode == ModeTabs {
-			return m, m.syncTabsInspectorCmd(false)
-		}
-		return m, nil
-	case tea.KeyEnter:
-		if m.newIsTab {
-			name := strings.TrimSpace(m.newName)
-			for _, r := range name {
-				if r < 32 {
-					m.newError = "Tab name cannot contain control characters."
-					return m, nil
-				}
-			}
-			wb, ok := m.backend.(WindowManageBackend)
-			if !ok {
-				m.newError = "Creating tabs is not supported."
-				return m, nil
-			}
-			cwd := strings.TrimSpace(m.newCWD)
-			if err := wb.NewWindow(context.Background(), m.newTabSession, cwd, name); err != nil {
-				m.newError = err.Error()
-				return m, nil
-			}
-			m.newIsTab = false
-			m.mode = m.exitOverlayMode()
-			m.quitting = true
-			return m, tea.Quit
-		}
-		name := strings.TrimSpace(m.newName)
-		if errStr := validateSpaceName(name); errStr != "" {
-			m.newError = errStr
-			return m, nil
-		}
-		name = sanitizeName(name)
-		if m.spaceExists(name) {
-			m.newError = "A space named '" + name + "' already exists."
-			return m, nil
-		}
-		cwd := strings.TrimSpace(m.newCWD)
-		if err := m.backend.CreateSpace(context.Background(), name, cwd); err != nil {
-			m.newError = err.Error()
-			return m, nil
-		}
-		m.mode = ModeNavigate
-		m.quitting = true
-		return m, tea.Quit
-	case tea.KeyTab:
-		if m.newField == 0 {
-			m.newField = 1
-		} else {
-			m.newField = 0
-		}
-		m.newError = ""
-		return m, nil
-	case tea.KeyUp, tea.KeyDown:
-		if m.newField == 0 {
-			m.newField = 1
-		} else {
-			m.newField = 0
-		}
-		m.newError = ""
-		return m, nil
-	case tea.KeyBackspace, tea.KeyDelete, tea.KeyLeft, tea.KeyRight, tea.KeyHome, tea.KeyEnd, tea.KeyCtrlU, tea.KeyCtrlW, tea.KeyCtrlA, tea.KeyCtrlE:
-		m.editActiveNewField(msg)
-		return m, nil
-	case tea.KeyRunes, tea.KeySpace:
-		m.editActiveNewField(msg)
-		return m, nil
-	}
-	return m, nil
-}
-
-func (m *Model) editActiveNewField(msg tea.KeyMsg) {
-	m.newError = ""
-	if m.newField == 0 {
-		m.newName, m.newNameCur = editText(m.newName, m.newNameCur, msg)
-	} else {
-		m.newCWD, m.newCWDCur = editText(m.newCWD, m.newCWDCur, msg)
-	}
+	return m.handleNewSpaceWithWorktree(msg)
 }
 
 // --- Rename dialog ---
@@ -1836,10 +1905,17 @@ func (m Model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.confirmWindow = false
+		m.confirmWorktreePath = ""
+		m.confirmRemoveWorktree = false
 		m.mode = m.exitOverlayMode()
 		return m, nil
 	case tea.KeyEnter:
 		return m.confirmKill()
+	case tea.KeySpace:
+		if !m.confirmExited && m.confirmWorktreePath != "" {
+			m.confirmRemoveWorktree = !m.confirmRemoveWorktree
+		}
+		return m, nil
 	case tea.KeyRunes:
 		if len(msg.Runes) == 0 {
 			return m, nil
@@ -1849,7 +1925,14 @@ func (m Model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.confirmKill()
 		case "n", "N":
 			m.confirmWindow = false
+			m.confirmWorktreePath = ""
+			m.confirmRemoveWorktree = false
 			m.mode = m.exitOverlayMode()
+			return m, nil
+		case "w", "W":
+			if !m.confirmExited && m.confirmWorktreePath != "" {
+				m.confirmRemoveWorktree = !m.confirmRemoveWorktree
+			}
 			return m, nil
 		}
 		return m, nil
@@ -1870,8 +1953,18 @@ func (m Model) confirmKill() (tea.Model, tea.Cmd) {
 		if err := wb.KillWindow(context.Background(), winID); err != nil {
 			m.toast = err.Error()
 			m.confirmWindow = false
+			m.confirmWorktreePath = ""
+			m.confirmRemoveWorktree = false
 			m.mode = m.exitOverlayMode()
 			return m, nil
+		}
+		if m.confirmRemoveWorktree && m.confirmWorktreePath != "" {
+			if wtb, ok := m.backend.(WorktreeBackend); ok {
+				deleteBranch := m.confirmWorktreeManaged && m.confirmWorktreeSafety.UnmergedCommits == 0
+				if err := wtb.RemoveWorktree(context.Background(), m.confirmWorktreePath, false, deleteBranch, nil); err != nil {
+					m.toast = "Tab closed, but worktree kept: " + err.Error()
+				}
+			}
 		}
 		for si := range m.spaces {
 			if m.spaces[si].Name != m.confirmSpace {
@@ -1894,6 +1987,8 @@ func (m Model) confirmKill() (tea.Model, tea.Cmd) {
 		}
 		delete(m.tabsPaneSel, winID)
 		m.confirmWindow = false
+		m.confirmWorktreePath = ""
+		m.confirmRemoveWorktree = false
 		m.mode = ModeTabs
 		m.clampSelection()
 		return m, tea.Batch(m.nextLoadSpacesCmd(), m.syncTabsInspectorCmd(false))
@@ -1930,6 +2025,14 @@ func (m Model) confirmKill() (tea.Model, tea.Cmd) {
 		m.toast = err.Error()
 		m.mode = ModeNavigate
 		return m, nil
+	}
+	if m.confirmRemoveWorktree && m.confirmWorktreePath != "" {
+		if wb, ok := m.backend.(WorktreeBackend); ok {
+			deleteBranch := m.confirmWorktreeManaged && m.confirmWorktreeSafety.UnmergedCommits == 0
+			if err := wb.RemoveWorktree(context.Background(), m.confirmWorktreePath, false, deleteBranch, nil); err != nil {
+				m.toast = "Space closed, but worktree kept: " + err.Error()
+			}
+		}
 	}
 	// Remove locally and stay open.
 	var kept []model.Space
@@ -2208,6 +2311,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if m.mode == ModeWorktrees {
+			m.wtSelected--
+			m.clampWorktreeSelection()
+			return m, nil
+		}
 		m.moveSelection(-1)
 		return m, nil
 	case tea.MouseButtonWheelDown:
@@ -2237,6 +2345,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.mode == ModeHookDetail {
 			m.hookScroll++
+			return m, nil
+		}
+		if m.mode == ModeWorktrees {
+			m.wtSelected++
+			m.clampWorktreeSelection()
 			return m, nil
 		}
 		m.moveSelection(1)
@@ -2289,7 +2402,7 @@ func (m Model) handleLeftClick(x, y int) (tea.Model, tea.Cmd) {
 	}
 	// Ignore clicks while overlays are up (except navigate/search).
 	switch m.mode {
-	case ModeNewSpace, ModeRename, ModeConfirmKill, ModeHelp, ModeHookDetail:
+	case ModeNewSpace, ModeRename, ModeConfirmKill, ModeConfirmRemoveWorktree, ModeHelp, ModeHookDetail, ModeWorktrees:
 		return m, nil
 	}
 	if y == searchLineY() {

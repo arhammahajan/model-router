@@ -235,7 +235,7 @@ func (m *Model) inboxItems() []InboxItem {
 		if !m.filter.Matches(o.Status()) {
 			continue
 		}
-		if q != "" && !outcomeMatchesQuery(o, q) {
+		if q != "" && !outcomeMatchesQuery(o, m.gitInfo[o.CWD], q) {
 			continue
 		}
 		items = append(items, InboxItem{IsOutcome: true, OutcomeIdx: oi})
@@ -264,8 +264,8 @@ func (m *Model) inboxItems() []InboxItem {
 	return items
 }
 
-func outcomeMatchesQuery(o model.OutcomeEntry, q string) bool {
-	return strings.Contains(strings.ToLower(o.Session), q) ||
+func outcomeMatchesQuery(o model.OutcomeEntry, g *model.GitInfo, q string) bool {
+	if strings.Contains(strings.ToLower(o.Session), q) ||
 		strings.Contains(strings.ToLower(o.Agent), q) ||
 		strings.Contains(strings.ToLower(o.App), q) ||
 		strings.Contains(strings.ToLower(o.Profile), q) ||
@@ -275,7 +275,22 @@ func outcomeMatchesQuery(o model.OutcomeEntry, q string) bool {
 		strings.Contains(strings.ToLower(o.Text), q) ||
 		strings.Contains(strings.ToLower(o.Model), q) ||
 		strings.Contains(strings.ToLower(o.CWD), q) ||
-		strings.Contains(strings.ToLower(o.SessionID), q)
+		strings.Contains(strings.ToLower(o.SessionID), q) {
+		return true
+	}
+	if g != nil {
+		if g.Branch != "" && strings.Contains(strings.ToLower(g.Branch), q) {
+			return true
+		}
+		if g.IsWorktree {
+			if q == "worktree" || q == "wt" ||
+				(g.WorktreeName != "" && strings.Contains(strings.ToLower(g.WorktreeName), q)) ||
+				(g.RepoName != "" && strings.Contains(strings.ToLower(g.RepoName), q)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func inboxMatchesQuery(sp model.Space, p model.Pane, q string) bool {
@@ -314,6 +329,13 @@ func inboxMatchesQuery(sp model.Space, p model.Pane, q string) bool {
 		if p.Git.Branch != "" && strings.Contains(strings.ToLower(p.Git.Branch), q) {
 			return true
 		}
+		if p.Git.IsWorktree {
+			if q == "worktree" || q == "wt" ||
+				(p.Git.WorktreeName != "" && strings.Contains(strings.ToLower(p.Git.WorktreeName), q)) ||
+				(p.Git.RepoName != "" && strings.Contains(strings.ToLower(p.Git.RepoName), q)) {
+				return true
+			}
+		}
 		if p.Git.PR != nil {
 			if p.Git.PR.Number > 0 && strings.Contains(fmt.Sprintf("#%d", p.Git.PR.Number), q) {
 				return true
@@ -323,8 +345,14 @@ func inboxMatchesQuery(sp model.Space, p model.Pane, q string) bool {
 			}
 		}
 	}
-	if sp.Git != nil && sp.Git.Branch != "" && strings.Contains(strings.ToLower(sp.Git.Branch), q) {
-		return true
+	if sp.Git != nil {
+		if sp.Git.Branch != "" && strings.Contains(strings.ToLower(sp.Git.Branch), q) {
+			return true
+		}
+		if sp.Git.IsWorktree && (q == "worktree" || q == "wt" ||
+			(sp.Git.WorktreeName != "" && strings.Contains(strings.ToLower(sp.Git.WorktreeName), q))) {
+			return true
+		}
 	}
 	return false
 }
@@ -795,6 +823,15 @@ func (m Model) renderInboxOutcomeRow(o model.OutcomeEntry, selected, altBG bool,
 
 	var rb strings.Builder
 	usedRight := tailW
+	if g := m.gitInfo[o.CWD]; g != nil && innerW >= 72 {
+		if brBadge := renderGitBranchBadge(g, 18, st); brBadge != "" {
+			if w := ansi.StringWidth(brBadge) + 2; usedRight+w+42 <= innerW {
+				rb.WriteString(brBadge)
+				rb.WriteString(st(bg, false).Render("  "))
+				usedRight += w
+			}
+		}
+	}
 	if mdl := strings.TrimSpace(o.Model); mdl != "" && innerW >= 78 {
 		modelBadge := st(ColorSubtext0, false).Render(truncate(mdl, 20))
 		if w := ansi.StringWidth(modelBadge) + 2; usedRight+w+40 <= innerW {
@@ -1020,6 +1057,11 @@ func (m Model) renderInboxDetailLines(items []InboxItem, width, maxLines int) []
 		}
 
 		var l2 []string
+		if g := m.gitInfo[o.CWD]; g != nil {
+			if gs := renderGitDetailStyled(g, bg, st); gs != "" {
+				l2 = append(l2, gs)
+			}
+		}
 		if txt := strings.TrimSpace(o.Text); txt != "" {
 			l2 = append(l2, st(ColorText, false).Render(txt))
 		}
