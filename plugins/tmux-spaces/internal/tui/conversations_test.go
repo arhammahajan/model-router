@@ -14,12 +14,12 @@ import (
 
 type fakeConversationsBackend struct {
 	fakeBackend
-	cachedSnap   model.ConversationSnapshot
-	refreshSnap  model.ConversationSnapshot
-	loadErr      error
-	searchHits   []model.ConversationSearchHit
-	searchReqs   []model.ConversationSearchRequest
-	openedConvs  []struct {
+	cachedSnap  model.ConversationSnapshot
+	refreshSnap model.ConversationSnapshot
+	loadErr     error
+	searchHits  []model.ConversationSearchHit
+	searchReqs  []model.ConversationSearchRequest
+	openedConvs []struct {
 		conv        model.ConversationEntry
 		forceNewTab bool
 	}

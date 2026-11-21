@@ -1049,7 +1049,7 @@ func TestManagerPruneActiveSubdirectoryAndSiblingPrefix(t *testing.T) {
 	activePaths := map[string]bool{
 		filepath.Join(fooRes.Worktree.Path, "sub", "dir"): true,
 		filepath.Join(baz2Res.Worktree.Path, "pkg"):       true,
-		barSubLink:                                        true,
+		barSubLink: true,
 	}
 
 	pruneRes, err := mgr.Prune(ctx, []string{repoDir}, true, activePaths)

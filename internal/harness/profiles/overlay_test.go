@@ -664,10 +664,10 @@ func TestAllHarnessesShareMCPsSkillsChatsByDefault(t *testing.T) {
 		paths := testPaths(t)
 		shared := filepath.Join(paths.Home, ".minimax")
 		writeSharedCodexHome(t, shared, map[string]string{
-			"auth/prod/token": "secret",
-			"mcp.json":        `{"mcpServers":{}}`,
+			"auth/prod/token":   "secret",
+			"mcp.json":          `{"mcpServers":{}}`,
 			"skills/s/SKILL.md": "---\nname: s\n---",
-			"v2/chat.json":    "{}",
+			"v2/chat.json":      "{}",
 		})
 		s, _ := Open(paths)
 		if err := s.Create("m1", Profile{Agent: "mcode", Enabled: true, Router: false}, CreateOptions{NoSeed: true}); err != nil {

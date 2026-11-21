@@ -116,8 +116,7 @@ func TestSpaceLaunchAgentRawNewTab(t *testing.T) {
 		t.Fatal(err)
 	}
 	fakeBin(t, homeBin, "codex")
-	binDir := t.TempDir()
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", homeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	dir := t.TempDir()
 	fakeZellij(t, dir)
@@ -224,8 +223,7 @@ func TestShimProfileReexec(t *testing.T) {
 		t.Fatal(err)
 	}
 	fakeBin(t, homeBin, "codex")
-	binDir := t.TempDir()
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", homeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	store, err := profiles.Open(paths)
 	if err != nil {

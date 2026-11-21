@@ -41,17 +41,17 @@ const (
 
 // Field / file bounds.
 const (
-	MaxText       = 240
-	MaxField      = 4096
-	MaxOutput     = 2048
-	MaxModel      = 200
-	MaxSession    = 200
-	MaxCWD        = 1000
-	MaxChildren   = 32
-	MaxOutcomes   = 20
-	MaxEventBytes = 16 * 1024
-	MaxSpoolBytes = 1024 * 1024
-	MaxSpoolLines = 2048
+	MaxText         = 240
+	MaxField        = 4096
+	MaxOutput       = 2048
+	MaxModel        = 200
+	MaxSession      = 200
+	MaxCWD          = 1000
+	MaxChildren     = 32
+	MaxOutcomes     = 20
+	MaxEventBytes   = 16 * 1024
+	MaxSpoolBytes   = 1024 * 1024
+	MaxSpoolLines   = 2048
 	MaxBody         = 256 * 1024
 	DedupeMS        = 500
 	OutcomeDedupeMS = 15_000

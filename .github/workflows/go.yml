@@ -2,6 +2,7 @@ name: Go contracts and archive smoke
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -24,7 +25,12 @@ jobs:
       - run: go mod download
       - name: Formatting, vet and race tests
         run: |
-          test -z "$(gofmt -l internal cmd)"
+          unformatted="$(gofmt -l internal cmd)"
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted Go files:"
+            echo "$unformatted"
+            exit 1
+          fi
           go vet ./...
           go test -race -count=1 ./...
       - name: External HTTP contracts and runner tests

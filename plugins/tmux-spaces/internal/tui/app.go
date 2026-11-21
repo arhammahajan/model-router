@@ -121,13 +121,13 @@ type Model struct {
 	wtRemoveSafety       WorktreeRemoveSafety
 	wtRemoveForce        bool
 	wtRemoveDeleteBranch bool
-	renameOld        string
-	renameText       string
-	renameCur        int
-	renameError      string
-	renameWindow     bool
-	renameWindowID   string
-	renameStandalone bool
+	renameOld            string
+	renameText           string
+	renameCur            int
+	renameError          string
+	renameWindow         bool
+	renameWindowID       string
+	renameStandalone     bool
 
 	confirmSpace           string
 	confirmWindows         int

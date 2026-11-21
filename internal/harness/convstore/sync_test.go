@@ -341,10 +341,10 @@ func TestSyncMessagesChunkedCommitsMetadataOnlyAndFailBackoff(t *testing.T) {
 
 	// Create 30 sources (> 25 chunk size): 28 normal, 1 metadata-only (res==nil), 1 failing.
 	ad := &mockAdapter{
-		agent:       "claude",
-		metaByKey:   make(map[string][]Conversation),
-		msgsByKey:   make(map[string]*MessagesResult),
-		msgErrKeys:  make(map[string]error),
+		agent:      "claude",
+		metaByKey:  make(map[string][]Conversation),
+		msgsByKey:  make(map[string]*MessagesResult),
+		msgErrKeys: make(map[string]error),
 	}
 	for i := 0; i < 30; i++ {
 		key := fmt.Sprintf("claude::/s%02d", i)

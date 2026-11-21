@@ -222,10 +222,10 @@ func TestRunHealthyStack(t *testing.T) {
 	writeFile(t, filepath.Join(paths.ConfigHome, "tmux", "tmux.conf"), "keybinds {}")
 
 	checks := Run(CheckOptions{
-		Paths:        paths,
-		Router:       routerOptions(paths, srv.URL),
-		RouterConfig: cfg,
-		SpacesRuntime:    runtime,
+		Paths:         paths,
+		Router:        routerOptions(paths, srv.URL),
+		RouterConfig:  cfg,
+		SpacesRuntime: runtime,
 	})
 	wantNames := []string{"router", "router-config", "profiles",
 		"agents", "spaces-runtime", "spaces-listener", "entries", "tmux"}
@@ -284,22 +284,22 @@ func TestRunDegradedStack(t *testing.T) {
 		Paths:  paths,
 		Router: routerOptions(paths, "http://127.0.0.1:1"), // nothing listens
 		// A config path that does not exist.
-		RouterConfig: filepath.Join(paths.ConfigHome, "router.toml"),
-		SpacesRuntime:    t.TempDir(),
+		RouterConfig:  filepath.Join(paths.ConfigHome, "router.toml"),
+		SpacesRuntime: t.TempDir(),
 	}
 	checks := Run(opts)
 	if len(checks) != 8 {
 		t.Fatalf("Run returned %d checks, want 8", len(checks))
 	}
 	want := map[string]string{
-		"router":        StateFail, // not live
-		"router-config": StateFail, // read config: no such file
-		"profiles":      StateOK,   // empty store is healthy
-		"agents":        StateWarn, // nothing installed
-		"spaces-runtime":    StateWarn, // no endpoint
-		"spaces-listener":   StateWarn, // no lock
-		"entries":       StateFail, // both missing
-		"tmux":        StateFail, // both missing
+		"router":          StateFail, // not live
+		"router-config":   StateFail, // read config: no such file
+		"profiles":        StateOK,   // empty store is healthy
+		"agents":          StateWarn, // nothing installed
+		"spaces-runtime":  StateWarn, // no endpoint
+		"spaces-listener": StateWarn, // no lock
+		"entries":         StateFail, // both missing
+		"tmux":            StateFail, // both missing
 	}
 	got := byName(checks)
 	for name, state := range want {
@@ -340,9 +340,9 @@ func TestRunPanicBecomesFail(t *testing.T) {
 	runtime := t.TempDir()
 	writeFile(t, filepath.Join(runtime, "hooks.server.lock"), fmt.Sprintf("%d\n", os.Getpid()))
 	opts := CheckOptions{
-		Paths:     paths,
+		Paths:         paths,
 		SpacesRuntime: runtime,
-		Kill:      func(int, syscall.Signal) error { panic("kill exploded") },
+		Kill:          func(int, syscall.Signal) error { panic("kill exploded") },
 	}
 	checks := Run(opts)
 	if len(checks) != 8 {

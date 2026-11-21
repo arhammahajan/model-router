@@ -119,11 +119,11 @@ func (a *museAdapter) ParseMetadata(ctx context.Context, src convstore.Discovere
 			return nil, ctx.Err()
 		}
 		var (
-			idRaw, wsRaw, branchRaw                              any
-			sessNameRaw, longTitleRaw, titleRaw, mspTitleRaw     any
-			firstPromptRaw, mspFirstPromptRaw                    any
-			createdRaw, updatedRaw, logPathRaw, msgCountRaw      any
-			mspParentRaw, parentRaw, archivedRaw, modelRaw       any
+			idRaw, wsRaw, branchRaw                          any
+			sessNameRaw, longTitleRaw, titleRaw, mspTitleRaw any
+			firstPromptRaw, mspFirstPromptRaw                any
+			createdRaw, updatedRaw, logPathRaw, msgCountRaw  any
+			mspParentRaw, parentRaw, archivedRaw, modelRaw   any
 		)
 		if err := rows.Scan(
 			&idRaw, &wsRaw, &branchRaw,
@@ -250,9 +250,9 @@ func (a *museAdapter) ParseMessages(ctx context.Context, src convstore.Discovere
 	var targets []target
 	for rows.Next() {
 		var (
-			idRaw, updatedRaw, logPathRaw, searchRaw   any
-			firstPromptRaw, mspFirstRaw                any
-			mspParentRaw, parentRaw                    any
+			idRaw, updatedRaw, logPathRaw, searchRaw any
+			firstPromptRaw, mspFirstRaw              any
+			mspParentRaw, parentRaw                  any
 		)
 		if err := rows.Scan(
 			&idRaw, &updatedRaw, &logPathRaw, &searchRaw,

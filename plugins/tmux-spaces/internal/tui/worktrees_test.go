@@ -415,13 +415,13 @@ func TestWorktreesManagerViewAndSafeCleanup(t *testing.T) {
 			Panes:     []model.Pane{{ID: "%1", WindowID: "@1", CWD: "/repo"}},
 		},
 		{
-			Name:         "feature",
-			IsCurrent:    false,
-			CWD:          "/wt/feat-a",
-			WorktreePath: "/wt/feat-a",
-			WorktreeName: "feat-a",
+			Name:            "feature",
+			IsCurrent:       false,
+			CWD:             "/wt/feat-a",
+			WorktreePath:    "/wt/feat-a",
+			WorktreeName:    "feat-a",
 			WorktreeManaged: true,
-			Panes:        []model.Pane{{ID: "%2", WindowID: "@2", CWD: "/wt/feat-a"}},
+			Panes:           []model.Pane{{ID: "%2", WindowID: "@2", CWD: "/wt/feat-a"}},
 		},
 	}
 	wb := &fakeWorktreeBackend{

@@ -786,19 +786,19 @@ type WorktreeEntry struct {
 // WorktreeContext holds discovered git repository and worktree state for a folder,
 // used by the mod+c New Tab and New Space dialogs.
 type WorktreeContext struct {
-	InRepo         bool
-	RepoKey        string
-	MainRepoRoot   string
-	RepoName       string
-	WorktreeRoot   string
-	DefaultBase    string
-	CurrentBranch  string
-	CurrentPath    string
-	HasCommits     bool
-	Worktrees      []WorktreeEntry
-	Branches       []string
-	AutoBranch     string
-	AutoDirName    string
-	AutoSource     string
-	AutoRule       string
+	InRepo        bool
+	RepoKey       string
+	MainRepoRoot  string
+	RepoName      string
+	WorktreeRoot  string
+	DefaultBase   string
+	CurrentBranch string
+	CurrentPath   string
+	HasCommits    bool
+	Worktrees     []WorktreeEntry
+	Branches      []string
+	AutoBranch    string
+	AutoDirName   string
+	AutoSource    string
+	AutoRule      string
 }
