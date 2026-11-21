@@ -2,6 +2,7 @@ package agents
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,8 +101,10 @@ func TestShadowHomeIsolation(t *testing.T) {
 			t.Fatalf("GROK_HOME = %v, want shadow", r.Env)
 		}
 	})
-	t.Run("antigravity isolates HOME, gemini dir, dbus, and credential scope", func(t *testing.T) {
+	t.Run("antigravity isolates HOME, gemini dir, dbus, credential scope, and wires BASH_ENV restore", func(t *testing.T) {
 		paths := testPaths(t)
+		t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+		t.Setenv("BASH_ENV", "")
 		shadow := filepath.Join(t.TempDir(), "agy-shadow")
 		r := mustResolve(t, harnessenv.LaunchSpec{Agent: "antigravity", ShadowHome: shadow}, paths, nil)
 		m := envMap(t, r.Env)
@@ -120,8 +123,17 @@ func TestShadowHomeIsolation(t *testing.T) {
 		if !strings.HasPrefix(m["ANTIGRAVITY_CREDENTIAL_SCOPE"], "harness-profile-") {
 			t.Fatalf("ANTIGRAVITY_CREDENTIAL_SCOPE = %q, want harness-profile-*", m["ANTIGRAVITY_CREDENTIAL_SCOPE"])
 		}
+		if m["HARNESS_REAL_HOME"] != paths.Home || m["HARNESS_REAL_XDG_CONFIG_HOME"] != paths.ConfigHome {
+			t.Fatalf("HARNESS_REAL_* not populated: %v", m)
+		}
+		if m["HARNESS_REAL_DBUS_SESSION_BUS_ADDRESS"] != "unix:path=/run/user/1000/bus" {
+			t.Fatalf("HARNESS_REAL_DBUS_SESSION_BUS_ADDRESS = %q", m["HARNESS_REAL_DBUS_SESSION_BUS_ADDRESS"])
+		}
+		if m["BASH_ENV"] != RestoreEnvScriptPath(paths) {
+			t.Fatalf("BASH_ENV = %q, want %q", m["BASH_ENV"], RestoreEnvScriptPath(paths))
+		}
 	})
-	t.Run("antigravity-acp GEMINI_HOME and force file storage", func(t *testing.T) {
+	t.Run("antigravity-acp isolates GEMINI_HOME and keeps HOME/XDG/DBUS intact", func(t *testing.T) {
 		paths := testPaths(t)
 		shadow := filepath.Join(t.TempDir(), "agy-acp-shadow")
 		r, err := Resolve(harnessenv.LaunchSpec{Agent: "antigravity-acp", Binary: "/bin/acp", ShadowHome: shadow, NoRouter: true}, paths, testRouter(), nil)
@@ -131,6 +143,11 @@ func TestShadowHomeIsolation(t *testing.T) {
 		m := envMap(t, r.Env)
 		if m["GEMINI_HOME"] != shadow || m["AGY_ACP_FORCE_FILE_STORAGE"] != "1" {
 			t.Fatalf("antigravity-acp shadow env wrong: %v", m)
+		}
+		for _, forbidden := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "DBUS_SESSION_BUS_ADDRESS", "BASH_ENV"} {
+			if _, exists := m[forbidden]; exists {
+				t.Fatalf("antigravity-acp must not override %s: %v", forbidden, m)
+			}
 		}
 	})
 	t.Run("unmapped agent ignores shadow", func(t *testing.T) {
@@ -342,38 +359,133 @@ func TestNoRouterCredentialIsolation(t *testing.T) {
 
 func TestAntigravityProfileOwnsCredentialEnvironment(t *testing.T) {
 	paths := testPaths(t)
-	for _, agent := range []string{"antigravity", "antigravity-acp"} {
-		t.Run(agent, func(t *testing.T) {
-			shadow := filepath.Join(t.TempDir(), "private")
-			r, err := Resolve(harnessenv.LaunchSpec{
-				Agent: agent, Binary: "/fake/agy", HomePath: shadow, NoRouter: true,
-				Env: map[string]string{
-					"HOME": "/shared", "XDG_CONFIG_HOME": "/shared", "XDG_DATA_HOME": "/shared",
-					"DBUS_SESSION_BUS_ADDRESS": "unix:path=/shared/bus",
-					"ANTIGRAVITY_GEMINI_DIR":   "/shared", "ANTIGRAVITY_CONFIG_REL_DIR": "/shared",
-					"GEMINI_HOME": "/shared", "AGY_ACP_FORCE_FILE_STORAGE": "0",
-					"BROWSER": "my-browser",
-				},
-			}, paths, testRouter(), nil)
-			if err != nil {
-				t.Fatal(err)
+	t.Run("antigravity", func(t *testing.T) {
+		shadow := filepath.Join(t.TempDir(), "private")
+		r, err := Resolve(harnessenv.LaunchSpec{
+			Agent: "antigravity", Binary: "/fake/agy", HomePath: shadow, NoRouter: true,
+			Env: map[string]string{
+				"HOME": "/shared", "XDG_CONFIG_HOME": "/shared", "XDG_DATA_HOME": "/shared",
+				"DBUS_SESSION_BUS_ADDRESS": "unix:path=/shared/bus",
+				"ANTIGRAVITY_GEMINI_DIR":   "/shared", "ANTIGRAVITY_CONFIG_REL_DIR": "/shared",
+				"GEMINI_HOME": "/shared",
+				"BROWSER":     "my-browser",
+			},
+		}, paths, testRouter(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := envMap(t, r.Env)
+		for key, want := range map[string]string{
+			"HOME": shadow, "XDG_CONFIG_HOME": filepath.Join(shadow, ".config"),
+			"XDG_DATA_HOME":            filepath.Join(shadow, ".local", "share"),
+			"DBUS_SESSION_BUS_ADDRESS": "disabled:", "BROWSER": "my-browser",
+		} {
+			if env[key] != want {
+				t.Errorf("%s = %q, want %q", key, env[key], want)
 			}
-			env := envMap(t, r.Env)
-			for key, want := range map[string]string{
-				"HOME": shadow, "XDG_CONFIG_HOME": filepath.Join(shadow, ".config"),
-				"XDG_DATA_HOME":            filepath.Join(shadow, ".local", "share"),
-				"DBUS_SESSION_BUS_ADDRESS": "disabled:", "BROWSER": "my-browser",
-			} {
-				if env[key] != want {
-					t.Errorf("%s = %q, want %q", key, env[key], want)
-				}
+		}
+		if env["ANTIGRAVITY_CONFIG_REL_DIR"] != "" || !unsetSet(r)["ANTIGRAVITY_CONFIG_REL_DIR"] {
+			t.Error("the profile must drop external Antigravity config redirects")
+		}
+	})
+	t.Run("antigravity-acp", func(t *testing.T) {
+		shadow := filepath.Join(t.TempDir(), "private")
+		r, err := Resolve(harnessenv.LaunchSpec{
+			Agent: "antigravity-acp", Binary: "/fake/agy.par", HomePath: shadow, NoRouter: true,
+			Env: map[string]string{
+				"GEMINI_HOME":                "/shared",
+				"AGY_ACP_FORCE_FILE_STORAGE": "0",
+				"BROWSER":                    "my-browser",
+			},
+		}, paths, testRouter(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := envMap(t, r.Env)
+		if env["GEMINI_HOME"] != shadow || env["AGY_ACP_FORCE_FILE_STORAGE"] != "1" {
+			t.Errorf("ACP must use its own file-based credential store: %v", env)
+		}
+		if env["BROWSER"] != "my-browser" {
+			t.Errorf("BROWSER = %q, want my-browser", env["BROWSER"])
+		}
+		for _, forbidden := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "DBUS_SESSION_BUS_ADDRESS"} {
+			if _, exists := env[forbidden]; exists {
+				t.Errorf("ACP must not override %s: %v", forbidden, env)
 			}
-			if env["ANTIGRAVITY_CONFIG_REL_DIR"] != "" || !unsetSet(r)["ANTIGRAVITY_CONFIG_REL_DIR"] {
-				t.Error("the profile must drop external Antigravity config redirects")
-			}
-			if agent == "antigravity-acp" && (env["GEMINI_HOME"] != shadow || env["AGY_ACP_FORCE_FILE_STORAGE"] != "1") {
-				t.Error("ACP must use its own file-based credential store")
-			}
-		})
+		}
+	})
+}
+
+func TestAntigravityBashEnvRestoresRealEnv(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found on PATH")
 	}
+	t.Run("restores real HOME, XDG, and D-Bus and does not clobber nested overrides", func(t *testing.T) {
+		paths := testPaths(t)
+		t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+		t.Setenv("BASH_ENV", "")
+		script, err := EnsureRestoreEnvScript(paths)
+		if err != nil {
+			t.Fatalf("EnsureRestoreEnvScript: %v", err)
+		}
+		shadow := filepath.Join(t.TempDir(), "agy-shadow")
+		r := mustResolve(t, harnessenv.LaunchSpec{Agent: "antigravity", ShadowHome: shadow}, paths, nil)
+		if envMap(t, r.Env)["BASH_ENV"] != script {
+			t.Fatalf("BASH_ENV = %q, want %q", envMap(t, r.Env)["BASH_ENV"], script)
+		}
+
+		cmd := exec.Command("bash", "-c", `printf '%s|%s|%s|%s|%s|%s|%s\n' "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$DBUS_SESSION_BUS_ADDRESS" "${BASH_ENV:-}"; HOME=/tmp/custom-nested bash -c 'printf "%s\n" "$HOME"'`)
+		cmd.Env = append([]string{"PATH=" + os.Getenv("PATH")}, r.Env...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("bash failed: %v\n%s", err, out)
+		}
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("unexpected output lines: %q", string(out))
+		}
+		want := strings.Join([]string{
+			paths.Home,
+			paths.ConfigHome,
+			paths.DataHome,
+			paths.StateHome,
+			paths.CacheHome,
+			"unix:path=/run/user/1000/bus",
+			"",
+		}, "|")
+		if lines[0] != want {
+			t.Fatalf("restored env = %q, want %q", lines[0], want)
+		}
+		if lines[1] != "/tmp/custom-nested" {
+			t.Fatalf("nested bash HOME = %q, want /tmp/custom-nested", lines[1])
+		}
+	})
+
+	t.Run("unsets disabled D-Bus when originally unset and chains prior BASH_ENV", func(t *testing.T) {
+		paths := testPaths(t)
+		t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
+		t.Setenv("HARNESS_REAL_DBUS_SESSION_BUS_ADDRESS", "")
+		prior := filepath.Join(t.TempDir(), "prior.sh")
+		if err := os.WriteFile(prior, []byte("export PRIOR_MARKER=ok\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("BASH_ENV", prior)
+		if _, err := EnsureRestoreEnvScript(paths); err != nil {
+			t.Fatalf("EnsureRestoreEnvScript: %v", err)
+		}
+		shadow := filepath.Join(t.TempDir(), "agy-shadow")
+		r := mustResolve(t, harnessenv.LaunchSpec{Agent: "antigravity", ShadowHome: shadow}, paths, nil)
+
+		cmd := exec.Command("bash", "-c", `printf '%s|%s|%s\n' "${DBUS_SESSION_BUS_ADDRESS+set}" "${PRIOR_MARKER:-}" "${BASH_ENV:-}"`)
+		cmd.Env = append([]string{"PATH=" + os.Getenv("PATH")}, r.Env...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("bash failed: %v\n%s", err, out)
+		}
+		got := strings.TrimSpace(string(out))
+		want := "|ok|" + prior
+		if got != want {
+			t.Fatalf("got %q, want %q", got, want)
+		}
+	})
 }

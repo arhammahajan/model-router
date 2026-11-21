@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/arhammahajan/model-router/internal/harness/agents"
 	"github.com/arhammahajan/model-router/internal/harness/harnessenv"
 )
 
@@ -986,9 +987,17 @@ func MaterializeCodexShadowHome(shadowDir, sharedDir string) error {
 // Antigravity credential paths even when sharing is disabled.
 func MaterializeForLaunch(r Resolution, paths harnessenv.Paths) error {
 	if r.NativeAntigravity {
+		if _, err := agents.EnsureRestoreEnvScript(paths); err != nil {
+			return err
+		}
 		return importNativeAntigravity(r.Name, r.Profile.ShadowHome, paths)
 	}
 	p := r.Profile
+	if p.Agent == "antigravity" {
+		if _, err := agents.EnsureRestoreEnvScript(paths); err != nil {
+			return err
+		}
+	}
 	if !SupportsOverlay(p.Agent) {
 		return nil
 	}

@@ -280,9 +280,12 @@ func Resolve(spec harnessenv.LaunchSpec, paths harnessenv.Paths, router harnesse
 		for k, v := range ShadowEnvMap(agent, shadowHome) {
 			env[k] = v
 		}
-		for _, name := range []string{"ANTIGRAVITY_APP_DATA_DIR", "ANTIGRAVITY_CONFIG_REL_DIR"} {
-			delete(env, name)
-			unset = append(unset, name)
+		if agent == "antigravity" {
+			for _, name := range []string{"ANTIGRAVITY_APP_DATA_DIR", "ANTIGRAVITY_CONFIG_REL_DIR"} {
+				delete(env, name)
+				unset = append(unset, name)
+			}
+			applyRealEnvRestore(env, paths, spec.Env)
 		}
 	}
 
@@ -367,4 +370,48 @@ func Launch(r Resolved) error {
 func isRegularFile(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
+}
+
+// applyRealEnvRestore records the user's real HOME, XDG_*, and D-Bus session
+// address in HARNESS_REAL_* and points BASH_ENV at the harness restore script.
+// agy (a Go binary) ignores BASH_ENV and stays isolated in its shadow home,
+// while non-interactive bash shells spawned by agy source BASH_ENV and regain
+// access to authenticated user tools such as gh, git, and ssh.
+func applyRealEnvRestore(env map[string]string, paths harnessenv.Paths, specEnv map[string]string) {
+	if paths.Home != "" {
+		env["HARNESS_REAL_HOME"] = paths.Home
+	}
+	if paths.ConfigHome != "" {
+		env["HARNESS_REAL_XDG_CONFIG_HOME"] = paths.ConfigHome
+	}
+	if paths.DataHome != "" {
+		env["HARNESS_REAL_XDG_DATA_HOME"] = paths.DataHome
+	}
+	if paths.StateHome != "" {
+		env["HARNESS_REAL_XDG_STATE_HOME"] = paths.StateHome
+	}
+	if paths.CacheHome != "" {
+		env["HARNESS_REAL_XDG_CACHE_HOME"] = paths.CacheHome
+	}
+	if dbus := realDBusAddress(); dbus != "" {
+		env["HARNESS_REAL_DBUS_SESSION_BUS_ADDRESS"] = dbus
+	}
+	restoreScript := RestoreEnvScriptPath(paths)
+	prevBashEnv := specEnv["BASH_ENV"]
+	if prevBashEnv == "" {
+		prevBashEnv = os.Getenv("BASH_ENV")
+	}
+	if prevBashEnv != "" && prevBashEnv != restoreScript {
+		env["HARNESS_PREV_BASH_ENV"] = prevBashEnv
+	}
+	env["BASH_ENV"] = restoreScript
+}
+
+func realDBusAddress() string {
+	for _, key := range []string{"DBUS_SESSION_BUS_ADDRESS", "HARNESS_REAL_DBUS_SESSION_BUS_ADDRESS"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" && v != "disabled:" {
+			return v
+		}
+	}
+	return ""
 }
