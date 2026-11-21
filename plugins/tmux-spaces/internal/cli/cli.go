@@ -95,6 +95,8 @@ type Env struct {
 	HookHealth func() (string, error)
 	// RunResurrect handles `tmux-spaces resurrect ...` (wired by cmd/tmux-spaces).
 	RunResurrect func(Env, []string) int
+	// RunWorktrees handles `tmux-spaces worktrees|wt ...` (wired by cmd/tmux-spaces).
+	RunWorktrees func(Env, []string) int
 	// MaybeAutoSave performs a throttled background snapshot save (wired by cmd/tmux-spaces).
 	MaybeAutoSave func()
 	// RecordOutcome persists a recent completion/failure entry (wired by cmd/tmux-spaces).
@@ -408,6 +410,12 @@ func Run(args []string, env Env) int {
 			return ExitError
 		}
 		return env.RunResurrect(env, rest)
+	case "worktrees", "worktree", "wt":
+		if env.RunWorktrees == nil {
+			env.errf("tmux-spaces worktrees: not wired\n")
+			return ExitError
+		}
+		return env.RunWorktrees(env, rest)
 	case "help":
 		return cmdHelp(rest, env)
 	default:
@@ -433,6 +441,9 @@ usage: tmux-spaces <command> [args]
   __shim [--hold] APP BIN [args]   pane-side agent wrapper
   doctor [--json]                  check tmux/server/hooks health
   popup [--new]                    open the Navigator TUI
+  tabs|tab [--new] [--session S]   inspect & switch tabs in current workspace
+  worktrees|wt [list|new|remove|prune]
+                                   manage git worktrees (or open Worktrees TUI)
   agents                           open the Agents selector TUI
   inbox                            open the Attention Inbox TUI
   conversations|chats [--query Q]  search & resume agent conversations
@@ -471,7 +482,9 @@ func cmdHelp(args []string, env Env) int {
 	case "doctor":
 		env.outf("usage: tmux-spaces doctor [--json]\n")
 	case "popup":
-		env.outf("usage: tmux-spaces popup [--new]\n")
+		env.outf("usage: tmux-spaces popup [--new] [--new-tab] [--rename-window] [--rename-space] [--query Q] [--target SPACE]\n")
+	case "worktrees", "worktree", "wt":
+		env.outf("usage: tmux-spaces worktrees [list|new|remove|prune] ...\n")
 	case "agents":
 		env.outf("usage: tmux-spaces agents\n")
 	case "inbox":

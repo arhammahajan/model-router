@@ -127,20 +127,33 @@ func ParseNumericPaneID(id string) int {
 // parseSessionRecord parses one list-sessions -F record.
 func parseSessionRecord(line string) (Session, bool) {
 	fields := splitFields(line)
-	if len(fields) != 5 {
+	if len(fields) < 5 {
 		return Session{}, false
 	}
 	var created time.Time
 	if secs, err := strconv.ParseInt(strings.TrimSpace(fields[3]), 10, 64); err == nil && secs > 0 {
 		created = time.Unix(secs, 0)
 	}
-	return Session{
+	s := Session{
 		ID:        fields[0],
 		Name:      fields[1],
 		Attached:  parseTmuxInt(fields[2]),
 		CreatedAt: created,
 		Windows:   parseTmuxInt(fields[4]),
-	}, true
+	}
+	if len(fields) > 5 {
+		s.WorktreePath = spacesValue(fields[5])
+	}
+	if len(fields) > 6 {
+		s.WorktreeName = spacesValue(fields[6])
+	}
+	if len(fields) > 7 {
+		s.WorktreeBase = spacesValue(fields[7])
+	}
+	if len(fields) > 8 {
+		s.WorktreeManaged = parseTmuxBool(fields[8])
+	}
+	return s, true
 }
 
 // parseWindowRecord parses one list-windows -F record.
@@ -178,6 +191,18 @@ func parseWindowRecord(line string) (Window, bool) {
 		if secs, err := strconv.ParseInt(strings.TrimSpace(fields[13]), 10, 64); err == nil && secs > 0 {
 			w.ActivityAt = time.Unix(secs, 0)
 		}
+	}
+	if len(fields) > 14 {
+		w.WorktreePath = spacesValue(fields[14])
+	}
+	if len(fields) > 15 {
+		w.WorktreeName = spacesValue(fields[15])
+	}
+	if len(fields) > 16 {
+		w.WorktreeBase = spacesValue(fields[16])
+	}
+	if len(fields) > 17 {
+		w.WorktreeManaged = parseTmuxBool(fields[17])
 	}
 	return w, true
 }

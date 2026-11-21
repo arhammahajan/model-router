@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -132,6 +133,31 @@ func isHarnessLauncher(argv []string) bool {
 	return filepath.Base(argv[0]) == "harness" && argv[1] != "spaces"
 }
 
+// resolveRestoreCWD resolves a pane or space CWD for resurrection when the
+// saved directory no longer exists on disk. It prefers the linked worktree root
+// (wtPath) when that directory still exists so worktree context is preserved,
+// falling back to mainRoot only when the worktree root itself is gone, and
+// otherwise returning cwd unchanged.
+func resolveRestoreCWD(cwd, wtPath, mainRoot string) string {
+	if cwd == "" {
+		return cwd
+	}
+	if st, err := os.Stat(cwd); err == nil && st.IsDir() {
+		return cwd
+	}
+	if wtPath != "" {
+		if st, err := os.Stat(wtPath); err == nil && st.IsDir() {
+			return wtPath
+		}
+	}
+	if mainRoot != "" {
+		if st, err := os.Stat(mainRoot); err == nil && st.IsDir() {
+			return mainRoot
+		}
+	}
+	return cwd
+}
+
 // Restore recreates a saved SpaceSnapshot on the tmux server, applying window
 // layouts, CWDs, active pane/window selection, and AI agent conversation resume.
 func Restore(ctx context.Context, r TmuxRestorer, snap SpaceSnapshot, opts RestoreOptions) error {
@@ -139,7 +165,8 @@ func Restore(ctx context.Context, r TmuxRestorer, snap SpaceSnapshot, opts Resto
 		return fmt.Errorf("resurrect: snapshot has empty name")
 	}
 	if len(snap.Windows) == 0 {
-		if err := r.NewSessionDetached(ctx, snap.Name, snap.CWD, ""); err != nil {
+		cwd := resolveRestoreCWD(snap.CWD, snap.WorktreePath, snap.MainRepoRoot)
+		if err := r.NewSessionDetached(ctx, snap.Name, cwd, ""); err != nil {
 			return err
 		}
 		if opts.Switch {
@@ -170,10 +197,15 @@ func Restore(ctx context.Context, r TmuxRestorer, snap SpaceSnapshot, opts Resto
 		if sid := assigned[firstKey]; sid != "" {
 			firstPane.SessionID = sid
 		}
+		winWT := win.WorktreePath
+		if winWT == "" {
+			winWT = snap.WorktreePath
+		}
 		firstCWD := firstPane.CWD
 		if firstCWD == "" {
 			firstCWD = snap.CWD
 		}
+		firstCWD = resolveRestoreCWD(firstCWD, winWT, snap.MainRepoRoot)
 		firstCmd := buildPaneCommand(firstPane, opts, skipResume[firstKey])
 
 		if wi == 0 {
@@ -197,6 +229,7 @@ func Restore(ctx context.Context, r TmuxRestorer, snap SpaceSnapshot, opts Resto
 			if pCWD == "" {
 				pCWD = firstCWD
 			}
+			pCWD = resolveRestoreCWD(pCWD, winWT, snap.MainRepoRoot)
 			pCmd := buildPaneCommand(p, opts, skipResume[pKey])
 			if err := r.SplitWindow(ctx, winTarget, pCWD, pCmd...); err != nil {
 				return fmt.Errorf("resurrect: split pane %d in %s: %w", pi, winTarget, err)

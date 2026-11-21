@@ -78,6 +78,59 @@ type SharedBackend interface {
 	OpenSharedFile(ctx context.Context, path string) error
 }
 
+// WorktreeNamingInput provides context for live auto-assigned worktree branch naming.
+type WorktreeNamingInput struct {
+	ExplicitName  string
+	TargetName    string
+	TargetKind    string // "tab" or "space"
+	HarnessApp    string
+	HarnessTitle  string
+	HarnessPrompt string
+	Seed          int64
+}
+
+// WorktreeCreateRequest describes a tab or space creation request with optional
+// git worktree creation or preexisting worktree selection.
+type WorktreeCreateRequest struct {
+	Session       string // target tmux session (used for CreateTab)
+	SpaceName     string // optional desired space name (used for CreateSpaceWithWorktree)
+	TabName       string // optional desired tab name (empty = tmux automatic process name)
+	Folder        string // starting directory / repo folder
+	UseWorktree   bool   // true when backed by a git worktree (new or existing)
+	CreateNew     bool   // true = create new worktree; false = open ExistingPath
+	ExistingPath  string // chosen existing worktree path when !CreateNew
+	BranchName    string // explicit branch name (empty = auto-assigned)
+	BaseBranch    string // base ref for new worktree (empty = repo default)
+	AutoSeed      int64  // regeneration nonce for auto-naming
+	HarnessApp    string
+	HarnessTitle  string
+	HarnessPrompt string
+}
+
+// WorktreeRemoveSafety reports whether removing a worktree is clean or has warnings.
+type WorktreeRemoveSafety struct {
+	CanRemoveSafely bool
+	IsMain          bool
+	IsDirty         bool
+	UnmergedCommits int
+	Branch          string
+	BaseBranch      string
+	Warnings        []string
+}
+
+// WorktreeBackend is an optional extension of Backend for git worktree
+// discovery, auto-naming, creation, tab/space opening, and safe cleanup.
+type WorktreeBackend interface {
+	InspectWorktrees(ctx context.Context, dir string, naming WorktreeNamingInput) (model.WorktreeContext, error)
+	SuggestWorktreeName(ctx context.Context, dir string, naming WorktreeNamingInput) (branch, dirName, source, rule string)
+	ListAllWorktrees(ctx context.Context, spaces []model.Space) ([]model.WorktreeEntry, error)
+	CreateTab(ctx context.Context, req WorktreeCreateRequest) error
+	CreateSpaceWithWorktree(ctx context.Context, req WorktreeCreateRequest) error
+	InspectWorktreeSafety(ctx context.Context, path string) (WorktreeRemoveSafety, error)
+	RemoveWorktree(ctx context.Context, path string, force, deleteBranch bool, closeWindows []string) error
+	PruneWorktrees(ctx context.Context, spaces []model.Space, removeOrphanedMerged bool) (string, error)
+}
+
 // Mode selects which screen the TUI shows.
 type Mode int
 
@@ -94,6 +147,8 @@ const (
 	ModeConversations
 	ModeShared
 	ModeTabs
+	ModeWorktrees
+	ModeConfirmRemoveWorktree
 )
 
 // Options configures a TUI run.

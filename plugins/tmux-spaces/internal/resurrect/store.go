@@ -34,17 +34,24 @@ type SpaceSnapshot struct {
 	Name              string           `json:"name"`
 	SavedAtMs         int64            `json:"saved_at_ms"`
 	CWD               string           `json:"cwd,omitempty"`
+	WorktreePath      string           `json:"worktree_path,omitempty"`
+	WorktreeName      string           `json:"worktree_name,omitempty"`
+	WorktreeBase      string           `json:"worktree_base,omitempty"`
+	MainRepoRoot      string           `json:"main_repo_root,omitempty"`
 	ActiveWindowIndex int              `json:"active_window_index"`
 	Windows           []WindowSnapshot `json:"windows"`
 }
 
 // WindowSnapshot captures one tmux window and its split layout string.
 type WindowSnapshot struct {
-	Index  int            `json:"index"`
-	Name   string         `json:"name"`
-	Layout string         `json:"layout,omitempty"`
-	Active bool           `json:"active"`
-	Panes  []PaneSnapshot `json:"panes"`
+	Index        int            `json:"index"`
+	Name         string         `json:"name"`
+	Layout       string         `json:"layout,omitempty"`
+	Active       bool           `json:"active"`
+	WorktreePath string         `json:"worktree_path,omitempty"`
+	WorktreeName string         `json:"worktree_name,omitempty"`
+	WorktreeBase string         `json:"worktree_base,omitempty"`
+	Panes        []PaneSnapshot `json:"panes"`
 }
 
 // PaneSnapshot captures one tmux pane, including AI-agent resume metadata.

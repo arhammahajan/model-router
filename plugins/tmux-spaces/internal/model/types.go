@@ -560,19 +560,23 @@ type HarnessFile struct {
 
 // Window represents one tmux window inside a Space.
 type Window struct {
-	ID         string // e.g. "@1"
-	Index      int
-	Name       string
-	Active     bool
-	Last       bool
-	Zoomed     bool
-	Bell       bool
-	Activity   bool
-	Silence    bool
-	Width      int
-	Height     int
-	ActivityAt time.Time
-	Layout     string
+	ID              string // e.g. "@1"
+	Index           int
+	Name            string
+	Active          bool
+	Last            bool
+	Zoomed          bool
+	Bell            bool
+	Activity        bool
+	Silence         bool
+	Width           int
+	Height          int
+	ActivityAt      time.Time
+	Layout          string
+	WorktreePath    string
+	WorktreeName    string
+	WorktreeBase    string
+	WorktreeManaged bool
 }
 
 // CheckState represents aggregated CI/CD status for a PR or branch commit.
@@ -602,10 +606,15 @@ type PRSummary struct {
 	URL     string `json:"url,omitempty"`
 }
 
-// GitInfo holds per-directory git branch, diff stats, and GitHub PR/CI status.
+// GitInfo holds per-directory git branch, worktree, diff stats, and GitHub PR/CI status.
 type GitInfo struct {
 	RepoKey            string        `json:"repo_key,omitempty"`
 	RepoRoot           string        `json:"repo_root,omitempty"`
+	MainRepoRoot       string        `json:"main_repo_root,omitempty"`
+	RepoName           string        `json:"repo_name,omitempty"`
+	IsWorktree         bool          `json:"is_worktree,omitempty"`
+	WorktreeName       string        `json:"worktree_name,omitempty"`
+	Managed            bool          `json:"managed,omitempty"`
 	Branch             string        `json:"branch,omitempty"`
 	BaseBranch         string        `json:"base_branch,omitempty"`
 	Ahead              int           `json:"ahead,omitempty"`
@@ -727,6 +736,10 @@ type Space struct {
 	Panes            []Pane
 	CWD              string
 	Git              *GitInfo
+	WorktreePath     string
+	WorktreeName     string
+	WorktreeBase     string
+	WorktreeManaged  bool
 	Counts           Counts
 	Status           Status
 	ConnectedClients int
@@ -742,4 +755,50 @@ type ExitedSpace struct {
 	WindowCount int
 	PaneCount   int
 	Agents      []string
+}
+
+// WorktreeEntry describes a git worktree for UI display, selection, and lifecycle management.
+type WorktreeEntry struct {
+	Path            string
+	Name            string
+	Branch          string
+	HeadSHA         string
+	BaseBranch      string
+	RepoKey         string
+	MainRepoRoot    string
+	RepoName        string
+	IsMain          bool
+	IsCurrent       bool
+	IsDetached      bool
+	IsLocked        bool
+	IsPrunable      bool
+	IsDirty         bool
+	Managed         bool
+	NameSource      string
+	CreatedAtMs     int64
+	UnmergedCommits int
+	OpenSpaces      []string // live tmux space names currently using this worktree
+	OpenWindowIDs   []string // live tmux window IDs currently using this worktree
+	OpenWindowCount int
+	Git             *GitInfo
+}
+
+// WorktreeContext holds discovered git repository and worktree state for a folder,
+// used by the mod+c New Tab and New Space dialogs.
+type WorktreeContext struct {
+	InRepo         bool
+	RepoKey        string
+	MainRepoRoot   string
+	RepoName       string
+	WorktreeRoot   string
+	DefaultBase    string
+	CurrentBranch  string
+	CurrentPath    string
+	HasCommits     bool
+	Worktrees      []WorktreeEntry
+	Branches       []string
+	AutoBranch     string
+	AutoDirName    string
+	AutoSource     string
+	AutoRule       string
 }

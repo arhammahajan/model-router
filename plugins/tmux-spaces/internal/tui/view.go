@@ -284,6 +284,8 @@ func (m Model) renderFull(width, height int) string {
 			return styleHeader.Render("Shared")
 		case ModeTabs:
 			return styleHeader.Render("Tabs")
+		case ModeWorktrees:
+			return styleHeader.Render("Worktrees")
 		default:
 			return styleHeader.Render("Spaces")
 		}
@@ -292,11 +294,13 @@ func (m Model) renderFull(width, height int) string {
 	// overflow off the bottom of the tmux display-popup.
 	switch m.mode {
 	case ModeNewSpace:
-		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, m.newSpaceDialog(width))
+		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, m.newSpaceDialogWithWorktree(width))
 	case ModeRename:
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, m.renameDialog(width))
 	case ModeConfirmKill:
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, m.confirmDialog(width))
+	case ModeConfirmRemoveWorktree:
+		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, m.renderConfirmRemoveWorktree(width))
 	case ModeHelp:
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, m.helpDialog(width))
 	case ModeHookDetail:
@@ -311,6 +315,8 @@ func (m Model) renderFull(width, height int) string {
 		return m.renderShared(width, height)
 	case ModeTabs:
 		return m.renderTabs(width, height)
+	case ModeWorktrees:
+		return m.renderWorktrees(width, height)
 	}
 	return m.renderNavigator(width, height)
 }
@@ -582,6 +588,14 @@ func (m Model) rowLineWithStyle(r Row, selected, altBG bool, width int) string {
 		if sp.IsCurrent {
 			lb.WriteString(st(bg, false).Render("  "))
 			lb.WriteString(st(ColorLavender, false).Render("current"))
+		}
+		if wtCount := spaceLinkedWorktreeCount(sp); wtCount > 0 {
+			noun := "wt"
+			if wtCount > 1 {
+				noun = "wts"
+			}
+			lb.WriteString(st(bg, false).Render("  "))
+			lb.WriteString(st(ColorMauve, false).Render(fmt.Sprintf("⎇ %d %s", wtCount, noun)))
 		}
 
 		wCount := windowCount(sp)
@@ -1721,6 +1735,7 @@ func (m Model) hintsLine(width int) string {
 			{"Enter", "open"},
 			{"/", "search"},
 			{"n", "new"},
+			{"W", "worktrees"},
 			{"r", "rename"},
 			{"x", "close"},
 			{"Space", "fold"},
@@ -1734,7 +1749,7 @@ func (m Model) hintsLine(width int) string {
 
 // --- dialogs ---
 
-func (m Model) newSpaceDialog(width int) string {
+func (m Model) classicNewSpaceDialog(width int) string {
 	var b strings.Builder
 	if m.newIsTab {
 		title := "New tab"
@@ -1818,6 +1833,30 @@ func (m Model) renameDialog(width int) string {
 	return styleDialogBox.Render(b.String())
 }
 
+func (m Model) appendConfirmWorktreeOption(b *strings.Builder) bool {
+	if m.confirmWorktreePath == "" {
+		return false
+	}
+	box := "[ ]"
+	if m.confirmRemoveWorktree {
+		box = "[x]"
+	}
+	wtLabel := m.confirmWorktreeName
+	if m.confirmWorktreeBranch != "" && m.confirmWorktreeBranch != wtLabel {
+		wtLabel += " (" + m.confirmWorktreeBranch + ")"
+	}
+	b.WriteString(fmt.Sprintf("\n  %s Also remove git worktree %s (w)\n", box, wtLabel))
+	if m.confirmWorktreeSafety.IsDirty {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorYellow)).Render("    ⚠ Worktree has uncommitted changes (will be kept safe)") + "\n")
+	} else if m.confirmWorktreeSafety.UnmergedCommits > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorYellow)).Render(
+			fmt.Sprintf("    ⚠ %d unmerged commit(s) (branch will be preserved)", m.confirmWorktreeSafety.UnmergedCommits),
+		) + "\n")
+	}
+	b.WriteString("\n" + styleMuted.Render("y/Enter confirm · w toggle worktree · n/Esc cancel"))
+	return true
+}
+
 func (m Model) confirmDialog(width int) string {
 	var b strings.Builder
 	if m.confirmWindow {
@@ -1833,6 +1872,9 @@ func (m Model) confirmDialog(width int) string {
 		}
 		if m.confirmWindowLast {
 			b.WriteString(styleError.Render("Warning: this is the only tab in "+m.confirmSpace+"; closing it will close the space.") + "\n")
+		}
+		if m.appendConfirmWorktreeOption(&b) {
+			return styleDialogBox.Render(b.String())
 		}
 		b.WriteString(styleMuted.Render("y/Enter confirm · n/Esc cancel"))
 		return styleDialogBox.Render(b.String())
@@ -1855,6 +1897,9 @@ func (m Model) confirmDialog(width int) string {
 		pnoun = "pane"
 	}
 	b.WriteString(fmt.Sprintf("Close %q? Its %d %s and %d %s will stop. This cannot be undone.\n", m.confirmSpace, m.confirmWindows, wnoun, m.confirmPanes, pnoun))
+	if m.appendConfirmWorktreeOption(&b) {
+		return styleDialogBox.Render(b.String())
+	}
 	b.WriteString(styleMuted.Render("y/Enter confirm · n/Esc cancel"))
 	return styleDialogBox.Render(b.String())
 }
@@ -1876,12 +1921,13 @@ func (m Model) helpDialog(width int) string {
 			kv("← → / h l", "cycle split panes inside selected tab"),
 			kv("0 … 9", "jump to tab by tmux window index"),
 			kv("Enter / 2xClick", "focus selected tab & pane"),
-			kv("/", "filter by index, name, agent, title, cmd, branch, path"),
+			kv("/", "filter by index, name, agent, title, cmd, branch, worktree, path"),
 			kv("H", "full scrollable hook detail overlay"),
 			kv("Esc / q", "close tabs popup"),
 			"",
 			sectionSt.Render("Manage & View"),
 			kv("n / r / x", "new · rename · close tab"),
+			kv("W", "manage git worktrees"),
 			kv("s", "cycle sort order (index · attention · activity)"),
 			kv("J K / [ ]", "scroll full telemetry inspector"),
 			kv("v", "expand or balance telemetry panel width"),
@@ -1933,6 +1979,7 @@ func (m Model) helpDialog(width int) string {
 		"",
 		sectionSt.Render("Spaces"),
 		kv("n / r / x", "new · rename · close space"),
+		kv("W", "manage git worktrees"),
 		kv("1 … 9", "select a space"),
 		"",
 		sectionSt.Render("Filter"),

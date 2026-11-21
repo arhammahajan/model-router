@@ -3,6 +3,8 @@ package resurrect
 import (
 	"context"
 	"encoding/base64"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -343,5 +345,199 @@ func TestRestoreMultipleAntigravityPanesDistinctConversations(t *testing.T) {
 	}
 	if strings.Count(joined, "__resume-wrap "+wantAgyB64+" conv-newest") != 1 {
 		t.Fatalf("conv-newest resumed more than once:\n%s", joined)
+	}
+}
+
+func TestRestoreWorktreeFallbackWhenRemoved(t *testing.T) {
+	mainRoot := t.TempDir()
+	deletedWT := filepath.Join(t.TempDir(), "removed-worktree")
+	deletedSub := filepath.Join(deletedWT, "pkg", "gone")
+	fr := &fakeRestorer{}
+	snap := SpaceSnapshot{
+		Name:         "wt-space",
+		CWD:          deletedWT,
+		WorktreePath: deletedWT,
+		WorktreeName: "removed-worktree",
+		MainRepoRoot: mainRoot,
+		Windows: []WindowSnapshot{
+			{
+				Index:        1,
+				Name:         "zsh",
+				WorktreePath: deletedWT,
+				Panes: []PaneSnapshot{
+					{Index: 1, CWD: deletedWT},
+					{Index: 2, CWD: deletedSub},
+				},
+			},
+		},
+	}
+	if err := Restore(context.Background(), fr, snap, RestoreOptions{SelfPath: "/bin/tmux-spaces"}); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	joined := strings.Join(fr.ops, "\n")
+	for _, want := range []string{
+		"new-session:wt-space:" + mainRoot + ":zsh:",
+		"split:wt-space:1:" + mainRoot + ":",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected %q when worktree was deleted, got:\n%s", want, joined)
+		}
+	}
+
+	// Session-level restore (no windows) also falls back to MainRepoRoot when worktree is gone.
+	frEmpty := &fakeRestorer{}
+	snapEmpty := SpaceSnapshot{
+		Name:         "wt-empty",
+		CWD:          deletedSub,
+		WorktreePath: deletedWT,
+		MainRepoRoot: mainRoot,
+	}
+	if err := Restore(context.Background(), frEmpty, snapEmpty, RestoreOptions{SelfPath: "/bin/tmux-spaces"}); err != nil {
+		t.Fatalf("Restore empty windows: %v", err)
+	}
+	if got := strings.Join(frEmpty.ops, "\n"); !strings.Contains(got, "new-session:wt-empty:"+mainRoot+"::") {
+		t.Fatalf("expected session-level fallback to MainRepoRoot %q, got:\n%s", mainRoot, got)
+	}
+}
+
+func TestRestoreWorktreeFallbackPreservesExistingWorktree(t *testing.T) {
+	mainRoot := t.TempDir()
+	wtRoot := t.TempDir()
+	liveSub := filepath.Join(wtRoot, "existing-sub")
+	if err := os.MkdirAll(liveSub, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	deletedSub1 := filepath.Join(wtRoot, "deleted-sub-1")
+	deletedSub2 := filepath.Join(wtRoot, "deleted-sub-2")
+
+	// Pane CWD is a deleted subdirectory inside an existing linked worktree:
+	// must fall back to wtRoot (preserving worktree context), NOT mainRoot.
+	fr := &fakeRestorer{}
+	snap := SpaceSnapshot{
+		Name:         "wt-space",
+		CWD:          deletedSub1,
+		WorktreePath: wtRoot,
+		WorktreeName: "feat-worktree",
+		MainRepoRoot: mainRoot,
+		Windows: []WindowSnapshot{
+			{
+				Index:        1,
+				Name:         "dev",
+				WorktreePath: wtRoot,
+				Panes: []PaneSnapshot{
+					{Index: 1, CWD: deletedSub1},
+					{Index: 2, CWD: liveSub},
+					{Index: 3, CWD: deletedSub2},
+				},
+			},
+		},
+	}
+	if err := Restore(context.Background(), fr, snap, RestoreOptions{SelfPath: "/bin/tmux-spaces"}); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	joined := strings.Join(fr.ops, "\n")
+	for _, want := range []string{
+		"new-session:wt-space:" + wtRoot + ":dev:",
+		"split:wt-space:1:" + liveSub + ":",
+		"split:wt-space:1:" + wtRoot + ":",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected %q in restore ops, got:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, mainRoot) {
+		t.Fatalf("must not fall back to MainRepoRoot %q when worktree %q still exists:\n%s", mainRoot, wtRoot, joined)
+	}
+
+	// Session-level restore (no windows) with deleted subdir inside existing worktree
+	// also falls back to wtRoot rather than mainRoot.
+	frEmpty := &fakeRestorer{}
+	snapEmpty := SpaceSnapshot{
+		Name:         "wt-empty",
+		CWD:          deletedSub1,
+		WorktreePath: wtRoot,
+		MainRepoRoot: mainRoot,
+	}
+	if err := Restore(context.Background(), frEmpty, snapEmpty, RestoreOptions{SelfPath: "/bin/tmux-spaces"}); err != nil {
+		t.Fatalf("Restore empty windows: %v", err)
+	}
+	if got := strings.Join(frEmpty.ops, "\n"); !strings.Contains(got, "new-session:wt-empty:"+wtRoot+"::") {
+		t.Fatalf("expected session-level fallback to wtRoot %q, got:\n%s", wtRoot, got)
+	}
+
+	// Window-level WorktreePath takes precedence over deleted session WorktreePath and MainRepoRoot.
+	winWT := t.TempDir()
+	deletedWinSub := filepath.Join(winWT, "gone")
+	deletedSessWT := filepath.Join(t.TempDir(), "gone-sess-wt")
+	frWin := &fakeRestorer{}
+	snapWin := SpaceSnapshot{
+		Name:         "wt-mixed",
+		CWD:          deletedSessWT,
+		WorktreePath: deletedSessWT,
+		MainRepoRoot: mainRoot,
+		Windows: []WindowSnapshot{
+			{
+				Index:        1,
+				Name:         "w1",
+				WorktreePath: winWT,
+				Panes:        []PaneSnapshot{{Index: 1, CWD: deletedWinSub}},
+			},
+			{
+				Index: 2,
+				Name:  "w2",
+				Panes: []PaneSnapshot{{Index: 1, CWD: deletedSessWT}},
+			},
+		},
+	}
+	if err := Restore(context.Background(), frWin, snapWin, RestoreOptions{SelfPath: "/bin/tmux-spaces"}); err != nil {
+		t.Fatalf("Restore mixed: %v", err)
+	}
+	mixedOps := strings.Join(frWin.ops, "\n")
+	if !strings.Contains(mixedOps, "new-session:wt-mixed:"+winWT+":w1:") {
+		t.Fatalf("expected window 1 to fall back to existing win.WorktreePath %q, got:\n%s", winWT, mixedOps)
+	}
+	if !strings.Contains(mixedOps, "new-window:wt-mixed:"+mainRoot+":w2:") {
+		t.Fatalf("expected window 2 (deleted session worktree) to fall back to MainRepoRoot %q, got:\n%s", mainRoot, mixedOps)
+	}
+}
+
+func TestResolveRestoreCWDPrecedence(t *testing.T) {
+	mainRoot := t.TempDir()
+	wtRoot := t.TempDir()
+	liveSub := filepath.Join(wtRoot, "sub")
+	if err := os.MkdirAll(liveSub, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	missingDir := filepath.Join(t.TempDir(), "missing")
+	missingSub := filepath.Join(wtRoot, "missing-sub")
+	missingMain := filepath.Join(t.TempDir(), "missing-main")
+
+	// Regular file (not a directory) should not be treated as a valid fallback directory.
+	fileNotDir := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(fileNotDir, []byte("x"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cases := []struct {
+		name     string
+		cwd      string
+		wtPath   string
+		mainRoot string
+		want     string
+	}{
+		{"empty cwd", "", wtRoot, mainRoot, ""},
+		{"existing cwd preserved", liveSub, wtRoot, mainRoot, liveSub},
+		{"missing subdir prefers existing wtPath over mainRoot", missingSub, wtRoot, mainRoot, wtRoot},
+		{"missing subdir prefers existing wtPath even with empty mainRoot", missingSub, wtRoot, "", wtRoot},
+		{"missing wtPath falls back to mainRoot", missingDir, missingDir, mainRoot, mainRoot},
+		{"non-dir wtPath falls back to mainRoot", missingDir, fileNotDir, mainRoot, mainRoot},
+		{"missing all preserves original cwd", missingSub, missingDir, missingMain, missingSub},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveRestoreCWD(tc.cwd, tc.wtPath, tc.mainRoot); got != tc.want {
+				t.Fatalf("resolveRestoreCWD(%q, %q, %q) = %q, want %q", tc.cwd, tc.wtPath, tc.mainRoot, got, tc.want)
+			}
+		})
 	}
 }

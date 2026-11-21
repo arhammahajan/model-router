@@ -377,8 +377,13 @@ func tabMatchesToken(tab TabItem, tok string) bool {
 	}
 	if strings.Contains(strings.ToLower(tab.Window.Name), tok) ||
 		strings.Contains(strings.ToLower(tab.Window.ID), tok) ||
+		strings.Contains(strings.ToLower(tab.Window.WorktreeName), tok) ||
+		strings.Contains(strings.ToLower(tab.Window.WorktreePath), tok) ||
 		strings.Contains(strings.ToLower(tab.CWD), tok) ||
 		strings.Contains(strings.ToLower(tab.Status.Label()), tok) {
+		return true
+	}
+	if (tab.Window.WorktreePath != "" || tab.Window.WorktreeName != "") && (tok == "wt" || strings.HasPrefix("worktree", tok)) {
 		return true
 	}
 	if tab.Window.Active && strings.HasPrefix("active", tok) {
@@ -445,6 +450,15 @@ func gitMatchesToken(g *model.GitInfo, tok string) bool {
 		return true
 	}
 	if g.BaseBranch != "" && strings.Contains(strings.ToLower(g.BaseBranch), tok) {
+		return true
+	}
+	if g.WorktreeName != "" && strings.Contains(strings.ToLower(g.WorktreeName), tok) {
+		return true
+	}
+	if g.RepoName != "" && strings.Contains(strings.ToLower(g.RepoName), tok) {
+		return true
+	}
+	if g.IsWorktree && (tok == "wt" || strings.HasPrefix("worktree", tok)) {
 		return true
 	}
 	if g.PR != nil {
@@ -622,14 +636,14 @@ func (m *Model) requestTabRename() {
 	m.mode = ModeRename
 }
 
-func (m *Model) prefillNewTab() {
+func (m *Model) prefillNewTab() tea.Cmd {
 	_, sp := m.tabsSpace()
 	if sp == nil {
 		if m.newCWD == "" && m.opts.HomeDir != "" {
 			m.newCWD = m.opts.HomeDir
 			m.newCWDCur = len([]rune(m.newCWD))
 		}
-		return
+		return m.initNewSpaceWorktrees()
 	}
 	m.newTabSession = sp.Name
 	if m.newCWD == "" {
@@ -643,13 +657,14 @@ func (m *Model) prefillNewTab() {
 		m.newCWD = cwd
 		m.newCWDCur = len([]rune(cwd))
 	}
+	return m.initNewSpaceWorktrees()
 }
 
-func (m *Model) requestNewTab() {
+func (m *Model) requestNewTab() tea.Cmd {
 	_, sp := m.tabsSpace()
 	if sp == nil {
 		m.toast = "No active workspace found."
-		return
+		return nil
 	}
 	cwd := sp.CWD
 	if tab := m.selectedTab(); tab != nil && tab.CWD != "" {
@@ -663,18 +678,27 @@ func (m *Model) requestNewTab() {
 	m.newTabSession = sp.Name
 	m.newName = ""
 	m.newNameCur = 0
+	m.newNameEdited = false
 	m.newCWD = cwd
 	m.newCWDCur = len([]rune(cwd))
 	m.newField = 0
 	m.newError = ""
 	m.mode = ModeNewSpace
+	return m.initNewSpaceWorktrees()
 }
 
-func (m *Model) requestTabKill() {
+func (m *Model) requestTabKill() tea.Cmd {
+	m.confirmWorktreePath = ""
+	m.confirmWorktreeName = ""
+	m.confirmWorktreeBranch = ""
+	m.confirmWorktreeManaged = false
+	m.confirmRemoveWorktree = false
+	m.confirmWorktreeSafety = WorktreeRemoveSafety{}
+
 	_, sp, all := m.allWorkspaceTabs()
 	tab := m.selectedTab()
 	if sp == nil || tab == nil {
-		return
+		return nil
 	}
 	busy := tab.Counts.Working > 0 || tab.Counts.Needs > 0
 	m.returnMode = ModeTabs
@@ -687,6 +711,35 @@ func (m *Model) requestTabKill() {
 	m.confirmWindowLast = len(all) <= 1
 	m.confirmExited = false
 	m.mode = ModeConfirmKill
+
+	// Detect if this tab is backed by a linked git worktree not shared by any other open tab.
+	wtPath := tab.Window.WorktreePath
+	wtName := tab.Window.WorktreeName
+	wtBranch := ""
+	wtManaged := tab.Window.WorktreeManaged
+	if tab.Git != nil && tab.Git.IsWorktree {
+		if wtPath == "" {
+			wtPath = tab.Git.RepoRoot
+		}
+		if wtName == "" {
+			wtName = tab.Git.WorktreeName
+		}
+		wtBranch = tab.Git.Branch
+		if tab.Git.Managed {
+			wtManaged = true
+		}
+	}
+	if wtPath != "" && !m.worktreeUsedByOtherWindow(tab.Window.ID, wtPath) {
+		m.confirmWorktreePath = wtPath
+		m.confirmWorktreeName = wtName
+		if m.confirmWorktreeName == "" {
+			m.confirmWorktreeName = filepath.Base(wtPath)
+		}
+		m.confirmWorktreeBranch = wtBranch
+		m.confirmWorktreeManaged = wtManaged
+		return m.inspectWorktreeSafetyCmd(wtPath)
+	}
+	return nil
 }
 
 func tabsHookKey(session string, paneNum int) string {
@@ -858,14 +911,14 @@ func (m Model) handleTabs(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmd := m.openHookDetail()
 			return m, cmd
 		case "n":
-			m.requestNewTab()
-			return m, nil
+			return m, m.requestNewTab()
+		case "W":
+			return m, m.openWorktreesView()
 		case "r":
 			m.requestTabRename()
 			return m, nil
 		case "x":
-			m.requestTabKill()
-			return m, nil
+			return m, m.requestTabKill()
 		case "s":
 			m.tabsSort = m.tabsSort.next()
 			m.tabsInspectorScroll = 0
@@ -1248,10 +1301,19 @@ func (m Model) tabsHeaderLine(width int) string {
 
 	var counts model.Counts
 	paneTotal := 0
+	seenWT := map[string]bool{}
 	for _, tab := range all {
 		paneTotal += len(tab.Panes)
+		if p := strings.TrimSpace(tab.Window.WorktreePath); p != "" {
+			seenWT[filepath.Clean(p)] = true
+		} else if tab.Git != nil && tab.Git.IsWorktree && tab.Git.RepoRoot != "" {
+			seenWT[filepath.Clean(tab.Git.RepoRoot)] = true
+		}
 		for _, p := range tab.Panes {
 			counts.Add(p.Status)
+			if p.Git != nil && p.Git.IsWorktree && p.Git.RepoRoot != "" {
+				seenWT[filepath.Clean(p.Git.RepoRoot)] = true
+			}
 		}
 	}
 
@@ -1268,6 +1330,13 @@ func (m Model) tabsHeaderLine(width int) string {
 		segs = append(segs, st(ColorSubtext0, false).Render(fmt.Sprintf("%d %s · %d %s", len(all), tabNoun, paneTotal, paneNoun)))
 	} else {
 		segs = append(segs, st(ColorSubtext0, false).Render(fmt.Sprintf("%d %s", len(all), tabNoun)))
+	}
+	if len(seenWT) > 0 {
+		wtNoun := "wt"
+		if len(seenWT) > 1 {
+			wtNoun = "wts"
+		}
+		segs = append(segs, st(ColorMauve, false).Render(fmt.Sprintf("⎇ %d %s", len(seenWT), wtNoun)))
 	}
 	if counts.Needs > 0 {
 		segs = append(segs, st(ColorBlue, true).Render(fmt.Sprintf("● %d needs you", counts.Needs)))
@@ -1298,7 +1367,7 @@ func (m Model) tabsSearchLine(items []TabItem, width int) string {
 	}
 	rightParts = append(rightParts, "sort:"+m.tabsSort.Label())
 	matchText := strings.Join(rightParts, " · ")
-	return renderSearchBar(m.query, m.tabsSearching, "Filter tabs by index, name, agent, title, cmd, branch, path…", matchText, width)
+	return renderSearchBar(m.query, m.tabsSearching, "Filter tabs by index, name, agent, title, cmd, branch, worktree, path…", matchText, width)
 }
 
 func (m Model) buildTabCardEntries(items []TabItem) []tabCardEntry {
@@ -1570,6 +1639,8 @@ func (m Model) renderTabCardMeta(tab TabItem, selected bool, width int) string {
 		if len(gitParts) > 0 {
 			parts = append(parts, strings.Join(gitParts, st(bg, false).Render(" ")))
 		}
+	} else if wtName := strings.TrimSpace(tab.Window.WorktreeName); wtName != "" {
+		parts = append(parts, st(ColorMauve, true).Render("⎇ ")+st(ColorTeal, false).Render(truncate(wtName, 18)))
 	}
 
 	if cwd := shortenPath(tab.CWD, m.opts.HomeDir); cwd != "" && innerW >= 46 {
@@ -1886,6 +1957,7 @@ func (m Model) tabsHintsLine(width int) string {
 		{"s", "sort"},
 		{"v", "expand"},
 		{"n", "new"},
+		{"W", "worktrees"},
 		{"r", "rename"},
 		{"x", "close"},
 		{"H", "hooks"},

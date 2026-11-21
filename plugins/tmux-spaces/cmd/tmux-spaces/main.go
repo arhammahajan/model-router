@@ -22,6 +22,7 @@ import (
 	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/screen"
 	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/tmux"
 	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/tui"
+	"github.com/arhammahajan/model-router/plugins/tmux-spaces/internal/worktree"
 )
 
 const (
@@ -122,6 +123,9 @@ func buildEnv(client *tmux.Client) cli.Env {
 	}
 	env.RunResurrect = func(e cli.Env, args []string) int {
 		return runResurrectCLI(client, backend.store, backend.selfPath, e, args)
+	}
+	env.RunWorktrees = func(e cli.Env, args []string) int {
+		return runWorktreesCLI(client, backend, e, args)
 	}
 	env.MaybeAutoSave = func() {
 		if !backend.store.ShouldAutoSave() {
@@ -397,6 +401,7 @@ type tuiBackend struct {
 	arbitrator *model.Arbitrator
 	store      *resurrect.Store
 	git        *gitinfo.Collector
+	wt         *worktree.Manager
 	now        func() time.Time
 	dirExists  func(string) bool
 	lookPath   func(string) (string, error)
@@ -430,6 +435,7 @@ func newTUIBackend(client *tmux.Client) *tuiBackend {
 		arbitrator:         model.NewArbitrator(),
 		store:              resurrect.DefaultStore(),
 		git:                gitinfo.NewCollector(),
+		wt:                 worktree.NewManager(),
 		now:                time.Now,
 		dirExists:          isExistingDir,
 		lookPath:           exec.LookPath,
@@ -452,7 +458,27 @@ func (b *tuiBackend) LoadGitStatus(ctx context.Context, cwds []string, force boo
 	if b.git == nil {
 		return nil
 	}
-	return b.git.FetchGit(ctx, cwds, force)
+	res := b.git.FetchGit(ctx, cwds, force)
+	if len(res) > 0 && b.wt != nil && b.wt.Store != nil {
+		if recs, err := b.wt.Store.Load(); err == nil && len(recs) > 0 {
+			byPath := make(map[string]worktree.Record, len(recs))
+			for _, rec := range recs {
+				byPath[canonicalPathClean(rec.Path)] = rec
+			}
+			for _, g := range res {
+				if g == nil || g.RepoRoot == "" {
+					continue
+				}
+				if rec, ok := byPath[canonicalPathClean(g.RepoRoot)]; ok {
+					g.Managed = rec.Managed
+					if g.BaseBranch == "" && rec.BaseBranch != "" {
+						g.BaseBranch = rec.BaseBranch
+					}
+				}
+			}
+		}
+	}
+	return res
 }
 
 func (b *tuiBackend) LoadPRStatus(ctx context.Context, gitByCWD map[string]*model.GitInfo, force bool) map[string]*model.GitInfo {

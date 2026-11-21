@@ -4,29 +4,37 @@ import "time"
 
 // Session represents one tmux session parsed from `tmux list-sessions`.
 type Session struct {
-	ID        string // e.g. "$0"
-	Name      string
-	Attached  int
-	CreatedAt time.Time
-	Windows   int
+	ID              string // e.g. "$0"
+	Name            string
+	Attached        int
+	CreatedAt       time.Time
+	Windows         int
+	WorktreePath    string // #{@spaces_worktree_path}
+	WorktreeName    string // #{@spaces_worktree_name}
+	WorktreeBase    string // #{@spaces_worktree_base}
+	WorktreeManaged bool   // #{@spaces_worktree_managed}
 }
 
 // Window represents one tmux window parsed from `tmux list-windows -a`.
 type Window struct {
-	SessionName string
-	ID          string // e.g. "@1"
-	Index       int
-	Name        string
-	Active      bool
-	Bell        bool
-	Activity    bool
-	Silence     bool
-	Layout      string    // #{window_layout} for resurrect
-	Last        bool      // #{window_last_flag}
-	Zoomed      bool      // #{window_zoomed_flag}
-	Width       int       // #{window_width}
-	Height      int       // #{window_height}
-	ActivityAt  time.Time // #{window_activity}
+	SessionName     string
+	ID              string // e.g. "@1"
+	Index           int
+	Name            string
+	Active          bool
+	Bell            bool
+	Activity        bool
+	Silence         bool
+	Layout          string    // #{window_layout} for resurrect
+	Last            bool      // #{window_last_flag}
+	Zoomed          bool      // #{window_zoomed_flag}
+	Width           int       // #{window_width}
+	Height          int       // #{window_height}
+	ActivityAt      time.Time // #{window_activity}
+	WorktreePath    string    // #{@spaces_worktree_path}
+	WorktreeName    string    // #{@spaces_worktree_name}
+	WorktreeBase    string    // #{@spaces_worktree_base}
+	WorktreeManaged bool      // #{@spaces_worktree_managed}
 }
 
 // Pane represents one tmux pane parsed from `tmux list-panes -a`, including
