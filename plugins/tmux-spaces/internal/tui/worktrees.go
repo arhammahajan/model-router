@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -332,6 +333,7 @@ func (m *Model) openWorktreesView() tea.Cmd {
 		return nil
 	}
 	m.returnMode = m.mode
+	m.worktreesReturnMode = m.mode
 	m.worktreesStandalone = false
 	m.mode = ModeWorktrees
 	m.wtSelected = 0
@@ -388,7 +390,20 @@ func (m Model) handleWtListMsg(msg wtListMsg) (tea.Model, tea.Cmd) {
 		m.toast = msg.err
 		return m, nil
 	}
+	prevPath := ""
+	if cur := m.selectedWorktree(); cur != nil {
+		prevPath = cur.Path
+	}
 	m.worktrees = msg.entries
+	if prevPath != "" {
+		vis := m.filteredWorktrees()
+		for pos, idx := range vis {
+			if sameCleanPath(m.worktrees[idx].Path, prevPath) {
+				m.wtSelected = pos
+				return m, nil
+			}
+		}
+	}
 	m.clampWorktreeSelection()
 	return m, nil
 }
@@ -1067,21 +1082,73 @@ type wtRowEntry struct {
 	itemIdx  int
 }
 
-func (m *Model) filteredWorktrees() []int {
+type wtRepoGroup struct {
+	key      string
+	repoName string
+	repoRoot string
+	indices  []int // indices into m.worktrees in display order
+}
+
+func (m *Model) groupedFilteredWorktrees() []wtRepoGroup {
 	q := strings.ToLower(strings.TrimSpace(m.wtQuery))
-	var out []int
+	var groups []*wtRepoGroup
+	byKey := map[string]*wtRepoGroup{}
 	for i, wt := range m.worktrees {
-		if q == "" ||
-			strings.Contains(strings.ToLower(wt.RepoName), q) ||
-			strings.Contains(strings.ToLower(wt.Name), q) ||
-			strings.Contains(strings.ToLower(wt.Branch), q) ||
-			strings.Contains(strings.ToLower(wt.Path), q) ||
-			strings.Contains(strings.ToLower(strings.Join(wt.OpenSpaces, " ")), q) ||
-			(q == "managed" && wt.Managed) ||
-			(q == "detached" && wt.OpenWindowCount == 0 && !wt.IsMain) ||
-			(q == "dirty" && wt.IsDirty) {
-			out = append(out, i)
+		if q != "" &&
+			!strings.Contains(strings.ToLower(wt.RepoName), q) &&
+			!strings.Contains(strings.ToLower(wt.Name), q) &&
+			!strings.Contains(strings.ToLower(wt.Branch), q) &&
+			!strings.Contains(strings.ToLower(wt.Path), q) &&
+			!strings.Contains(strings.ToLower(strings.Join(wt.OpenSpaces, " ")), q) &&
+			!(q == "managed" && wt.Managed) &&
+			!(q == "detached" && wt.OpenWindowCount == 0 && !wt.IsMain) &&
+			!(q == "dirty" && wt.IsDirty) {
+			continue
 		}
+		k := wt.RepoKey
+		if k == "" {
+			k = wt.MainRepoRoot
+		}
+		name := wt.RepoName
+		if name == "" {
+			name = path.Base(wt.MainRepoRoot)
+		}
+		g := byKey[k]
+		if g == nil {
+			g = &wtRepoGroup{key: k, repoName: name, repoRoot: wt.MainRepoRoot}
+			byKey[k] = g
+			groups = append(groups, g)
+		}
+		g.indices = append(g.indices, i)
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		ni := strings.ToLower(groups[i].repoName)
+		nj := strings.ToLower(groups[j].repoName)
+		if ni != nj {
+			return ni < nj
+		}
+		return groups[i].key < groups[j].key
+	})
+	out := make([]wtRepoGroup, 0, len(groups))
+	for _, g := range groups {
+		sort.SliceStable(g.indices, func(i, j int) bool {
+			wi := m.worktrees[g.indices[i]]
+			wj := m.worktrees[g.indices[j]]
+			if wi.IsMain != wj.IsMain {
+				return wi.IsMain
+			}
+			return false
+		})
+		out = append(out, *g)
+	}
+	return out
+}
+
+func (m *Model) filteredWorktrees() []int {
+	groups := m.groupedFilteredWorktrees()
+	var out []int
+	for _, g := range groups {
+		out = append(out, g.indices...)
 	}
 	return out
 }
@@ -1100,6 +1167,39 @@ func (m *Model) clampWorktreeSelection() {
 	}
 }
 
+func (m *Model) moveWorktreeSelection(delta int) {
+	m.wtSelected += delta
+	m.clampWorktreeSelection()
+}
+
+func (m *Model) jumpWorktreeRepo(dir int) {
+	groups := m.groupedFilteredWorktrees()
+	if len(groups) == 0 {
+		m.wtSelected = 0
+		return
+	}
+	starts := make([]int, len(groups))
+	pos := 0
+	for i, g := range groups {
+		starts[i] = pos
+		pos += len(g.indices)
+	}
+	cur := 0
+	for i, s := range starts {
+		if s <= m.wtSelected {
+			cur = i
+		}
+	}
+	next := cur + dir
+	if next < 0 {
+		next = 0
+	}
+	if next >= len(starts) {
+		next = len(starts) - 1
+	}
+	m.wtSelected = starts[next]
+}
+
 func (m *Model) selectedWorktree() *model.WorktreeEntry {
 	vis := m.filteredWorktrees()
 	if m.wtSelected < 0 || m.wtSelected >= len(vis) {
@@ -1108,11 +1208,21 @@ func (m *Model) selectedWorktree() *model.WorktreeEntry {
 	return &m.worktrees[vis[m.wtSelected]]
 }
 
+func (m Model) exitWorktreesMode() Mode {
+	if m.worktreesReturnMode == ModeInbox || m.worktreesReturnMode == ModeTabs {
+		return m.worktreesReturnMode
+	}
+	return ModeNavigate
+}
+
 func (m Model) handleWorktrees(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.wtSearching {
 		return m.handleWorktreesSearch(msg)
 	}
 	switch msg.Type {
+	case tea.KeyCtrlC:
+		m.quitting = true
+		return m, tea.Quit
 	case tea.KeyEsc:
 		if strings.TrimSpace(m.wtQuery) != "" {
 			m.wtQuery = ""
@@ -1125,25 +1235,27 @@ func (m Model) handleWorktrees(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
-		m.mode = m.exitOverlayMode()
+		m.mode = m.exitWorktreesMode()
 		return m, nil
 	case tea.KeyEnter:
 		return m.activateSelectedWorktree()
-	case tea.KeyUp:
-		m.wtSelected--
-		m.clampWorktreeSelection()
+	case tea.KeyUp, tea.KeyCtrlP:
+		m.moveWorktreeSelection(-1)
 		return m, nil
-	case tea.KeyDown:
-		m.wtSelected++
-		m.clampWorktreeSelection()
+	case tea.KeyDown, tea.KeyCtrlN:
+		m.moveWorktreeSelection(1)
+		return m, nil
+	case tea.KeyLeft:
+		m.jumpWorktreeRepo(-1)
+		return m, nil
+	case tea.KeyRight:
+		m.jumpWorktreeRepo(1)
 		return m, nil
 	case tea.KeyPgUp:
-		m.wtSelected -= 10
-		m.clampWorktreeSelection()
+		m.moveWorktreeSelection(-10)
 		return m, nil
 	case tea.KeyPgDown:
-		m.wtSelected += 10
-		m.clampWorktreeSelection()
+		m.moveWorktreeSelection(10)
 		return m, nil
 	case tea.KeyHome:
 		m.wtSelected = 0
@@ -1159,19 +1271,34 @@ func (m Model) handleWorktrees(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		switch string(msg.Runes) {
 		case "k":
-			m.wtSelected--
-			m.clampWorktreeSelection()
+			m.moveWorktreeSelection(-1)
 		case "j":
-			m.wtSelected++
+			m.moveWorktreeSelection(1)
+		case "h":
+			m.jumpWorktreeRepo(-1)
+		case "l":
+			m.jumpWorktreeRepo(1)
+		case "g":
+			m.wtSelected = 0
+			m.clampWorktreeSelection()
+		case "G":
+			m.wtSelected = len(m.filteredWorktrees()) - 1
 			m.clampWorktreeSelection()
 		case "/":
 			m.wtSearching = true
 		case "q":
+			if strings.TrimSpace(m.wtQuery) != "" {
+				m.wtQuery = ""
+				m.wtQueryCur = 0
+				m.wtSelected = 0
+				m.clampWorktreeSelection()
+				return m, nil
+			}
 			if m.worktreesStandalone {
 				m.quitting = true
 				return m, tea.Quit
 			}
-			m.mode = m.exitOverlayMode()
+			m.mode = m.exitWorktreesMode()
 		case "n":
 			dir := ""
 			if wt := m.selectedWorktree(); wt != nil {
@@ -1206,19 +1333,26 @@ func (m Model) handleWorktrees(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleWorktreesSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
+	case tea.KeyCtrlC:
+		m.quitting = true
+		return m, tea.Quit
 	case tea.KeyEsc:
 		m.wtSearching = false
 		return m, nil
 	case tea.KeyEnter:
 		m.wtSearching = false
 		return m.activateSelectedWorktree()
-	case tea.KeyUp:
-		m.wtSelected--
-		m.clampWorktreeSelection()
+	case tea.KeyUp, tea.KeyCtrlP:
+		m.moveWorktreeSelection(-1)
 		return m, nil
-	case tea.KeyDown:
-		m.wtSelected++
-		m.clampWorktreeSelection()
+	case tea.KeyDown, tea.KeyCtrlN:
+		m.moveWorktreeSelection(1)
+		return m, nil
+	case tea.KeyPgUp:
+		m.moveWorktreeSelection(-10)
+		return m, nil
+	case tea.KeyPgDown:
+		m.moveWorktreeSelection(10)
 		return m, nil
 	default:
 		if isTextEditKey(msg) {
@@ -1230,6 +1364,56 @@ func (m Model) handleWorktreesSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleWorktreesLeftClick(x, y int) (tea.Model, tea.Cmd) {
+	_ = x
+	if y == searchLineY() {
+		m.wtSearching = true
+		return m, nil
+	}
+	groups := m.groupedFilteredWorktrees()
+	entries := buildWorktreeListEntriesFromGroups(groups)
+	if len(entries) == 0 {
+		return m, nil
+	}
+	layout := m.navigatorLayout(m.width, m.height)
+	if y < layout.topY || y >= layout.topY+layout.bodyHeight {
+		return m, nil
+	}
+	selEntry := worktreeSelectedEntryIdx(entries, m.wtSelected)
+	start := windowStart(selEntry, len(entries), layout.bodyHeight)
+	pos := start + (y - layout.topY)
+	if pos < 0 || pos >= len(entries) || entries[pos].isHeader || entries[pos].isSpacer {
+		return m, nil
+	}
+	idx := entries[pos].itemIdx
+	m.wtSearching = false
+	now := time.Now()
+	if m.wtSelected == idx && m.lastClickRow == idx && now.Sub(m.lastClickAt) < 500*time.Millisecond {
+		return m.activateSelectedWorktree()
+	}
+	m.wtSelected = idx
+	m.lastClickRow = idx
+	m.lastClickAt = now
+	return m, nil
+}
+
+func (m Model) paneBelongsToWorktree(paneCWD, wtPath string) bool {
+	if !sameCleanPath(paneCWD, wtPath) && !isSubPath(paneCWD, wtPath) {
+		return false
+	}
+	wtClean := filepath.Clean(strings.TrimSpace(wtPath))
+	for _, other := range m.worktrees {
+		otherClean := filepath.Clean(strings.TrimSpace(other.Path))
+		if otherClean == "" || otherClean == wtClean {
+			continue
+		}
+		if len(otherClean) > len(wtClean) && isSubPath(otherClean, wtClean) && (sameCleanPath(paneCWD, otherClean) || isSubPath(paneCWD, otherClean)) {
+			return false
+		}
+	}
+	return true
+}
+
 func (m Model) activateSelectedWorktree() (tea.Model, tea.Cmd) {
 	wt := m.selectedWorktree()
 	if wt == nil {
@@ -1238,7 +1422,7 @@ func (m Model) activateSelectedWorktree() (tea.Model, tea.Cmd) {
 	// If a live pane/window is already open in this worktree, focus it directly!
 	for _, sp := range m.spaces {
 		for _, p := range sp.Panes {
-			if sameCleanPath(p.CWD, wt.Path) || isSubPath(p.CWD, wt.Path) {
+			if m.paneBelongsToWorktree(p.CWD, wt.Path) {
 				if err := m.backend.FocusPane(context.Background(), sp.Name, p.WindowID, p.ID); err != nil {
 					m.toast = err.Error()
 					return m, nil
@@ -1400,61 +1584,46 @@ func (m Model) renderConfirmRemoveWorktree(width int) string {
 	return styleDialogBox.Width(boxW).Render(b.String())
 }
 
-func (m Model) buildWorktreeListEntries(vis []int) []wtRowEntry {
-	if len(vis) == 0 {
+func buildWorktreeListEntriesFromGroups(groups []wtRepoGroup) []wtRowEntry {
+	if len(groups) == 0 {
 		return nil
 	}
-	// Group by repo key while preserving order.
-	type group struct {
-		key      string
-		repoName string
-		repoRoot string
-		items    []int
-	}
-	var groups []*group
-	byKey := map[string]*group{}
-	for pos, idx := range vis {
-		wt := m.worktrees[idx]
-		k := wt.RepoKey
-		if k == "" {
-			k = wt.MainRepoRoot
-		}
-		g := byKey[k]
-		if g == nil {
-			g = &group{key: k, repoName: wt.RepoName, repoRoot: wt.MainRepoRoot}
-			byKey[k] = g
-			groups = append(groups, g)
-		}
-		g.items = append(g.items, pos)
-	}
-	sort.SliceStable(groups, func(i, j int) bool {
-		return strings.ToLower(groups[i].repoName) < strings.ToLower(groups[j].repoName)
-	})
 	var entries []wtRowEntry
+	itemPos := 0
 	for gi, g := range groups {
 		if gi > 0 {
 			entries = append(entries, wtRowEntry{isSpacer: true})
 		}
-		name := g.repoName
-		if name == "" {
-			name = path.Base(g.repoRoot)
-		}
 		entries = append(entries, wtRowEntry{
 			isHeader: true,
-			repoName: name,
+			repoName: g.repoName,
 			repoRoot: g.repoRoot,
-			count:    len(g.items),
+			count:    len(g.indices),
 		})
-		for _, pos := range g.items {
-			entries = append(entries, wtRowEntry{itemIdx: pos})
+		for range g.indices {
+			entries = append(entries, wtRowEntry{itemIdx: itemPos})
+			itemPos++
 		}
 	}
 	return entries
 }
 
+func worktreeSelectedEntryIdx(entries []wtRowEntry, selected int) int {
+	for i, e := range entries {
+		if !e.isHeader && !e.isSpacer && e.itemIdx == selected {
+			return i
+		}
+	}
+	return 0
+}
+
 func (m Model) renderWorktrees(width, height int) string {
 	layout := m.navigatorLayout(width, height)
-	vis := m.filteredWorktrees()
+	groups := m.groupedFilteredWorktrees()
+	var vis []int
+	for _, g := range groups {
+		vis = append(vis, g.indices...)
+	}
 
 	bg := ColorMantle
 	st := func(fg string, bold bool) lipgloss.Style {
@@ -1508,14 +1677,8 @@ func (m Model) renderWorktrees(width, height int) string {
 			b.WriteString(fitCellWidth("", width) + "\n")
 		}
 	} else {
-		entries := m.buildWorktreeListEntries(vis)
-		selEntry := 0
-		for i, e := range entries {
-			if !e.isHeader && !e.isSpacer && e.itemIdx == m.wtSelected {
-				selEntry = i
-				break
-			}
-		}
+		entries := buildWorktreeListEntriesFromGroups(groups)
+		selEntry := worktreeSelectedEntryIdx(entries, m.wtSelected)
 		start := windowStart(selEntry, len(entries), lh)
 		for i := 0; i < lh; i++ {
 			idx := start + i
@@ -1632,8 +1795,12 @@ func (m Model) renderWorktreeRow(wt model.WorktreeEntry, selected bool, width in
 			branch = wt.Name
 		}
 	}
+	indent := "  "
+	if !wt.IsMain {
+		indent = "    "
+	}
 	var lb strings.Builder
-	lb.WriteString(st(bg, false).Render("  "))
+	lb.WriteString(st(bg, false).Render(indent))
 	lb.WriteString(st(iconColor, true).Render(icon))
 	lb.WriteString(st(ColorTeal, selected).Render(truncate(branch, 28)))
 	if wt.IsMain {

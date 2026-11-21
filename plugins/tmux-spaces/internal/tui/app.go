@@ -112,6 +112,7 @@ type Model struct {
 	worktrees            []model.WorktreeEntry
 	worktreesLoading     bool
 	worktreesStandalone  bool
+	worktreesReturnMode  Mode
 	wtSelected           int
 	wtQuery              string
 	wtQueryCur           int
@@ -720,6 +721,9 @@ func (m *Model) clampSelection() {
 		n = len(m.sharedItems())
 	case ModeTabs:
 		n = len(m.tabsItems())
+	case ModeWorktrees:
+		m.clampWorktreeSelection()
+		return
 	default:
 		n = len(m.visibleRows())
 	}
@@ -2375,6 +2379,9 @@ func (m Model) handleLeftClick(x, y int) (tea.Model, tea.Cmd) {
 	}
 	if m.mode == ModeTabs {
 		return m.handleTabsLeftClick(x, y)
+	}
+	if m.mode == ModeWorktrees {
+		return m.handleWorktreesLeftClick(x, y)
 	}
 	if m.mode == ModeAgents {
 		idx := y - agentsListTop()

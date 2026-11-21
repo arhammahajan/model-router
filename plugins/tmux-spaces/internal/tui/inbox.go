@@ -132,7 +132,7 @@ func (m Model) isInboxContext() bool {
 }
 
 func (m Model) exitOverlayMode() Mode {
-	if m.returnMode == ModeInbox || m.returnMode == ModeTabs {
+	if m.returnMode == ModeInbox || m.returnMode == ModeTabs || m.returnMode == ModeWorktrees {
 		return m.returnMode
 	}
 	return ModeNavigate

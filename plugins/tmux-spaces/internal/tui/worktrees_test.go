@@ -603,3 +603,134 @@ func TestTabsNewTabAndWorktreeCloseFlow(t *testing.T) {
 		t.Errorf("Esc in New Space should return to Spaces manager, got mode=%v quitting=%v", ms.mode, ms.quitting)
 	}
 }
+
+func TestWorktreesPopupIndentationAndMultiRepoNavigation(t *testing.T) {
+	// Deliberately provide repos in non-alphabetical order (zebra before alpha)
+	// and a linked worktree before main within alpha to verify canonical visual
+	// order matches navigation order 1-to-1.
+	entries := []model.WorktreeEntry{
+		{Path: "/repos/zebra", Name: "zebra", Branch: "main", RepoKey: "/repos/zebra/.git", MainRepoRoot: "/repos/zebra", RepoName: "zebra", IsMain: true},
+		{Path: "/wt/zebra/feat-z", Name: "feat-z", Branch: "feat/z", BaseBranch: "main", RepoKey: "/repos/zebra/.git", MainRepoRoot: "/repos/zebra", RepoName: "zebra", Managed: true},
+		{Path: "/wt/alpha/feat-a", Name: "feat-a", Branch: "feat/a", BaseBranch: "main", RepoKey: "/repos/alpha/.git", MainRepoRoot: "/repos/alpha", RepoName: "alpha", Managed: true},
+		{Path: "/repos/alpha", Name: "alpha", Branch: "main", RepoKey: "/repos/alpha/.git", MainRepoRoot: "/repos/alpha", RepoName: "alpha", IsMain: true},
+	}
+	wb := &fakeWorktreeBackend{
+		allWorktrees: entries,
+	}
+
+	m := New(wb, Options{InitialMode: ModeWorktrees, HomeDir: "/home/u"})
+	m.width, m.height = 120, 26
+	m = update(m, wtListMsg{entries: entries})
+
+	// 1. Visual order must be alpha (main, feat/a) then zebra (main, feat/z),
+	// and linked worktree names must be right-offset relative to the base main row.
+	plain := ansi.Strip(m.View())
+	lines := strings.Split(plain, "\n")
+	var alphaMainLine, alphaWTLine, zebraMainLine, zebraWTLine string
+	var alphaMainIdx, alphaWTIdx, zebraMainIdx, zebraWTIdx int
+	for i, line := range lines {
+		switch {
+		case strings.Contains(line, "● main") && alphaMainLine == "":
+			alphaMainLine = line
+			alphaMainIdx = i
+		case strings.Contains(line, "⎇ feat/a"):
+			alphaWTLine = line
+			alphaWTIdx = i
+		case strings.Contains(line, "● main") && alphaMainLine != "":
+			zebraMainLine = line
+			zebraMainIdx = i
+		case strings.Contains(line, "⎇ feat/z"):
+			zebraWTLine = line
+			zebraWTIdx = i
+		}
+	}
+	if alphaMainLine == "" || alphaWTLine == "" || zebraMainLine == "" || zebraWTLine == "" {
+		t.Fatalf("missing expected rows in worktrees view:\n%s", plain)
+	}
+	if !(alphaMainIdx < alphaWTIdx && alphaWTIdx < zebraMainIdx && zebraMainIdx < zebraWTIdx) {
+		t.Fatalf("expected display order alpha/main < alpha/feat-a < zebra/main < zebra/feat-z, got line indices %d, %d, %d, %d:\n%s",
+			alphaMainIdx, alphaWTIdx, zebraMainIdx, zebraWTIdx, plain)
+	}
+	mainCol := ansi.StringWidth(alphaMainLine[:strings.Index(alphaMainLine, "main")])
+	wtCol := ansi.StringWidth(alphaWTLine[:strings.Index(alphaWTLine, "feat/a")])
+	if wtCol <= mainCol {
+		t.Fatalf("expected linked worktree name to be right-offset from base main name (mainCol=%d, wtCol=%d):\nmain: %q\nwt:   %q",
+			mainCol, wtCol, alphaMainLine, alphaWTLine)
+	}
+	mainIconCol := ansi.StringWidth(alphaMainLine[:strings.Index(alphaMainLine, "●")])
+	wtIconCol := ansi.StringWidth(alphaWTLine[:strings.Index(alphaWTLine, "⎇")])
+	if wtIconCol <= mainIconCol {
+		t.Fatalf("expected linked worktree icon to be right-offset from base main icon (mainIconCol=%d, wtIconCol=%d):\nmain: %q\nwt:   %q",
+			mainIconCol, wtIconCol, alphaMainLine, alphaWTLine)
+	}
+
+	// 2. Stepping Down walks strictly top-to-bottom: alpha/main -> alpha/feat-a -> zebra/main -> zebra/feat-z.
+	wantOrder := []string{"/repos/alpha", "/wt/alpha/feat-a", "/repos/zebra", "/wt/zebra/feat-z"}
+	for i, wantPath := range wantOrder {
+		got := m.selectedWorktree()
+		if got == nil || got.Path != wantPath {
+			t.Fatalf("step %d: selectedWorktree = %+v, want %s", i, got, wantPath)
+		}
+		if i < len(wantOrder)-1 {
+			m = update(m, keyType(tea.KeyDown))
+		}
+	}
+	// Stepping Up walks strictly bottom-to-top.
+	for i := len(wantOrder) - 2; i >= 0; i-- {
+		m = update(m, keyType(tea.KeyUp))
+		got := m.selectedWorktree()
+		if got == nil || got.Path != wantOrder[i] {
+			t.Fatalf("up step %d: selectedWorktree = %+v, want %s", i, got, wantOrder[i])
+		}
+	}
+
+	// 3. Repo jump keys (Right/l and Left/h) and g/G work cleanly.
+	m = update(m, keyType(tea.KeyRight))
+	if got := m.selectedWorktree(); got == nil || got.Path != "/repos/zebra" {
+		t.Fatalf("Right should jump to next repo group (/repos/zebra), got %+v", got)
+	}
+	m = update(m, keyType(tea.KeyLeft))
+	if got := m.selectedWorktree(); got == nil || got.Path != "/repos/alpha" {
+		t.Fatalf("Left should jump to prev repo group (/repos/alpha), got %+v", got)
+	}
+	m = update(m, keyRunes("G"))
+	if got := m.selectedWorktree(); got == nil || got.Path != "/wt/zebra/feat-z" {
+		t.Fatalf("G should jump to last worktree (/wt/zebra/feat-z), got %+v", got)
+	}
+	m = update(m, keyRunes("g"))
+	if got := m.selectedWorktree(); got == nil || got.Path != "/repos/alpha" {
+		t.Fatalf("g should jump to first worktree (/repos/alpha), got %+v", got)
+	}
+
+	// 4. Mouse left click selects the clicked worktree row (skipping headers/spacers).
+	// Layout with height=26: topY=3 (header=0, search=1, divider=2).
+	// Entries: 0=alpha header(y=3), 1=alpha main(y=4), 2=alpha feat-a(y=5), 3=spacer(y=6), 4=zebra header(y=7), 5=zebra main(y=8), 6=zebra feat-z(y=9).
+	m = update(m, tea.MouseMsg{X: 10, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if got := m.selectedWorktree(); got == nil || got.Path != "/wt/zebra/feat-z" {
+		t.Fatalf("mouse click on y=9 should select /wt/zebra/feat-z, got %+v", got)
+	}
+	// Refresh preserves selection by path.
+	m = update(m, wtListMsg{entries: entries})
+	if got := m.selectedWorktree(); got == nil || got.Path != "/wt/zebra/feat-z" {
+		t.Fatalf("refresh should preserve selection /wt/zebra/feat-z, got %+v", got)
+	}
+
+	// 5. Opening `n` from Worktrees (opened from Tabs) and pressing Esc returns to Worktrees,
+	// and a subsequent Esc returns to Tabs without looping.
+	mt := New(wb, Options{InitialMode: ModeTabs, HomeDir: "/home/u"})
+	mt.width, mt.height = 120, 26
+	mt = update(mt, keyRunes("W"))
+	mt = update(mt, wtListMsg{entries: entries})
+	mt = update(mt, keyRunes("n"))
+	if mt.mode != ModeNewSpace {
+		t.Fatalf("expected ModeNewSpace after n in Worktrees, got %v", mt.mode)
+	}
+	mt = update(mt, keyType(tea.KeyEsc))
+	if mt.mode != ModeWorktrees {
+		t.Fatalf("expected Esc from n overlay to return to ModeWorktrees, got %v", mt.mode)
+	}
+	mt = update(mt, keyType(tea.KeyEsc))
+	if mt.mode != ModeTabs {
+		t.Fatalf("expected Esc from ModeWorktrees to return to ModeTabs, got %v", mt.mode)
+	}
+}
