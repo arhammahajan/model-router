@@ -141,6 +141,12 @@ type Model struct {
 	convSearchHitOrder  []model.ConversationSearchHit
 	convLastSearchQuery string
 
+	sharedSnap         model.SharedSnapshot
+	sharedLoading      bool
+	sharedFilter       model.SharedKind
+	sharedInspecting   bool
+	sharedDetailScroll int
+
 	pendingTarget string
 	quitting      bool
 }
@@ -187,6 +193,9 @@ func New(backend Backend, opts Options) Model {
 			m.convSearchSeq = 1
 		}
 	}
+	if m.mode == ModeShared {
+		m.sharedLoading = true
+	}
 	return m
 }
 
@@ -213,6 +222,9 @@ func (m Model) Init() tea.Cmd {
 			cmds = append(cmds, convDebounceCmd(m.convSearchSeq))
 		}
 		return tea.Batch(cmds...)
+	}
+	if m.mode == ModeShared {
+		return m.loadSharedCmd()
 	}
 	if m.mode == ModeRename && m.renameStandalone {
 		return m.loadSpacesCmd()
@@ -343,11 +355,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampSelection()
 		return m, nil
 	case tickMsg:
-		if m.mode == ModeAgents || m.mode == ModeConversations {
-			// Static in Agents and Conversations modes: no polling flicker.
+		if m.mode == ModeAgents || m.mode == ModeConversations || m.mode == ModeShared {
+			// Static in Agents, Conversations, and Shared modes: no polling flicker.
 			return m, nil
 		}
 		return m, tea.Batch(m.loadSpacesCmd(), m.tickCmd())
+	case sharedMsg:
+		return m.handleSharedMsg(msg)
 	case conversationsMsg:
 		return m.handleConversationsMsg(msg)
 	case convSearchDebounceMsg:
@@ -582,6 +596,8 @@ func (m *Model) clampSelection() {
 		n = len(m.inboxItems())
 	case ModeConversations:
 		n = len(m.conversationItems())
+	case ModeShared:
+		n = len(m.sharedItems())
 	default:
 		n = len(m.visibleRows())
 	}
@@ -1189,7 +1205,7 @@ func (m *Model) activateSelected() {
 // ---------------------------------------------------------------------------
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Global Ctrl-r refresh (navigator modes + agents + inbox + conversations).
+	// Global Ctrl-r refresh (navigator modes + agents + inbox + conversations + shared).
 	if msg.Type == tea.KeyCtrlR {
 		if m.mode == ModeAgents {
 			m.agentsLoading = true
@@ -1198,6 +1214,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeConversations {
 			m.convRefreshing = true
 			return m, tea.Batch(m.loadConversationsCmd(true, m.convIncludeArchived), m.loadSpacesCmd())
+		}
+		if m.mode == ModeShared {
+			m.sharedLoading = true
+			return m, m.loadSharedCmd()
 		}
 		if m.mode == ModeNavigate || m.mode == ModeSearch || m.mode == ModeHelp || m.mode == ModeInbox {
 			cmds := []tea.Cmd{m.loadSpacesCmd()}
@@ -1238,6 +1258,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleInbox(msg)
 	case ModeConversations:
 		return m.handleConversations(msg)
+	case ModeShared:
+		return m.handleShared(msg)
 	}
 	return m, nil
 }
@@ -2000,6 +2022,16 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.moveConvSelection(-1)
 			return m, nil
 		}
+		if m.mode == ModeShared {
+			if m.sharedInspecting {
+				if m.sharedDetailScroll > 0 {
+					m.sharedDetailScroll--
+				}
+			} else {
+				m.moveSharedSelection(-1)
+			}
+			return m, nil
+		}
 		if m.mode == ModeHookDetail {
 			if m.hookScroll > 0 {
 				m.hookScroll--
@@ -2020,6 +2052,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.mode == ModeConversations {
 			m.moveConvSelection(1)
+			return m, nil
+		}
+		if m.mode == ModeShared {
+			if m.sharedInspecting {
+				m.sharedDetailScroll++
+			} else {
+				m.moveSharedSelection(1)
+			}
 			return m, nil
 		}
 		if m.mode == ModeHookDetail {
@@ -2043,6 +2083,9 @@ func (m Model) handleLeftClick(x, y int) (tea.Model, tea.Cmd) {
 	}
 	if m.mode == ModeConversations {
 		return m.handleConvLeftClick(x, y)
+	}
+	if m.mode == ModeShared {
+		return m.handleSharedLeftClick(x, y)
 	}
 	if m.mode == ModeAgents {
 		idx := y - agentsListTop()

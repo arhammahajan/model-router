@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -82,6 +83,15 @@ func buildEnv(client *tmux.Client) cli.Env {
 		opts.HomeDir = homeDir()
 		if err := tui.Run(backend, opts); err != nil {
 			fmt.Fprintf(e.Stderr, "tmux-spaces conversations: %v\n", err)
+			return cli.ExitError
+		}
+		return cli.ExitOK
+	}
+	env.RunShared = func(e cli.Env, args []string) int {
+		opts := parseSharedOptions(args)
+		opts.HomeDir = homeDir()
+		if err := tui.Run(backend, opts); err != nil {
+			fmt.Fprintf(e.Stderr, "tmux-spaces shared: %v\n", err)
 			return cli.ExitError
 		}
 		return cli.ExitOK
@@ -167,6 +177,27 @@ func parseConversationsOptions(args []string) tui.Options {
 			opts.InitialQuery = args[i]
 		} else if q, ok := strings.CutPrefix(args[i], "--query="); ok {
 			opts.InitialQuery = q
+		}
+	}
+	return opts
+}
+
+func parseSharedOptions(args []string) tui.Options {
+	opts := tui.Options{
+		InitialMode: tui.ModeShared,
+	}
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--query" && i+1 < len(args):
+			i++
+			opts.InitialQuery = args[i]
+		case strings.HasPrefix(args[i], "--query="):
+			opts.InitialQuery = strings.TrimPrefix(args[i], "--query=")
+		case args[i] == "--dir" && i+1 < len(args):
+			i++
+			opts.SharedDir = args[i]
+		case strings.HasPrefix(args[i], "--dir="):
+			opts.SharedDir = strings.TrimPrefix(args[i], "--dir=")
 		}
 	}
 	return opts
@@ -1086,6 +1117,58 @@ func (b *tuiBackend) OpenConversation(ctx context.Context, conv model.Conversati
 
 func buildConversationOpenCommand(agent, profile, sessionID, cwd, title, selfPath, harnessPath string) []string {
 	return buildOutcomeOpenCommand(agent, profile, sessionID, cwd, title, "", selfPath, harnessPath)
+}
+
+var _ tui.SharedBackend = (*tuiBackend)(nil)
+
+func (b *tuiBackend) LoadShared(_ context.Context, dir string) (model.SharedSnapshot, error) {
+	return model.LoadShared(dir, homeDir())
+}
+
+func (b *tuiBackend) OpenSharedFile(ctx context.Context, path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("empty file path")
+	}
+	targetSession := ""
+	if cur, err := b.client.CurrentSession(ctx); err == nil && strings.TrimSpace(cur) != "" {
+		targetSession = strings.TrimSpace(cur)
+	}
+	if targetSession == "" {
+		if sessions, err := b.client.ListSessions(ctx); err == nil && len(sessions) > 0 {
+			targetSession = sessions[0].Name
+		}
+	}
+	if targetSession == "" {
+		return fmt.Errorf("could not determine target space")
+	}
+
+	editor := strings.TrimSpace(os.Getenv("VISUAL"))
+	if editor == "" {
+		editor = strings.TrimSpace(os.Getenv("EDITOR"))
+	}
+	if editor == "" {
+		if b.lookPath != nil {
+			for _, cand := range []string{"nvim", "vim", "vi"} {
+				if p, err := b.lookPath(cand); err == nil && p != "" {
+					editor = cand
+					break
+				}
+			}
+		}
+		if editor == "" {
+			editor = "vi"
+		}
+	}
+	cwd := filepath.Dir(path)
+	label := filepath.Base(path)
+	if strings.EqualFold(label, "SKILL.md") {
+		if dir := filepath.Base(cwd); dir != "" && dir != "." && dir != "/" {
+			label = dir
+		}
+	}
+	script := editor + " " + shellQuoteWord(path)
+	return b.client.NewWindow(ctx, targetSession, cwd, label, "/bin/sh", "-c", script)
 }
 
 // isHarnessManagedAgent reports whether agent is registered in the `harness`

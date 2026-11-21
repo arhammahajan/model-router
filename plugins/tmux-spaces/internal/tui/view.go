@@ -280,6 +280,8 @@ func (m Model) renderFull(width, height int) string {
 			return styleHeader.Render("Inbox")
 		case ModeConversations:
 			return styleHeader.Render("Conversations")
+		case ModeShared:
+			return styleHeader.Render("Shared")
 		default:
 			return styleHeader.Render("Spaces")
 		}
@@ -303,6 +305,8 @@ func (m Model) renderFull(width, height int) string {
 		return m.renderInbox(width, height)
 	case ModeConversations:
 		return m.renderConversations(width, height)
+	case ModeShared:
+		return m.renderShared(width, height)
 	}
 	return m.renderNavigator(width, height)
 }

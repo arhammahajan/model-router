@@ -45,6 +45,7 @@ All keys are bound in the `prefix` table.
 | `prefix + s`    | `tmux-spaces popup`  | Navigator (spaces/panes/TUI)  |
 | `prefix + i`    | `tmux-spaces inbox`  | Attention Inbox (agents + live previews across spaces) |
 | `prefix + y`    | `tmux-spaces conversations` | Conversations (fuzzy + full-message search & resume across harnesses) |
+| `prefix + u`    | `tmux-spaces shared` | Shared MCP servers & skills browser (`~/dev/dots/harnesses/shared`) |
 | `prefix + a`    | `tmux-spaces agents` | Agents selector TUI           |
 | `prefix + N`    | `tmux-spaces popup --new` | Create a new space       |
 
@@ -59,6 +60,8 @@ Set these before the `run-shell` line (shown with defaults):
 set -g @spaces-key 's'               # Navigator key
 set -g @spaces-inbox-key 'i'         # Attention Inbox key
 set -g @spaces-conversations-key 'y' # Conversations search/resume key
+set -g @spaces-shared-key 'u'        # Shared MCP & skills browser key
+set -g @spaces-shared-dir ''         # Override shared harnesses dir (default ~/dev/dots/harnesses/shared)
 set -g @spaces-agents-key 'a'        # Agents selector key
 set -g @spaces-new-key 'N'           # New-space key
 set -g @spaces-popup-width '86%'     # display-popup width
@@ -198,12 +201,18 @@ tmux-spaces popup [--new]
 tmux-spaces inbox
 tmux-spaces conversations [--query Q]
 tmux-spaces chats [--query Q]       # alias
+tmux-spaces shared [--dir DIR] [--query Q]
+tmux-spaces skills|mcp [--dir DIR] [--query Q] # aliases
 tmux-spaces agents
 ```
 
-Open the Navigator / Attention Inbox / Conversations / Agents TUI (wired by the full binary).
+Open the Navigator / Attention Inbox / Conversations / Shared MCP & Skills / Agents TUI (wired by the full binary).
 In the Conversations popup (`prefix + y`), start typing immediately for instant fuzzy filtering
 plus debounced full-message search across all coding harnesses (use `@<agent>` inline filters,
 `Tab`/`Shift-Tab` to cycle harnesses, `Alt-c` for current workspace, `Ctrl-s` to cycle search
 scope, `Ctrl-a` to include archived/`/tmp` chats, `Enter` to focus a live pane or resume in a new
 tab, and `Ctrl-o` to always open in a new tab).
+In the Shared MCP & Skills popup (`prefix + u`), start typing to fuzzy-filter shared MCP servers
+and skills from `~/dev/dots/harnesses/shared` (`Tab`/`Shift-Tab` cycles `all` / `mcp` / `skills`,
+`Enter` opens a scrollable detail inspector, `Ctrl-o` opens the source file in your editor, and
+`Ctrl-r` reloads from disk).

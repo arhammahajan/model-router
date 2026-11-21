@@ -64,6 +64,13 @@ type ConversationsBackend interface {
 	OpenConversation(ctx context.Context, conv model.ConversationEntry, forceNewTab bool) error
 }
 
+// SharedBackend is an optional extension of Backend for listing shared MCP
+// servers and skills and opening their source files in an editor.
+type SharedBackend interface {
+	LoadShared(ctx context.Context, dir string) (model.SharedSnapshot, error)
+	OpenSharedFile(ctx context.Context, path string) error
+}
+
 // Mode selects which screen the TUI shows.
 type Mode int
 
@@ -78,6 +85,7 @@ const (
 	ModeAgents
 	ModeInbox
 	ModeConversations
+	ModeShared
 )
 
 // Options configures a TUI run.
@@ -88,6 +96,7 @@ type Options struct {
 	OpenRenameSpace  bool
 	OpenRenameWindow bool
 	Target           string
+	SharedDir        string
 	HomeDir          string
 	RefreshInterval  time.Duration
 	Now              func() time.Time

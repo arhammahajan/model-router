@@ -82,6 +82,8 @@ type Env struct {
 	RunInbox func(Env, []string) int
 	// RunConversations launches the Conversations search/resume TUI (wired by cmd/tmux-spaces).
 	RunConversations func(Env, []string) int
+	// RunShared launches the Shared MCP & Skills TUI (wired by cmd/tmux-spaces).
+	RunShared func(Env, []string) int
 	// RunChild runs the __shim child process, returning its exit code.
 	RunChild func(bin string, args []string) int
 	// RunShell runs the interactive shell for __shim --hold.
@@ -394,6 +396,8 @@ func Run(args []string, env Env) int {
 		return cmdInbox(rest, env)
 	case "conversations", "chats":
 		return cmdConversations(rest, env)
+	case "shared", "skills", "mcp":
+		return cmdShared(rest, env)
 	case "resurrect":
 		if env.RunResurrect == nil {
 			env.errf("tmux-spaces resurrect: not wired\n")
@@ -428,6 +432,7 @@ usage: tmux-spaces <command> [args]
   agents                           open the Agents selector TUI
   inbox                            open the Attention Inbox TUI
   conversations|chats [--query Q]  search & resume agent conversations
+  shared|skills|mcp [--dir D]      browse shared MCP servers and skills
   help [command]                   show help
 `)
 }
@@ -468,6 +473,8 @@ func cmdHelp(args []string, env Env) int {
 		env.outf("usage: tmux-spaces inbox\n")
 	case "conversations", "chats":
 		env.outf("usage: tmux-spaces conversations [--query Q]\n")
+	case "shared", "skills", "mcp":
+		env.outf("usage: tmux-spaces shared [--dir DIR] [--query Q]\n")
 	default:
 		env.errf("tmux-spaces: unknown command %q\n", args[0])
 		return ExitUsage

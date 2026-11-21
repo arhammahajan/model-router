@@ -90,3 +90,25 @@ func cmdConversations(args []string, env Env) int {
 	}
 	return env.RunConversations(env, args)
 }
+
+// cmdShared opens the Shared MCP & Skills browser TUI.
+func cmdShared(args []string, env Env) int {
+	f, err := parseFlags(args, []string{"dir", "query"}, nil, nil)
+	if err != nil {
+		if err == errHelp {
+			env.outf("usage: tmux-spaces shared [--dir DIR] [--query Q]\n")
+			return ExitOK
+		}
+		env.errf("tmux-spaces shared: %s\n", err)
+		return ExitUsage
+	}
+	if len(f.pos) > 0 {
+		env.errf("usage: tmux-spaces shared [--dir DIR] [--query Q]\n")
+		return ExitUsage
+	}
+	if env.RunShared == nil {
+		env.errf("tmux-spaces shared: TUI not wired (cmd/tmux-spaces must provide RunShared)\n")
+		return ExitError
+	}
+	return env.RunShared(env, args)
+}

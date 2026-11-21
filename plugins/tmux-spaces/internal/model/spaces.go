@@ -206,19 +206,3 @@ func RemoveOutcome(ctx context.Context, o OutcomeEntry) error {
 	_, err = runSpaces(ctx, "__space-hooks", "--remove-outcome", string(raw))
 	return err
 }
-
-func expandHomePath(p, homeDir string) string {
-	p = strings.TrimSpace(p)
-	if p == "" {
-		return ""
-	}
-	if homeDir != "" {
-		if p == "~" {
-			return filepath.Clean(homeDir)
-		}
-		if strings.HasPrefix(p, "~/") {
-			return filepath.Clean(filepath.Join(homeDir, p[2:]))
-		}
-	}
-	return filepath.Clean(p)
-}

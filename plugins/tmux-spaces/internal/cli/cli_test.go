@@ -162,3 +162,35 @@ func TestConversationsCommand(t *testing.T) {
 		t.Errorf("conversations with extra positional = %d, want ExitUsage", code)
 	}
 }
+
+func TestSharedCommand(t *testing.T) {
+	fc := &FakeClient{Up: true}
+	env := testEnv(fc)
+
+	for _, cmd := range []string{"shared", "skills", "mcp"} {
+		if code := Run([]string{cmd, "--help"}, env); code != ExitOK {
+			t.Errorf("%s --help = %d", cmd, code)
+		}
+		if code := Run([]string{"help", cmd}, env); code != ExitOK {
+			t.Errorf("help %s = %d", cmd, code)
+		}
+	}
+	if code := Run([]string{"shared"}, env); code != ExitError {
+		t.Errorf("shared without RunShared = %d, want ExitError", code)
+	}
+
+	var gotArgs []string
+	env.RunShared = func(_ Env, args []string) int {
+		gotArgs = append([]string(nil), args...)
+		return ExitOK
+	}
+	if code := Run([]string{"skills", "--dir", "/tmp/shared", "--query", "browser"}, env); code != ExitOK {
+		t.Errorf("skills wired = %d", code)
+	}
+	if len(gotArgs) != 4 || gotArgs[0] != "--dir" || gotArgs[1] != "/tmp/shared" || gotArgs[2] != "--query" || gotArgs[3] != "browser" {
+		t.Errorf("gotArgs = %v", gotArgs)
+	}
+	if code := Run([]string{"shared", "extra"}, env); code != ExitUsage {
+		t.Errorf("shared with extra positional = %d, want ExitUsage", code)
+	}
+}
