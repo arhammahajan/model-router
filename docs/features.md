@@ -36,18 +36,21 @@ records a project reviewed for comparison.
 | Area | Path or section |
 | --- | --- |
 | Spaces architecture | `plugins/tmux-spaces` and `internal/harness/{spacecore,spacelaunch,spaceresume}` |
-| Feature plans | §1 through §11 |
+| Feature plans | §1 through §14 |
 | Router and engine behavior | Code and `conformance/`, which replace the retired M4 through M6 contracts |
 | Hook store, listener, and spool | `internal/harness/spacecore` |
 | tmux pane identity and `@spaces_*` options | `internal/harness/spaceresume` |
 | Agent launch resolution | `internal/harness/spacelaunch` |
 | Navigator and its CLI | `plugins/tmux-spaces` |
-| Proposed orchestration daemon and drivers | `internal/harness/orch*`, §3.11 |
+| Proposed orchestration daemon, drivers, and ownership handoff | `internal/harness/orch*`, §3.12 |
 | Proposed skills code | `internal/harness/skills`, §3.8 |
 | Proposed Docker sandboxes | `internal/harness/sandbox`, §7 |
 | Proposed automation runner and scheduler adapters | `internal/harness/automations`, §9 |
 | Proposed remote mobile gateway & structured transcript tailing | `internal/harness/{mobilegw,convstore}`, §10 |
 | Proposed terminal companion contract and adapters | `plugins/{kitty,wezterm,iterm2}-spaces`, `plugins/tmux-spaces/internal/osc`, `internal/harness/attn`, §11 |
+| Proposed passive telemetry collectors (router feed, OTLP, native daemons) | `internal/harness/telemetry`, `internal/harness/spacecore`, §12 |
+| Proposed built-in ACP control pane in `harness` | `internal/harness/acptui`, `cmd/harness/main.go`, §13 |
+| Proposed multi-profile log store and adapters | `internal/harness/logstore`, §14 |
 
 ## Tracker
 
@@ -82,14 +85,15 @@ records a project reviewed for comparison.
 | API-1 | events | Local event API shared by inbox, scripts, notifications, and waits | Proposed | §4 |
 | API-2 | CLI | Common pane targets and resolved JSON status | Partial | §4.1 |
 | ORC-1 | orchestration | Runs, tasks, mailboxes, dispatch instructions, and depth limits | Proposed | §3.2 |
-| ORC-2 | orchestration | Terminal driver on tmux | Proposed | §3.3 |
-| ORC-3 | orchestration | ACP driver | Proposed | §3.3 |
+| ORC-2 | orchestration | Provider SDK driver (preferred when an agent provides an SDK) | Proposed | §3.3 |
+| ORC-3 | orchestration | ACP driver (fallback when no provider SDK exists) | Proposed | §3.3 |
 | ORC-4 | orchestration | `orchd` API, event log, tokens, and waits | Proposed | §3.4 |
 | ORC-5 | orchestration | `spaces task`, `watch`, and `skills` | Proposed | §3.5 |
 | ORC-6 | orchestration | Pane watch grants (consent) | Proposed | §3.6 |
 | ORC-7 | orchestration | TUI task board | Proposed | §3.7 |
 | ORC-8 | orchestration | MCP toolkits and skills | Proposed | §3.8 |
 | ORC-9 | orchestration | Recovery and task reconciliation | Proposed | §3.9 |
+| ORC-10 | orchestration | Task ownership model and human takeover to a tmux CLI tab | Proposed | §3.10 |
 | OPS-1 | diagnostics | End-to-end status checks and an isolated demo | Partial | §6 |
 | SBX-1 | sandbox | Ephemeral and persistent Docker sandbox lifecycle | Proposed | §7.2 |
 | SBX-2 | sandbox | Host binary mounting and bundle delivery for agent CLIs | Proposed | §7.3 |
@@ -110,10 +114,21 @@ records a project reviewed for comparison.
 | TERM-3 | terminal | Kitty overlay palettes, clipboard image paste, agent hints, and inline graphics previews | Proposed | §11.4 |
 | TERM-4 | terminal | WezTerm Lua plugin with focus watcher, InputSelector palettes, tab formatting, and toast alerts | Proposed | §11.5 |
 | TERM-5 | terminal | iTerm2 Python plugin and escape-sequence baseline for Ghostty and Foot | Deferred | §11.6 |
+| TEL-1 | telemetry | Model router session-correlated turn and usage telemetry | Proposed | §12.2 |
+| TEL-2 | telemetry | Local OpenTelemetry OTLP receiver in `spacecore` | Proposed | §12.3 |
+| TEL-3 | telemetry | Agent-native daemon and SSE event watchers | Proposed | §12.4 |
+| TEL-4 | telemetry | Unified passive telemetry envelope and source precedence | Proposed | §12.1 |
+| ACP-1 | acp-ui | Bare `harness` entrypoint, process architecture, and `SessionController` | Proposed | §13.1 |
+| ACP-2 | acp-ui | ACP and SDK client runtime, permission/FS/terminal callbacks, and `spacecore` publishing | Proposed | §13.2 |
+| ACP-3 | acp-ui | Bubble Tea control pane UI, session rail, structured timeline, and composer | Proposed | §13.3 |
+| ACP-4 | acp-ui | Multi-agent switching, `orchd` worker control, `convstore` resume, and native CLI pop-out | Proposed | §13.4 |
+| LOG-1 | logstore | Shared log event schema, SQLite store, and incremental cursor sync | Proposed | §14.1 |
+| LOG-2 | logstore | Per-agent log and transcript adapters across isolated profiles | Proposed | §14.2 |
+| LOG-3 | logstore | Usage, rate-limit, failure, and stall analytics for `harness` and `spacecore` | Proposed | §14.3 |
 
 ## 0. Shipped baseline
 
-The Spaces port from Zellij to tmux is complete. §3.10 maps the old design to the
+The Spaces port from Zellij to tmux is complete. §3.11 maps the old design to the
 current implementation.
 
 - The Bubble Tea navigator runs in a tmux popup. It lists spaces, windows, and agents,
@@ -171,8 +186,7 @@ one queued prompt per idle period. Offer **Steer now** when the adapter supports
 
 After pressing Enter, look for evidence that the agent took the prompt. If receipt
 is unclear, mark the entry stalled in the Inbox and hold the remaining queue for
-manual resolution. Use the same readiness and delivery checks in the terminal
-driver (§3.3).
+manual resolution.
 [prompt](../plugins/tmux-spaces/internal/cli/prompt.go) ·
 [TUIOS queued messages](https://github.com/Gaurav-Gosain/tuios/blob/main/docs/AGENT_STATE.md#queued-messages) ·
 [Herdr agent automation](https://herdr.dev/tui/docs/agent-automation/) ·
@@ -419,7 +433,7 @@ host and the tmux target from API-2. Open its exact session and pane over SSH.
 
 **Proposed.** Not scheduled for immediate implementation; builds on `internal/gitinfo`
 (ATT-8) and shares creation/cleanup primitives with TSK-1 (§2.1) and orchestration
-isolation (`--worktree new`, §3.14).
+isolation (`--worktree new`, §3.15).
 
 Automate the full Git worktree + tmux lifecycle so parallel agent work needs no manual
 worktree setup, tracking, or teardown:
@@ -449,25 +463,41 @@ worktree setup, tracking, or teardown:
 
 ## 3. Multi-agent orchestration
 
-**Proposed.** The four implementation phases are in §3.12.
+**Proposed.** The four implementation phases are in §3.13.
 
 Use orchestration to assign a task with a written spec, supervise it, and record the
-result. When a user works directly with an agent, they type in its pane, steer the turn
-there, and answer permission prompts in the agent's own UI. The Inbox and `next` support
-that workflow.
+result. When a user works directly with an agent, they type in its native CLI pane,
+steer the turn there, and answer permission prompts in the agent's own UI. The Inbox
+and `next` support that workflow.
 
 ### 3.1 Goal and the human boundary
 
-A run groups tasks. Each task names an agent and working directory, and can depend on
-other tasks or name a parent. A user can create a task from the CLI or navigator. Agents
-can create tasks through the terminal CLI or through MCP tools.
+A run groups tasks. Each task names an agent, profile, and working directory, and can
+depend on other tasks or name a parent. A user can create a task from the CLI or
+navigator. Agents can create tasks through the `spaces task` CLI or through MCP tools.
 
-The ACP driver talks directly to agents that support the Agent Client Protocol. The
-terminal driver uses tmux panes. With `auto` , the daemon chooses a driver for the
-agent. It records state from driver events, relays questions, and wakes callers waiting
-on a result. The `spaces task` CLI calls the daemon API and supports JSON output, stable
-exit and error codes, and server-side waits. The skill guides explain the commands to
-agents launched by `harness` .
+Human-owned sessions run each agent's native CLI inside tmux. Orchestrated worker tasks
+never drive terminals manually and never use `tmux send-keys` or screen scraping to
+dispatch or supervise agents. Every orchestrated worker runs headlessly through an
+agent-provided SDK when one exists, or through ACP otherwise. For example, when a user
+asks `antigravity` in a tmux pane to orchestrate `claude` workers, `antigravity`
+creates subtasks through `orchd`, and `orchd` drives each `claude` worker headlessly
+through the Claude Agent SDK or `claude-agent-acp` without opening a tmux pane. When
+`channel` is `auto`, `orchd` picks the provider SDK driver first if registered, falls
+back to the ACP driver if no SDK driver exists, and rejects dispatch with
+`orch_channel_unavailable` if the agent supports neither.
+
+Every task has one explicit owner, either `orchestrator` or `human`. While
+`orchestrator` owns a worker, `orchd` drives the headless SDK or ACP process, streams
+updates to the task board and `spacecore`, relays questions, and wakes waiting callers.
+At any point, either after a turn completes or mid-turn, the user can transfer
+ownership of a headless worker to `human`. On takeover, `orchd` stops the headless SDK
+or ACP process and opens the same conversation in a tmux tab running the agent's native
+CLI (§3.10).
+
+The `spaces task` CLI calls the daemon API and supports JSON output, stable exit and
+error codes, and server-side waits. The skill guides explain the commands to agents
+launched by `harness`.
 
 Use an explicit task to run work in parallel, order work by dependencies, record an
 assignment and result, or dispatch into a space outside the current view. An assignment
@@ -487,23 +517,29 @@ run. A task assigns one unit of work to one agent.
   "depth": 0,                     // parent-chain length, capped
   "title": "port screen fallback test",
   "spec": "TASK.md contents verbatim",
-  "agent": "codex",               // canonical agents-registry id
+  "agent": "claude",              // canonical agents-registry id
+  "profile": "default",           // harness profile name
   "model": "",                    // optional router model hint
   "cwd": "/home/u/dev/model-router",
   "deps": ["t1c07ee510"],         // DAG, cycle-checked
-  "channel": "auto",              // auto | acp | terminal
-  "created_by": "human:arham",    // human | task:<id> | mcp:<id> | cli
-  "creation_source": "plugin",    // cli | plugin | mcp | api
+  "channel": "auto",              // auto | sdk | acp
+  "owner": "orchestrator",        // orchestrator | handing_off | human
+  "ownership_epoch": 1,           // increments on every ownership transfer
+  "pending_takeover": "",         // "" | "human" when queued for turn end
+  "native_session_id": "sess_01", // provider conversation id for resume and takeover
+  "created_by": "task:t0a11cc20e",// human | task:<id> | mcp:<id> | cli
+  "creation_source": "mcp",       // cli | plugin | mcp | api
   "created_ms": 1765000000000,
   "state": "running",             // queued|ready|dispatching|running|
                                   // blocked|done|failed|cancelled|orphaned
   "kind": "",                     // blocked substate: question|permission|auth
   "dispatch": {
-    "channel": "terminal",
-    "session": "work", "window": "@4", "pane": "%9", "pane_pid": 91823,
+    "channel": "sdk",
+    "adapter": "claude-agent-sdk",
+    "session": "", "window": "", "pane": "", "pane_pid": 0,
     "started_ms": 1765000001000
   },
-  "result": {"source": "worker", "text": "…", "exit_hint": "ok"},
+  "result": {"source": "worker", "text": "...", "exit_hint": "ok"},
   "allow_subtasks": true,
   "max_depth": 3
 }
@@ -521,13 +557,13 @@ queued ──deps satisfied──▶ ready ──dispatch──▶ dispatching �
         └────────▶ running ─────────▶ orphaned ──re-dispatch─▶ ready
 ```
 
-- Use the hook store's blocked kinds for tasks. The kinds are `question` , `permission`
-  , and `auth` .
-- If the channel disappears before a terminal report, mark the task `orphaned` .
-  `spaces task redispatch <id>` returns it to `ready` .
-- If pane attention provides the only completion evidence, set `result.source` to
-  `"attention"` and write a short report. Use the worker's `spaces task done` report if
-  it arrives first.
+- Use the hook store's blocked kinds for tasks. The kinds are `question`, `permission`,
+  and `auth`.
+- If the SDK or ACP process disappears before a terminal report, mark the task
+  `orphaned`. `spaces task redispatch <id>` returns it to `ready`.
+- Use the worker's `orch_done` or `spaces task done` report when it arrives first. If a
+  headless turn ends without an explicit report call, set `result.source` to `"driver"`
+  and record the final assistant output.
 - Record state changes in the event log. Rebuild the stored view by replaying the log,
   as in T3 Code.
 
@@ -591,6 +627,14 @@ type ChannelEvent struct {
     TsMs int64
 }
 
+type SessionRef struct {
+    Agent           string
+    Profile         string
+    NativeSessionID string
+    CWD             string
+    ResumableInCLI  bool
+}
+
 type Driver interface {
     Name() string
     Probe(agent string) (Caps, bool)
@@ -598,58 +642,85 @@ type Driver interface {
     Events(h Handle) <-chan ChannelEvent
     Answer(h Handle, questionID, answer string) error
     Cancel(h Handle, reason string) error
+    CloseForTakeover(ctx context.Context, h Handle, mode string) (SessionRef, error)
     Release(h Handle) error
 }
 ```
 
 Drivers report events. `orchd` resolves task state, following Herdr's arbitration rule.
+With `channel: "auto"`, `orchd` selects `sdk` first when an agent-provided SDK adapter
+is registered, falls back to `acp` when no SDK adapter exists, and returns
+`orch_channel_unavailable` if neither exists. `orchd` never spawns or types into a
+tmux pane to drive an orchestrated worker.
 
-#### Terminal driver
+#### Provider SDK driver (ORC-2)
 
-1. Resolve the agent through `spacelaunch` , as `harness <agent>` does. Use the
-   attention shim from the plugin's `agent` command. Start the process with
-   `tmux new-window -d -t <space>: -c <cwd> -n <task-title>` . Pass `SPACES_TASK` ,
-   `SPACES_RUN` , `SPACES_TOKEN` , and `SPACES_ORCH_SOCKET` to the worker. tmux supplies
-   `TMUX` and `TMUX_PANE` for hooks, pane options, and worker CLI calls.
-2. Keep the task `dispatching` until `list-panes -F` confirms the pane and the hook
-   store records a session start for the expected agent. Then send the spec with
-   `tmux send-keys -l -t %<pane>` followed by `send-keys Enter` , and mark the task
-   `running` . Share these checks with interactive `prompt` under ATT-3.
-3. Read the hook store first, then `@spaces_*` options, then the screen detector over
-   `capture-pane -p -S -200` . A prompt indicates `running` . A blocker keeps its kind.
-   A stop or done signal can indicate completion. Use ATT-5 when a turn is waiting on
-   background work. Treat the pane as gone if `#{pane_dead}` is set or
-   `pane_current_command` shows the agent has exited. Without a terminal report, mark
-   the task `orphaned` .
-4. On cancel, send `C-c` to the pane. If it stays open past the grace period, run
-   `kill-pane` .
+Use the provider SDK driver whenever the target agent ships an official SDK or
+structured programmatic control server. Examples include the Claude Agent SDK for
+`claude`, Codex `app-server` for `codex`, and OpenCode's server SDK for `opencode`.
 
-#### ACP driver
+1. Resolve the worker's profile, shadow home, and router environment through `agents`
+   and `spacelaunch`, matching `harness <agent> profile <profile>`.
+2. Start the provider SDK worker bridge as a headless child process owned by `orchd`
+   and attach the orchestration MCP bridge (`spaces __orch-mcp-bridge`) with the task
+   token and `SPACES_ORCH_SOCKET`.
+3. Create the session and capture `native_session_id` immediately from the SDK's
+   session-init event so resume and human takeover (§3.10) open the exact on-disk
+   conversation in the native CLI.
+4. Send the preamble and spec through the SDK's prompt call. Stream structured turn
+   events, tool calls, diffs, permission callbacks, and subagent records into both
+   `orchd` and `spacecore`.
+5. Handle interrupts through the SDK's native cancel call and recovery through the
+   SDK's session resume call.
+6. Implement `CloseForTakeover` in `after-turn` and `now` modes. Wait for turn end or
+   send the SDK interrupt, wait up to a bounded grace period for the SDK to flush its
+   native session store to disk, close the child process so no file or SQLite locks
+   remain, and return `SessionRef`.
 
-Resolve the agent through `agents` and `spacelaunch` . Start its process, negotiate the
-protocol version with `initialize` , and call `session/new` with the orchestration MCP
-bridge in `mcpServers` . Send the preamble and spec with `session/prompt` . An idle
-`session/update` signals completion. Use the final assistant text as the report. Call
-`session/cancel` to interrupt and `session/resume` to recover.
+#### ACP driver (ORC-3)
 
-Read ACP registrations from `~/.config/harness/acp.json` and probe `~/.t3/tools/*-acp` .
-Adding a registration needs a config entry. The daemon owns the ACP processes. They have
-no panes, so the task board shows their progress.
+Use the ACP driver when no agent-provided SDK adapter exists, or when the caller sets
+`--channel acp`. Native ACP agents (`gemini --acp`, `opencode acp`, `vibe-acp`,
+`antigravity-acp`) and ACP wrappers (`claude-agent-acp`, `codex-acp`) speak
+line-delimited JSON-RPC 2.0 over stdio.
+
+1. Resolve the worker's profile, shadow home, and router environment through `agents`
+   and `spacelaunch`, matching `harness <agent> profile <profile>`.
+2. Start the registered ACP subprocess owned by `orchd`, negotiate capabilities with
+   `initialize`, and call `session/new` with the orchestration MCP bridge in
+   `mcpServers`. Store the returned `native_session_id` on the task immediately.
+3. Send the preamble and spec with `session/prompt`. Forward structured `session/update`
+   notifications, tool calls, diffs, and `session/request_permission` callbacks into
+   both `orchd` and `spacecore`. Because headless workers have no tmux pane, the task
+   board and Inbox display their live progress from these structured events.
+4. An idle turn completion signals `done`, with the final assistant text recorded as
+   the report. Call `session/cancel` to interrupt a turn and `session/load` or
+   `session/resume` to reattach after a daemon restart or ownership return.
+5. `CloseForTakeover` waits for turn completion in `after-turn` mode or calls
+   `session/cancel` in `now` mode, waits up to a bounded grace period for persisted
+   session state to flush, shuts down the ACP subprocess so no file locks remain, and
+   returns `SessionRef`.
+
+Read SDK and ACP adapter registrations from `~/.config/harness/acp.json` and probe
+installed binaries from `~/.t3/tools/*-acp` and the `agents` registry, including
+`vibe-acp` and `antigravity-acp`. Each registration declares its driver kind (`sdk` or
+`acp`) and whether its persisted session ID is directly resumable by the agent's
+interactive CLI.
 
 ### 3.4 Daemon (`orchd`) (ORC-4)
 
 Start `orchd` on demand, like the hook listener. Use `startstamp` to throttle restarts
 and `flock` to keep one instance. The daemon commands are
-`spaces orch ensure|start|stop|status|schema` .
+`spaces orch ensure|start|stop|status|schema`.
 
-Keep daemon files beside the hook files in `SPACES_HOOKS_RUNTIME` . The default is
-`${XDG_RUNTIME_DIR}/spaces` , with `/tmp/spaces-<uid>` as the fallback.
+Keep daemon files beside the hook files in `SPACES_HOOKS_RUNTIME`. The default is
+`${XDG_RUNTIME_DIR}/spaces`, with `/tmp/spaces-<uid>` as the fallback.
 
 | File | Role |
 | --- | --- |
 | `orch.sock`, `orch.endpoint.json` | NDJSON requests and responses. Check tokens and peer credentials as for `h.sock`. |
-| `orch.store.json` | Runs, tasks, mailboxes, and hashed tokens. Write a temporary file with mode 0600 and rename it under `orch.store.lock`. |
-| `orch.log.jsonl` | Accepted commands and receipts, state events, and queued effects. |
+| `orch.store.json` | Runs, tasks, mailboxes, ownership state, and hashed tokens. Write a temporary file with mode 0600 and rename it under `orch.store.lock`. |
+| `orch.log.jsonl` | Accepted commands and receipts, state events, ownership transfers, and queued effects. |
 | `orch-spool.jsonl` | Commands accepted while the daemon is down. Replay on startup. |
 | `orch.server.lock`, `orch.startstamp`, `orch.log` | Instance lock, start throttle, and daemon log. |
 
@@ -657,26 +728,27 @@ The method table defines the NDJSON API and its stable error envelope.
 `spaces orch schema --json` prints the schema.
 
 `run.new|list|get|close`,
-`task.create|get|list|dispatch|cancel|redispatch|answer|done`,
+`task.create|get|list|dispatch|cancel|redispatch|answer|done|takeover|return`,
 `mail.send|check|list`, `wait.task`, `events.subscribe`,
 `watch.request|list|revoke`, `pane.snapshot|pane.events`,
 `server.ping|schema|stop`.
 
-General errors are `orch_not_running` , `orch_not_found` , `orch_depth_exceeded` ,
-`orch_deps_unsatisfied` , `orch_bad_state` , `orch_agent_unknown` ,
-`orch_channel_unavailable` , `orch_timeout` , and `orch_denied` . Pane capture errors
-are `orch_watch_pending` , `orch_watch_denied` , `orch_watch_revoked` ,
-`orch_pane_identity_mismatch` , `orch_capture_stale` , and `orch_bounds_exceeded` . The
+General errors are `orch_not_running`, `orch_not_found`, `orch_depth_exceeded`,
+`orch_deps_unsatisfied`, `orch_bad_state`, `orch_agent_unknown`,
+`orch_channel_unavailable`, `orch_ownership_conflict`, `orch_resume_unavailable`,
+`orch_timeout`, and `orch_denied`. Pane capture errors
+are `orch_watch_pending`, `orch_watch_denied`, `orch_watch_revoked`,
+`orch_pane_identity_mismatch`, `orch_capture_stale`, and `orch_bounds_exceeded`. The
 CLI uses exit codes 0, 1, and 2.
 
-A mutating request can include a `command_id` . Record its receipt in the log. A retry
+A mutating request can include a `command_id`. Record its receipt in the log. A retry
 returns the recorded "already applied" result.
 
 `spaces task wait` checks task state and waits for task transitions. Task events use
 the cursor and gap rules in §4. The pane methods read or forward the hook service's
 resolved state. The hook service owns pane status and pane transitions.
 
-### 3.5 CLI surface (ORC-5)
+### 3.5 CLI commands (ORC-5)
 
 Install `spaces` in `~/.local/bin` for worker and scripting commands. Use `tmux-spaces`
 for interactive views.
@@ -684,12 +756,14 @@ for interactive views.
 ```
 spaces orch ensure|start|stop|status|schema [--json]
 
-spaces task create --agent A [--spec-file F | --spec-string S]
+spaces task create --agent A [--profile P] [--spec-file F | --spec-string S]
                    [--cwd D] [--model M] [--deps t1,t2] [--parent tX]
-                   [--channel auto|acp|terminal] [--allow-subtasks]
+                   [--channel auto|sdk|acp] [--allow-subtasks]
                    [--max-depth N] [--dispatch]
 spaces task list [--run R] [--json] | show <id> | dispatch <id>
 spaces task cancel <id> [--reason S] | redispatch <id>
+spaces task takeover <id> [--mode after-turn|now] [--space S] [--focus]
+spaces task return <id> [--summary S]
 spaces task wait <id> [--until done|failed|blocked|terminal] [--timeout S]
 spaces task check [--wait] [--timeout S] [--json]
 spaces task ask --task T TEXT
@@ -707,53 +781,62 @@ spaces skills list|get <topic>|install|update|installed|remove [--json]
 
 ### 3.6 Pane watch grants (ORC-6)
 
-Use zellij-agent-tools' consent model for tmux pane capture.
+Use zellij-agent-tools' consent model for read-only tmux pane observation when a
+headless worker or coordinator asks to inspect an existing human pane, such as a
+dev server or test runner pane.
 
-- A task can watch the pane where it runs. Watching any other pane requires an explicit,
-  revocable grant.
+- Watching any tmux pane requires an explicit, revocable grant.
 - Show the requesting agent when a watch request appears. Approve with `y` or deny with
-  `n` . Grant states are `pending` , `approved` , `denied` , `expired` , and `revoked` .
-- Bind a grant to `session_id:window_id:pane_id:pane_pid` . Check that identity when
-  recovering a task so a reused pane ID cannot inherit a grant.
-- `pane.events --after-seq` returns bounded, coalesced changes from `capture-pane` .
-  `pane.snapshot --lines N` returns the tail. Both feed `ChannelEvent` output.
+  `n`. Grant states are `pending`, `approved`, `denied`, `expired`, and `revoked`.
+- Bind a grant to `session_id:window_id:pane_id:pane_pid`. Check that identity on every
+  read so a reused pane ID cannot inherit a grant.
+- `pane.events --after-seq` returns bounded, coalesced changes from `capture-pane`.
+  `pane.snapshot --lines N` returns the tail.
 - Reject reads when the grant is absent or revoked, or when the capture is stale or the
-  pane identity differs. The watch API reads pane output. Dispatch handles keystrokes.
-  Authenticate access to pane metadata.
+  pane identity differs. The watch API is read-only. It never sends keystrokes or
+  drives a pane. Authenticate access to pane metadata.
 
 ### 3.7 TUI task board (ORC-7)
 
-The Tasks view reads `orch.store.json` and follows `events.subscribe` . It uses the
+The Tasks view reads `orch.store.json` and follows `events.subscribe`. It uses the
 navigator's Catppuccin theme.
 
 | Key | Action |
 | --- | --- |
-| `T` | Show runs and their tasks, with state, dependencies, blockers, and age. |
+| `T` | Show runs and their tasks, with state, owner, channel, dependencies, blockers, and age. |
 | `D` on an agent | Open the spec editor, then create and dispatch the task. |
 | `H` on a task | Show recent mailbox messages and the report. |
+| `O` on a task | Take ownership of a headless SDK or ACP worker and open its conversation in a tmux tab running the native CLI. Prompts for `after-turn` or `now` when a turn is running. |
+| `R` on a human-owned task | Return ownership from the tmux CLI tab back to `orchd` after the CLI exits. |
 | `x` | Cancel the task. |
-| `Enter` | Open the terminal task's pane. |
+| `Enter` | Focus the tmux pane for a human-owned task, or open task details and takeover actions for a headless SDK or ACP task. |
 | `u` | Revoke the selected row's watch grant. |
 
-A watch request opens an approval dialog with `y` and `n` . Agent rows show a task badge
+A watch request opens an approval dialog with `y` and `n`. Agent rows show a task badge
 alongside the pane's attention state.
 
 ### 3.8 MCP and skills (ORC-8)
 
-Pass `spaces __orch-mcp-bridge` to ACP agents in `session/new` . The bridge forwards
-stdio requests to `orch.sock` using the task token from the environment. Issue a token
-at dispatch, store its SHA-256 hash, and revoke it when the task reaches a terminal
-state. Tokens expire after 24 hours.
+Pass `spaces __orch-mcp-bridge` to SDK and ACP workers at session start. The bridge
+forwards stdio requests to `orch.sock` using the task token from the environment. Issue
+a token at dispatch, store its SHA-256 hash, and revoke it when the task reaches a
+terminal state or transfers to human ownership. Tokens expire after 24 hours.
 
-The MCP tools are `orch_delegate` (async with wake or blocking wait), `orch_task_status`
-, `orch_task_cancel` , `orch_ask` , `orch_check` , `orch_done` , `orch_watch_request` ,
-and `orch_read_pane` . Terminal workers use the corresponding CLI commands from the
-preamble.
+The MCP tools are `orch_delegate` (async with wake or blocking wait),
+`orch_task_status`, `orch_task_cancel`, `orch_ask`, `orch_check`, `orch_done`,
+`orch_watch_request`, and `orch_read_pane`. Workers and interactive human-driven
+coordinators can also invoke the corresponding `spaces task` CLI commands from shell
+tools when MCP is not configured.
+
+`orchd` checks `owner == "orchestrator"` and `ownership_epoch` on every mutating
+coordinator call. If a human took over a child worker, coordinator writes return
+`orch_ownership_conflict`, and `orch_check` delivers the `ownership_transferred` system
+notice so the coordinator does not retry or overwrite the human session.
 
 Each skill has a short `skills/<topic>/STUB.md` with `name` and `description`
 frontmatter, plus a `GUIDE.md` with instructions. Both ship in the binary through
-`go:embed` , so `spaces skills get <topic>` returns the guide for that binary's version.
-Install stubs under `~/.agents/skills/<name>/SKILL.md` . Use the agent registry to link
+`go:embed`, so `spaces skills get <topic>` returns the guide for that binary's version.
+Install stubs under `~/.agents/skills/<name>/SKILL.md`. Use the agent registry to link
 them into harness directories and keep local edits on reinstall.
 
 The first guides cover orchestration, tmux-spaces navigation and attention, and router
@@ -761,22 +844,94 @@ model selection. Keep review loops, handoffs, and coordinator patterns in the gu
 
 ### 3.9 Recovery (ORC-9)
 
-At startup, replay `orch-spool.jsonl` and rebuild the stored views from `orch.log.jsonl`
-. Check every non-terminal task, retry queued effects without applying them twice, and
+At startup, replay `orch-spool.jsonl` and rebuild the stored views from `orch.log.jsonl`.
+Check every non-terminal task, retry queued effects without applying them twice, and
 write `system` messages.
 
-- For a terminal task, check `tmux list-panes -F` and the hook record. Reattach
-  supervision if the pane still exists and its compound identity matches. Mark the task
-  `orphaned` if its pane is gone.
-- For an ACP task, resume a saved session ID with `session/resume` if the adapter
-  supports it. Mark other tasks `orphaned` .
-- `tmux-spaces resurrect` restores layouts and native conversations with new pane IDs.
-  Restore orchestration supervision only when the saved `pane_pid` or start marker
-  matches. Otherwise mark the task `orphaned` so it can be dispatched again.
+- For an `orchestrator`-owned SDK or ACP task, resume the saved `native_session_id`
+  through the SDK's resume call or ACP `session/load` or `session/resume` if the
+  adapter supports it. Mark other tasks `orphaned`.
+- For a `human`-owned task, check `tmux list-panes -F` and the hook record. Keep the
+  pane link active if the pane still exists and its compound identity matches. If the
+  pane closed, retain the saved `native_session_id` so the user can reopen or return
+  ownership.
+- For a task stuck in `handing_off` across a daemon crash, verify that the headless
+  process has exited and check whether a matching resumed tmux pane already exists. If
+  the pane exists, finish setting `owner` to `human`. If no pane exists and
+  `native_session_id` is saved, complete the takeover by opening the resumed tmux tab
+  or mark the task `orphaned` for explicit retry.
 
-`spaces orch status` and `harness doctor` report daemon, socket, store, and log health. They also check ACP registration and skill installation.
+`spaces orch status` and `harness doctor` report daemon, socket, store, and log health. They also check SDK and ACP registration and skill installation.
 
-### 3.10 Deltas from the Zellij-era plan
+### 3.10 Ownership model and human takeover (ORC-10)
+
+Every orchestrated conversation obeys a single-writer rule. A headless ACP or SDK
+process and an interactive native CLI process never hold the same `native_session_id`
+open at the same time. `orchd` enforces this rule with two fields on every task:
+`owner` (`orchestrator`, `handing_off`, or `human`) and a monotonic `ownership_epoch`
+that increments on every transfer.
+
+```text
+orchestrator (headless ACP/SDK in orchd)
+    │
+    │  task.takeover (after-turn or mid-turn now)
+    ▼
+handing_off (freeze coordinator writes, drain or cancel turn, flush & close ACP)
+    │
+    │  open tmux tab with native CLI resumed on native_session_id
+    ▼
+human (native CLI in tmux pane, observed passively by spacecore)
+    │
+    │  optional: task.return (after native CLI exits and releases session lock)
+    ▼
+orchestrator (reload native_session_id via ACP session/load or session/resume)
+```
+
+Transfer paths:
+
+1. **Takeover after completion or at turn end (`--mode after-turn`).** When the task is
+   already `done`, `failed`, `blocked`, or idle, `orchd` sets `owner` to `handing_off`,
+   increments `ownership_epoch`, calls `CloseForTakeover(..., "after-turn")` on the
+   headless adapter to flush and close the session, and opens a new tmux window in the
+   chosen space using the `ATT-4` resume path (`spacelaunch` plus
+   `spaceresume.ResumeArgs` with the task's `agent`, `profile`, `native_session_id`,
+   and `cwd`). For a `claude` worker, the new tmux tab runs the native `claude` CLI
+   resumed to that conversation instead of ACP. When a turn is still running and the
+   user selects `after-turn`, `orchd` sets `pending_takeover` to `"human"`, blocks new
+   coordinator prompts, waits for the active turn to finish, and then runs the same
+   close-and-open transition.
+2. **Mid-turn takeover (`--mode now`).** When the user wants to interrupt a running
+   headless worker and steer it directly, `orchd` sets `owner` to `handing_off`,
+   increments `ownership_epoch`, and calls `CloseForTakeover(..., "now")`. The driver
+   sends `session/cancel` or the provider SDK interrupt, waits up to a bounded grace
+   period for the agent to persist partial messages and completed tool results,
+   terminates the subprocess if it does not exit cleanly, and opens the tmux tab with
+   the native CLI resumed on `native_session_id`.
+3. **Post-takeover observation and coordinator notice.** Once the tmux pane starts,
+   `orchd` sets `owner` to `human`, writes the new pane identity (`session`, `window`,
+   `pane`, `pane_pid`) into `dispatch`, and stops managing the conversation over ACP.
+   From that point, `spacecore` observes the pane through the native CLI telemetry stack
+   (hooks, `model-router` feed, OTLP, native daemon watchers, OSC 7501, and Herdr screen
+   rules in §12). `orchd` revokes the worker's automated token and posts a `system`
+   message (`ownership_transferred`) to the parent run and task mailboxes so the
+   coordinator, such as `antigravity`, knows the human took control and stops
+   waiting. Any stale coordinator write carrying an older `ownership_epoch` fails with
+   `orch_ownership_conflict`.
+4. **Fallback when exact CLI resume is unavailable.** If an adapter does not share an
+   on-disk session store with its native CLI, or if a mid-turn cancel occurred before
+   turn 1 persisted a `native_session_id`, `orchd` returns `orch_resume_unavailable`
+   instead of silently dropping context. The CLI and Tasks view offer an explicit
+   fallback that opens a fresh native CLI tab pre-seeded with the task spec, mailbox
+   messages, and recent ACP transcript output, sharing the handoff format with `HOF-1`.
+5. **Optional return to the orchestrator (`spaces task return <id>`).** After finishing
+   interactive steering in the tmux CLI tab, the user exits the native CLI so its
+   session file locks close, then runs `spaces task return <id>` or presses `R` on the
+   task board. `orchd` verifies the pane's CLI process has exited, increments
+   `ownership_epoch`, reloads `native_session_id` over ACP or SDK via `session/load` or
+   `session/resume`, records any optional human summary in the parent mailbox, and
+   returns `owner` to `orchestrator`.
+
+### 3.11 Deltas from the Zellij-era plan
 
 | Zellij-era design | tmux equivalent |
 | --- | --- |
@@ -795,71 +950,90 @@ The orchestration model carries over. It retains runs, tasks, mailboxes, depende
 depth limits, the worker preamble, ACP, MCP, skills, the event log, and retryable
 commands and effects.
 
-### 3.11 Package layout and ownership
+### 3.12 Package layout and ownership
 
 Keep the daemon, drivers, bridge, and skills in the root module. The plugin keeps its
 task client and views behind the TUI's `Backend` interface.
 
 ```
-internal/harness/orchapi/    wire types, method table, error codes, schema
-internal/harness/orchcore/   state machine, store/log/spool, daemon, tokens, outbox
-internal/harness/orchacp/    ACP client + registry
-internal/harness/orchterm/   tmux terminal driver (Runner seam)
-internal/harness/orchmcp/    MCP bridge + toolkits
-internal/harness/skills/     stubs/guides (go:embed), install fan-out
+internal/harness/orchapi/      wire types, method table, error codes, schema
+internal/harness/orchcore/     state machine, ownership lock, store/log/spool, daemon, tokens, outbox
+internal/harness/orchsdk/      agent-provided SDK drivers (Claude Agent SDK, Codex app-server, OpenCode)
+internal/harness/orchacp/      ACP client, adapter registry, and takeover flush
+internal/harness/orchhandoff/  tmux tab opener for ORC-10 human takeover and ORC-6 read-only pane watch
+internal/harness/orchmcp/      MCP bridge + toolkits
+internal/harness/skills/       stubs/guides (go:embed), install fan-out
 plugins/tmux-spaces/internal/tasks/  TUI task client + view model
 ```
 
 | Owner | Packages and responsibilities |
 | --- | --- |
-| E | `orchapi` and `orchcore`. State machine, store, log, spool, daemon, tokens, waits, method table, and `noop` driver. |
-| F | `orchterm`, `orchacp`, and `orchmcp`. Use E's packages, `spacelaunch`, `agents`, and `spaceresume` without editing them. |
+| E | `orchapi` and `orchcore`. State machine, ownership epochs, store, log, spool, daemon, tokens, waits, method table, and `noop` driver. |
+| F | `orchsdk`, `orchacp`, `orchhandoff`, and `orchmcp`. Use E's packages, `spacelaunch`, `agents`, and `spaceresume` without editing them. |
 | G | `skills`, dispatch for `orch`, `task`, `watch`, and `skills` in `cmd/harness`, and smoke scripts. |
-| H | Plugin task client, Tasks view, and watch approvals behind `Backend`. |
+| H | Plugin task client, Tasks view, takeover actions, and watch approvals behind `Backend`. |
 
 Go's module boundary keeps the plugin from importing the root module's internal
 packages. Define the task response structs in the plugin as it already does for hook
 summaries.
 
-### 3.12 Phasing
+### 3.13 Phasing
 
 1. **M1.** Build `orchapi` and `orchcore` with the v1 method table, state machine,
-   store, event log, spool replay, and mailboxes. Wire `spaces orch` , `spaces task` ,
-   and `check --wait` . Run every command against fake tasks using the `noop` driver.
-2. **M2.** Implement the terminal driver through the tmux runner. Add detached dispatch,
-   readiness checks, prompt delivery, hook-based supervision, wait signals, and
-   cancellation. Add watch grants, an output cursor, and the Tasks view.
-3. **M3.** Add ACP protocol negotiation, session setup, updates, cancellation, and
-   resume. Load the ACP registry and pass the MCP bridge to ACP sessions.
-4. **M4.** Add task tokens, the `orch_*` tools, async delegation with wake, blocking
-   waits, and question relay. Ship the orchestration guide through `spaces skills` .
+   ownership fields, store, event log, spool replay, and mailboxes. Wire `spaces orch`,
+   `spaces task`, and `check --wait`. Run every command against fake tasks using the
+   `noop` driver.
+2. **M2.** Implement the provider SDK driver (`ORC-2`) and ACP driver (`ORC-3`) with
+   `auto` selection preferring `sdk` over `acp`, protocol negotiation,
+   `native_session_id` capture, structured updates into `spacecore`, cancellation,
+   resume, and the Tasks view (`ORC-7`).
+3. **M3.** Add `ORC-10` ownership transfer (`spaces task takeover` in `after-turn` and
+   `now` modes, plus `spaces task return`) opening resumed native CLI tabs via `ATT-4`,
+   and add read-only pane watch grants (`ORC-6`).
+4. **M4.** Add task tokens, the `orch_*` MCP tools (`ORC-8`), ownership-epoch
+   enforcement on coordinator writes, async delegation with wake, blocking waits, and
+   question relay. Ship the orchestration guide through `spaces skills`.
 
-### 3.13 Testing bar
+### 3.14 Testing bar
 
 - Run `go test ./...` with temporary directories and environment overrides. Use fake
-  tmux runners or temporary scripts so tests need no real home directory, network, mux,
-  or agent.
+  SDK adapters, fake ACP processes, and fake tmux runners so tests need no real home
+  directory, network, mux, or agent.
 - Table-test command and event sequences for depth limits, dependency order, cycle
-  rejection, stale receipts, and deterministic replay.
+  rejection, stale receipts, ownership epochs, and deterministic replay.
 - Test the Unix socket in a temporary runtime directory. Use `net.Pipe` for fake peers
   and an injectable clock for long-poll wake. Cover authorization and peer credentials.
-- Test terminal dispatch with a fake tmux runner and hook store fixtures. Cover each
-  blocker kind, dead panes, orphaned tasks, and mismatched pane identities.
-- Use a fake ACP agent for both protocol versions, prompts, updates, question callbacks,
-  and cancellation.
+- Test `auto` driver selection. Verify that an agent with both SDK and ACP adapters
+  picks `sdk`, an agent with only ACP picks `acp`, and an agent with neither returns
+  `orch_channel_unavailable` without opening a tmux pane.
+- Use fake SDK and ACP adapters for protocol negotiation, prompts, `native_session_id`
+  persistence, updates, question callbacks, cancellation, and `CloseForTakeover`.
+- Test `ORC-10` takeover and return end-to-end with fake SDK/ACP drivers and a fake
+  tmux tab opener. Verify `after-turn` waits for turn completion, `now` cancels and
+  flushes before opening the resumed tmux tab, no headless process stays alive once the
+  tmux tab opens, stale coordinator calls return `orch_ownership_conflict`, missing
+  session IDs return `orch_resume_unavailable`, crash recovery settles `handing_off`,
+  and `task return` refuses while the native CLI PID is still active.
+- Test `ORC-6` read-only watch grants for compound pane identity checks, revocation,
+  and rejection of ungranted reads.
 - Verify MCP tool calls produce the expected commands and events. Test token issue,
-  revocation, and expiry with an injected clock.
+  revocation on takeover, and expiry with an injected clock.
 - Test skill planning and installation in a fake home. Confirm that reinstalls preserve
   local edits and leave the same symlinks.
-- In `scripts/spaces-orch-smoke.sh` , create a task, dispatch it to a fake agent,
-  complete it, and receive the result through `check --wait` .
+- In `scripts/spaces-orch-smoke.sh`, create a task, dispatch it to a fake headless
+  adapter, complete it, and receive the result through `check --wait`.
 
-### 3.14 Non-goals and future work
+### 3.15 Non-goals and future work
 
-- Run one `orchd` . The ACP agents and MCP bridge account for the extra processes needed
-  per task.
-- Reach registered agents through ACP or terminal drivers. Add native provider SDK
-  drivers later under the same interface if needed.
+- Run one `orchd`. The headless SDK and ACP workers plus the MCP bridge account for the
+  extra processes needed per task.
+- Do not drive terminals manually for agent orchestration. `orchd` never dispatches or
+  controls orchestrated workers via `tmux send-keys` or screen scraping. Every worker
+  runs through an agent-provided SDK or ACP; tmux tabs open only when a human takes
+  ownership under `ORC-10`.
+- Keep explicit `harness <agent>` launches on each agent's native CLI (§12). Reserve
+  the built-in ACP control pane (§13) for bare `harness` invocations and headless
+  worker inspection.
 - Use the JSON store and size-limited JSONL log. If volume calls for SQLite, change the
   store that reads and writes the current view.
 - Add `--worktree new` after basic dispatch is ready. Use `cwd` for placement and share
@@ -910,8 +1084,11 @@ JSON output.
 | Spaces, next | Queue a prompt for a named agent, see delivery stalls, resume the exact conversation, and wait for state changes without polling. |
 | Spaces, later | Launch a profiled agent in a new worktree, see setup progress in the Inbox, and review the task diff. |
 | Automations, first | Create a weekday cron job or a heartbeat in the popup, test it with Run now, and inspect a scheduled run after closing tmux. |
-| Orchestration M2 | Dispatch to a named agent in a worktree from the board and answer the worker's question there. The completion report survives detach and reattach. This path uses event-driven waits. |
-| Orchestration M4 | Have an ACP coordinator delegate a review through MCP, receive the child's report, and finish the review in the same thread. This path uses task tokens, question relay, and delegation depth limits. |
+| Orchestration M2 | Dispatch headless workers through an agent's SDK when available or ACP otherwise, inspect structured progress and answer worker questions on the board, and survive daemon restarts. |
+| Orchestration M3 | Transfer ownership of any headless worker to `human` either after a turn or mid-turn, opening the exact conversation in a resumed native CLI tmux tab, and optionally return ownership to `orchd` after closing the CLI. |
+| Orchestration M4 | Have a coordinator such as `antigravity` delegate tasks to `claude` workers through MCP, enforce ownership epochs, and receive completion reports with depth limits and task tokens. |
+| Passive telemetry | View exact models, turn timings, token usage, tool calls, and native daemon events in `tmux-spaces` from `model-router`, OTLP, and OpenCode SSE while humans stay on native CLIs. |
+| ACP control pane | Run bare `harness` with no agent argument to open a built-in Bubble Tea ACP and SDK control pane, drive direct sessions or `orchd` workers, approve permissions inline, and pop any session out to a native CLI tmux tab. |
 | Sandbox Phase 1 | Run a router-backed agent profile in an ephemeral or persistent Docker container using the host CLI binary, with traffic forwarded to the host `model-router` over a Unix socket. |
 | Sandbox Phase 2 | Run direct OAuth agent profiles in a sandbox with one-way copied auth files and read-only host bundle mounts, without modifying host profiles. |
 | Mobile, prototype | Read structured agent chats, answer approvals, queue prompts, and drop into a live tmux terminal from a mobile-first PWA over Tailscale. |
@@ -1755,3 +1932,486 @@ Testing bar:
 - Unit-test `plugins/kitty-spaces` in Python with fake Kitty `boss` and `window` objects
   and `plugins/wezterm-spaces` in Lua with a fake `wezterm` table and `harness` JSON
   fixtures so all plugin tests run headless.
+
+## 12. Passive telemetry for native CLIs
+
+**Proposed.** Builds on `ATT-1` (§1.1), `ATT-10` (§1.9), `TSK-2` (§2.2), `API-1` (§4),
+`internal/accounting`, `internal/harness/agents/resolve.go`, and
+`internal/harness/spacecore`. The implementation phases are in §12.5.
+
+Human-controlled tmux panes keep running each agent's native CLI. ACP is reserved for
+headless orchestrated workers (§3) because agents disable their interactive TUI in ACP
+mode. To get structured turn, model, tool, and token telemetry for human-driven panes
+without replacing native CLIs, add three passive sideband collectors that publish
+normalized events into `spacecore`.
+
+### 12.1 Architecture and source precedence (TEL-4)
+
+**Proposed.**
+
+All three sideband collectors write into the same `spacecore` store that `ATT-1` owns.
+`tmux-spaces` reads one resolved snapshot for the Navigator, Attention Inbox, Tabs
+inspector, status bar, and `API-1` event feed.
+
+```text
+tmux pane (human driving native CLI)
+  ├── hooks (JSON stdin) ──────────────────────────┐
+  ├── OSC 7501 via pipe-pane (__osc-watch) ────────┤
+  ├── Herdr screen rules (capture-pane fallback) ──┤
+  ├── model-router session feed (TEL-1) ───────────┼──▶ spacecore (ATT-1 single owner)
+  ├── local OTLP HTTP receiver (TEL-2) ────────────┤         │
+  └── agent-native daemon SSE watcher (TEL-3) ─────┘         ▼
+                                                    tmux-spaces / TSK-2 / API-1
+```
+
+Precedence and merge rules:
+
+- **Blocker authority.** Native hooks, native daemon permission events, and visible
+  Herdr screen blockers keep ownership of `blocked` states (`permission`, `question`,
+  `auth`). Neither `model-router` nor OTLP directly observes terminal approval modals,
+  so router or OTLP updates enrich metadata without clearing an active blocker.
+- **Native daemon authority.** When an agent-native daemon watcher (`TEL-3`) is active
+  for a pane, its structured session, tool, and permission events carry the same
+  priority as hooks and suppress screen-inferred `working` and `idle` transitions for
+  that pane.
+- **Model, turn, and usage authority.** `model-router` events (`TEL-1`) and OTLP spans
+  (`TEL-2`) own canonical model IDs, token counts, cache hit counts, latency, and
+  upstream API error codes. When both exist for the same turn, `model-router` supplies
+  upstream provider routing and cost accounting while OTLP supplies local tool spans.
+- **Source attribution.** Every record field tracks its producer (`hook`, `daemon_sse`,
+  `router`, `otlp`, `osc7501`, `screen`) so `ATT-10` in the `H` detail overlay and
+  `tmux-spaces panes --explain` reports which source set each value and why it won.
+
+### 12.2 Model router session-correlated telemetry (TEL-1)
+
+**Proposed.**
+
+`internal/harness/agents/resolve.go` already creates a per-launch router session key
+with `harnessenv.NewRouterSession()` for routed agents (`claude`, `codex`, `grok`,
+`cline`, `copilot`, `kimi-cli`, `fx`, `vibe`, `gemini`, `antigravity`, and `muse`).
+Bind that key to the originating tmux pane so `model-router` can publish passive turn
+telemetry across every routed agent, including CLIs that lack hooks.
+
+- **Launch registration.** When `spacelaunch` starts a routed profile inside tmux, it
+  registers a binding from `router_session` to `tmux_session`, `tmux_pane`, `pane_pid`,
+  `agent`, `profile`, and `cwd` with `spacecore` and `model-router`.
+- **Non-blocking event emission.** During request handling, `model-router` emits
+  structured JSON events over `h.sock` without stalling proxy streaming:
+  `router_turn_start`, `router_stream_progress`, `router_tool_requested`,
+  `router_turn_end`, and `router_error`. Each event includes the canonical model ID,
+  upstream provider, input and output token counts, cached tokens, estimated cost from
+  `internal/accounting`, response duration, requested tool names, and upstream error
+  details.
+- **Pending tool hint.** When an upstream response finishes with one or more `tool_use`
+  calls and no follow-up request arrives within a configurable grace window, `spacecore`
+  keeps the pane `working` and sets a `waiting_on` hint for local tool execution or
+  human approval. Hooks or Herdr screen rules promote that state to `blocked` if a
+  permission prompt appears on screen.
+- **Scope boundary.** `TEL-1` covers router-backed profiles (`Profile.Router` true).
+  Direct OAuth profiles (`--no-router`) bypass `model-router` and use hooks, `TEL-2`, or
+  `TEL-3`.
+
+[Agent launch resolution](../internal/harness/agents/resolve.go) ·
+[Router accounting](../internal/accounting/accounting.go) ·
+[Usage view](#22-usage-and-quota-by-agent-tsk-2)
+
+### 12.3 Local OpenTelemetry receiver (TEL-2)
+
+**Proposed.**
+
+OpenTelemetry runs passively inside native CLIs without changing interactive terminal
+behavior. Add a lightweight loopback OTLP receiver to the `spacecore` daemon so
+OTLP-capable agents emit structured telemetry on both routed and `--no-router` direct
+profiles.
+
+- **Loopback OTLP endpoint.** Run an OTLP/HTTP JSON listener on `127.0.0.1` with an
+  ephemeral port inside the `spacecore` daemon. Record the port and a per-daemon bearer
+  token in `hooks.endpoint.json` with mode `0600`. Add optional OTLP/gRPC support later
+  only if a target CLI requires gRPC.
+- **Automatic launch wiring.** For CLIs that support standard OpenTelemetry exports
+  (`claude`, `codex`, `gemini`, and future OTLP-capable agents), `spacelaunch` injects
+  `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`,
+  `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_RESOURCE_ATTRIBUTES` containing
+  `spaces.session`, `spaces.pane`, `spaces.pane_pid`, `spaces.agent`, and
+  `spaces.profile`. Honor an explicit opt-out flag (`HARNESS_OTEL=0`) and never
+  overwrite user-configured OTLP endpoints.
+- **GenAI span and metric mapping.** Parse OTLP trace spans, log records, and metrics
+  in `internal/harness/telemetry/otlp`. Extract model names, token totals, turn
+  durations, tool call names, tool latencies, and tool failures, then merge them into
+  the pane's `spacecore` record and `TSK-2` usage rollups.
+- **Boundary with hooks and screen rules.** OTLP reports completed and in-flight spans
+  rather than interactive TUI modals. Keep hooks and Herdr screen detection active for
+  permission and question blockers.
+
+### 12.4 Agent-native daemon and SSE watchers (TEL-3)
+
+**Proposed.**
+
+Some terminal agents already separate their interactive TUI from a local server process.
+Subscribing to that local server gives full structured telemetry while the human uses
+the agent's native TUI.
+
+- **Watcher interface.** Define a `DaemonWatcher` interface in
+  `internal/harness/telemetry/daemon` that discovers a pane's local server endpoint,
+  subscribes to its native event stream, and publishes normalized events to `spacecore`.
+- **OpenCode adapter first.** `agents.Resolve` already launches OpenCode with
+  `--standalone`, which runs a private local server per TUI. Configure a dedicated
+  loopback port or Unix socket per pane at launch, or discover the bound port from the
+  pane's process tree, and subscribe to OpenCode's HTTP SSE stream (`session.busy`,
+  `session.idle`, `tool.execute.before`, `tool.execute.after`, `permission.asked`,
+  `message.updated`, and child subagent sessions). Map these events directly into
+  `spacecore` so the Tabs inspector and Inbox show live tool payloads, replies,
+  permissions, and subagents with zero screen scraping.
+- **Additional client-server CLIs.** Add adapters under the same `DaemonWatcher`
+  interface as other CLIs ship attachable local daemons, such as Codex `app-server`
+  when its interactive TUI connects to a shared local server.
+- **Lifecycle cleanup.** Tie every watcher goroutine to the pane's compound identity
+  and PID liveness so `spacecore` closes the SSE connection as soon as the agent exits
+  or returns to a shell.
+
+[OpenCode launch wiring](../internal/harness/agents/resolve.go#L103-L106) ·
+[Tabs inspector telemetry](../plugins/tmux-spaces/internal/tui/tabs_inspector.go)
+
+### 12.5 Package layout, phasing, and testing bar
+
+Keep all collectors in the root Go module under `internal/harness/telemetry` with no
+heavy third-party OpenTelemetry SDK dependencies. Decode OTLP/HTTP JSON directly with
+the standard library `encoding/json` and `net/http`.
+
+```text
+internal/harness/telemetry/
+  envelope.go     shared producer metadata and source attribution helpers
+  routerfeed/     session-to-pane registry and model-router event publisher (TEL-1)
+  otlp/           loopback OTLP/HTTP JSON receiver and GenAI span/metric mapper (TEL-2)
+  daemon/         DaemonWatcher interface, PID lifecycle manager, and OpenCode SSE adapter (TEL-3)
+```
+
+Phases:
+
+1. **Phase 1.** Add `TEL-4` source attribution and merge precedence in `spacecore` and
+   `ATT-10` explain output.
+2. **Phase 2.** Ship `TEL-1` router session registration in `spacelaunch` and
+   non-blocking turn, tool, error, and usage event publishing from `internal/server` to
+   `spacecore`.
+3. **Phase 3.** Ship `TEL-2` loopback OTLP/HTTP JSON receiver in `spacecore` and
+   environment injection in `spacelaunch` for `claude`, `codex`, and `gemini`.
+4. **Phase 4.** Ship `TEL-3` `DaemonWatcher` lifecycle manager and the OpenCode SSE
+   adapter.
+
+Testing bar:
+
+- Unit-test `spacecore` precedence with mixed producer fixtures. Verify that `router`
+  and `otlp` events enrich model, token, and timing fields without clearing a live
+  `hook`, `daemon_sse`, or visible `screen` permission blocker.
+- Test `routerfeed` end-to-end against a fake `model-router` handler and a temporary
+  `h.sock`, covering streaming turns, `tool_use` waiting hints, upstream 429 and 500
+  errors, and backpressure drop behavior when `h.sock` is slow.
+- Table-test `otlp` against synthetic OTLP/HTTP JSON payloads for traces, logs, and
+  metrics, verifying bearer token auth, `spaces.*` resource attribute correlation, and
+  preservation of user-defined `OTEL_EXPORTER_OTLP_ENDPOINT` values.
+- Test the OpenCode `DaemonWatcher` against an `httptest.Server` streaming synthetic
+  SSE events, verifying reconnect backoff, permission and subagent mapping, and clean
+  teardown when the pane PID exits.
+
+## 13. Built-in ACP control pane in `harness`
+
+**Proposed.** Builds on `ORC-2` and `ORC-3` (§3.3), `ORC-4` (§3.4), `ORC-10` (§3.10),
+`ATT-4` (§1.3), `CONV-1`, `TSK-2` (§2.2), `spacecore`, and `cmd/harness/main.go`. The
+implementation phases are in §13.5.
+
+Running bare `harness` with no agent argument on an interactive terminal opens a
+built-in Bubble Tea ACP control pane directly inside the `harness` Go binary. Explicit
+invocations such as `harness claude` or `harness codex profile work` still exec each
+agent's native CLI untouched under §12. Bare `harness` gives the user one native Go
+TUI that can drive any registered SDK or ACP agent directly, monitor and approve
+headless `orchd` workers, and pop any session out into a native CLI tmux tab on
+demand.
+
+### 13.1 Entrypoint and system architecture (ACP-1)
+
+**Proposed.**
+
+Update `run()` in `cmd/harness/main.go` so `len(args) == 0` checks whether stdin and
+stdout are interactive TTYs. On a TTY, bare `harness` launches `acptui.Run()` in the
+current working directory. When stdin or stdout is not a TTY, bare `harness` prints
+usage to stderr and exits with code 2 so scripts and pipelines never block on a TUI.
+Keep `HARNESS_AGENT` resolution before bare-launch handling so external callers such as
+T3 Code keep their current direct-exec behavior. Add an optional `harness ui` alias
+with `--agent`, `--profile`, `--cwd`, and `--session` flags for opening straight into a
+chosen session.
+
+The control pane sits over one `SessionController` interface with two backing sources:
+
+- **Direct local sessions.** The default mode requires no running `orchd`. The control
+  pane resolves a profile through `agents` and `spacelaunch`, starts the target agent
+  via `orchsdk` (`ORC-2`) when an agent-provided SDK exists or `orchacp` (`ORC-3`)
+  otherwise, and owns that child process for the lifetime of the session tab.
+- **Orchestrator-attached sessions.** When `orch.sock` is reachable, `acptui` subscribes
+  to `orchd` via `events.subscribe` and shows active orchestrated runs and headless
+  workers in the same session rail. Actions such as answering a permission prompt,
+  cancelling a turn, or taking ownership route through `orch.sock` with the task's
+  `ownership_epoch`.
+
+```text
+bare `harness` (TTY in tmux or standalone terminal)
+  └─▶ internal/harness/acptui (Bubble Tea TUI)
+        ├── Session Rail (direct SDK/ACP sessions + live orchd workers)
+        ├── Timeline View (Markdown, thinking, tool calls, diffs, approval cards)
+        └── Composer (@files, /commands, model/profile switcher, queue, Ctrl-o pop-out)
+              │
+              ▼
+       SessionController
+        ├── Direct local mode ──▶ orchsdk (ORC-2) / orchacp (ORC-3)
+        ├── Orchestrator mode ──▶ orch.sock (ORC-4 / ORC-10)
+        ├── History & resume  ──▶ convstore (CONV-1) / ATT-4
+        ├── Pop-out handoff   ──▶ orchhandoff (opens resumed native CLI tmux tab)
+        └── Live telemetry    ──▶ spacecore h.sock + @spaces_* (zero screen scraping)
+```
+
+### 13.2 ACP and SDK client runtime (ACP-2)
+
+**Proposed.**
+
+`internal/harness/acptui/runtime.go` implements the client side of ACP and consumes the
+shared driver interfaces from `orchsdk` and `orchacp`.
+
+- **Session lifecycle.** Negotiate protocol capabilities with `initialize`, pass
+  working directory and configured MCP servers to `session/new`, resume prior
+  conversations via `session/load` or SDK resume, submit turns with `session/prompt`,
+  cancel active turns with `session/cancel`, and apply runtime model or mode changes
+  when the adapter advertises them.
+- **Permission callbacks.** Handle `session/request_permission` by pinning a structured
+  approval card above the composer with the exact tool name, shell command or file
+  diff, and the adapter's option choices. While the card awaits input, publish
+  `blocked` with kind `permission` to `spacecore` so `tmux-spaces` status bars,
+  Attention Inbox, and terminal notifications (`TERM-2`) alert the user if the pane is
+  unfocused.
+- **Client filesystem and terminal callbacks.** Implement `fs/read_text_file` and
+  `fs/write_text_file` scoped to the workspace root or linked Git worktree, rejecting
+  out-of-tree paths unless approved and computing unified diffs for the timeline.
+  Implement `terminal/create`, `terminal/output`, `terminal/wait_for_exit`,
+  `terminal/kill`, and `terminal/release` over bounded PTY or pipe runners so agent
+  commands stream live output into collapsible tool blocks and terminate cleanly on
+  `Esc` or shutdown.
+- **Direct `spacecore` publishing.** Because the control pane owns the structured
+  event stream, emit normalized `spacecore` records (`prompt`, `pre_tool`, `post_tool`,
+  `permission`, `stop`, `stop_failure`, model ID, `native_session_id`, token totals,
+  and subagents) straight to `h.sock` and update `@spaces_*` pane options when running
+  inside tmux. `tmux-spaces` displays full telemetry for the pane running `harness`
+  without screen scraping or OSC watchers.
+
+### 13.3 Control pane UI, timeline, and composer (ACP-3)
+
+**Proposed.**
+
+Reuse the Catppuccin Mocha palette and keybindings from
+`plugins/tmux-spaces/internal/tui` so bare `harness` matches the `tmux-spaces` popups.
+
+- **Header bar.** Show the active agent, profile, canonical model ID, access level, Git
+  branch or worktree, running token and cost totals from `TSK-2`, and total active
+  sessions.
+- **Collapsible session rail.** Toggle with `Ctrl-b` or switch focus with `Tab`. List
+  direct local sessions and live `orchd` workers with attention status icons
+  (`blocked`, `working`, `done`, `failed`), channel badge (`sdk` or `acp`), and elapsed
+  turn time. Support `n` to open a new session picker for any registered SDK or ACP
+  agent and profile.
+- **Structured streaming timeline.** Render streamed assistant Markdown incrementally,
+  collapse thinking blocks behind a toggle, display tool calls with live stdout/stderr
+  and exit status, render colored unified diffs for file edits, and show subagent rows
+  matching `ATT-9`. Scroll with `PgUp`/`PgDn` or mouse wheel without losing auto-follow
+  when at the bottom.
+- **Composer and slash commands.** Support multiline editing, bracketed paste, `@`
+  fuzzy workspace file attachment, and slash commands: `/agent`, `/profile`, `/model`,
+  `/new`, `/resume`, `/diff`, `/cancel`, `/handoff`, and `/quit`. Submitting while a
+  turn is running adds the prompt to a local editable follow-up queue, and `Esc` sends
+  `session/cancel` or the SDK interrupt call.
+
+### 13.4 Orchestration integration, resume, and native CLI pop-out (ACP-4)
+
+**Proposed.**
+
+The control pane connects direct human ACP sessions with the rest of `harness` and
+`tmux-spaces`:
+
+- **Inline control of `orchd` workers.** Selecting an `orchd` worker in the session rail
+  displays its live structured stream, mailbox messages, and pending approval or
+  question cards. The user can approve or deny requests, answer `orch_ask` questions,
+  or cancel the worker directly from the control pane without switching to the
+  `tmux-spaces` popup.
+- **Pop-out to a native CLI tmux tab (`Ctrl-o` or `/handoff`).** Any direct local
+  session or `orchd` worker can be handed off to the agent's native CLI in a tmux tab.
+  The control pane calls `CloseForTakeover` (prompting for `after-turn` or `now` if a
+  turn is running), waits for `native_session_id` to flush and subprocess locks to
+  close, and opens a new tmux window running the resumed native CLI via `ATT-4`
+  (`spacelaunch` plus `spaceresume.ResumeArgs`). For `orchd` workers, this invokes
+  `task.takeover` under `ORC-10` so `owner` moves to `human` and the parent coordinator
+  receives `ownership_transferred`. Outside tmux, `/handoff` prints the exact
+  `harness <agent> profile <p> --resume <id>` command or replaces the current process
+  via `exec`.
+- **Conversation resume via `convstore`.** Running `/resume` queries the local
+  `convstore` SQLite index (`CONV-1`) filtered by workspace or agent and reopens
+  compatible sessions through `session/load` or SDK resume.
+
+### 13.5 Package layout, dependencies, phasing, and testing bar
+
+Root `go.mod` currently pins only `go-toml/v2` and `modernc.org/sqlite`. Adding the
+built-in control pane adds `github.com/charmbracelet/bubbletea`,
+`github.com/charmbracelet/lipgloss`, and `github.com/charmbracelet/x/ansi` to the root
+module at the same versions already used in `plugins/tmux-spaces/go.mod`, keeping
+`harness` a single static Go binary.
+
+```text
+internal/harness/acptui/
+  app.go         Bubble Tea root model, layout, keymap, TTY entry
+  rail.go        session list merging direct SDK/ACP sessions and orchd workers
+  timeline.go    incremental Markdown, thinking, tool call, diff, and approval view
+  composer.go    multiline editor, @file picker, /command router, follow-up queue
+  runtime.go     direct SessionController over orchsdk/orchacp, FS/terminal callbacks, spacecore emitter
+  orchbridge.go  orch.sock subscription, approval relay, ORC-10 pop-out trigger
+  theme.go       Catppuccin Mocha palette matching plugins/tmux-spaces/internal/tui/theme.go
+```
+
+Phases:
+
+1. **Phase 1.** Wire bare `harness` TTY detection in `cmd/harness/main.go`, add
+   `acptui` shell with agent/profile picker, direct `orchacp` and `orchsdk` session
+   runtime, streaming timeline, multiline composer, and direct `spacecore` publishing.
+2. **Phase 2.** Add inline `session/request_permission` cards, scoped `fs/*` and
+   `terminal/*` client callbacks, unified file diffs, `@` file mentions, and follow-up
+   queuing.
+3. **Phase 3.** Add the collapsible multi-session rail, `/resume` over `convstore`, and
+   `Ctrl-o` / `/handoff` pop-out to a native CLI tmux tab using `CloseForTakeover` and
+   `ATT-4`.
+4. **Phase 4.** Connect `orchbridge.go` to `orch.sock` so bare `harness` monitors
+   headless `orchd` workers, answers worker prompts inline, and executes `ORC-10`
+   ownership transfers.
+
+Testing bar:
+
+- Unit-test `cmd/harness` bare invocation with fake TTY and non-TTY streams. Verify
+  that piped stdin or stdout prints usage and exits with code 2, `HARNESS_AGENT` skips
+  the TUI, and a TTY enters `acptui.Run`.
+- Drive `acptui` headless through Bubble Tea `Update` and `View` calls against fake
+  `orchsdk` and `orchacp` drivers, covering streaming Markdown chunks, tool blocks,
+  unified diffs, permission card accept and deny, `Esc` turn cancellation, and
+  follow-up queue flushing.
+- Test `fs/*` callbacks for workspace path traversal rejection and `terminal/*`
+  callbacks for bounded output capture and subprocess cleanup on cancel or quit.
+- Verify `runtime.go` emits expected `spacecore` events (`prompt`, `pre_tool`,
+  `permission`, `stop`) to a temporary `h.sock` without invoking Herdr screen rules.
+- Test `Ctrl-o` pop-out with a fake tmux runner and `orch.sock` server. Verify the
+  headless SDK or ACP process exits and flushes before the resumed native CLI command
+  launches, and verify non-tmux fallback prints or execs the resume command.
+
+[Harness CLI entrypoint](../cmd/harness/main.go) ·
+[Root Go module](../go.mod) ·
+[tmux-spaces TUI theme](../plugins/tmux-spaces/internal/tui/theme.go)
+
+## 14. Multi-profile log aggregation and analysis
+
+**Proposed.** Complements `CONV-1` (`internal/harness/convstore`), `TSK-2` (§2.2), and
+`TEL-1` through `TEL-4` (§12). Live collectors in §12 observe active sessions through
+`model-router`, OTLP, or native daemons. `logstore` covers the on-disk side: it scans and
+incrementally tails native agent logs and transcript metadata across every profile,
+including `--no-router` direct subscription profiles, sessions run outside tmux, and
+historical runs.
+
+Use the same architecture as `convstore`: one shared normalized schema and SQLite store
+backed by modular per-agent adapters.
+
+### 14.1 Shared event schema, SQLite store, and incremental cursors (LOG-1)
+
+**Proposed.**
+
+Persist normalized operational events in a dedicated SQLite WAL database alongside
+`conversations.db` so log ingestion never blocks conversation search or bloats FTS5
+tables:
+
+- **Cursor tracking.** Track each discovered log or transcript file by `source_key`
+  (`<agent>:<profile>:<clean_path>`) with `size_bytes`, `mtime_ns`, `byte_offset`, and
+  `prefix_hash`, reusing the same append-only tailing and rotation-detection pattern as
+  `convstore.SourceCursor`. When `prefix_hash` still matches, read only newly appended
+  bytes; when a log rotates or truncates, reset the offset and reparse safely.
+- **Normalized event kinds.** Start with a small set of structured event kinds:
+  `usage` (input, output, and cached token counts, model, duration), `rate_limit`
+  (HTTP 429, backoff window, quota exhaustion), `tool_call` (tool name, duration, exit
+  status, permission denial), `error` (MCP server crash, hook failure, auth expiration,
+  runtime error), and `compaction` (context reset or summary boundary).
+- **Common event columns.** Store `agent`, `profile`, `session_id`, `cwd`, `model`,
+  `ts_ms`, `kind`, `source_key`, and a compact JSON `payload` column for kind-specific
+  fields, indexed by `(agent, profile, ts_ms)`, `(kind, ts_ms)`, and `(cwd, ts_ms)`.
+- **Retention and pruning.** Bound raw event retention by age or row cap while keeping
+  daily rollup rows so `logs.db` stays small over long-running installations.
+
+### 14.2 Per-agent log adapters and profile discovery (LOG-2)
+
+**Proposed.**
+
+Mirror `convstore.Adapter` so adding or updating an agent stays isolated to one adapter
+file:
+
+- **Adapter interface.** Define `Agent() string`,
+  `Discover(ctx, env) ([]DiscoveredSource, error)`, and
+  `ParseEvents(ctx, src, prev) (*EventsResult, error)` returning normalized events plus
+  the updated `ByteOffset` and `PrefixHash`.
+- **Shared profile discovery.** Reuse `ScanEnv.ProfileShadowHomes` and
+  `ScanEnv.MarkRealPath` (factored into a shared helper if needed) so every adapter finds
+  default homes, `profiles.json` shadow homes, and on-disk profile directories under
+  `~/.model-router/profiles/<agent>/*/home` without double-counting symlinked paths.
+- **Transcript vs. runtime logs.** Some signals, such as token usage, tool call failures,
+  and compactions, live inside the same transcript files `convstore` already scans, while
+  others, such as CLI debug logs, MCP stderr logs, and OAuth refresh failures, live in
+  separate log files. Validate with the first three adapters (`claude`, `codex`, and
+  `antigravity`) whether transcript-embedded events should share a scan pass with
+  `convstore` or remain decoupled inside `logstore`.
+
+### 14.3 Rollups, diagnostics, and stall signals (LOG-3)
+
+**Proposed.**
+
+Expose aggregated views across `harness` and `spacecore`:
+
+- **Native quota and spend rollups.** Feed `harness usage` and `TSK-2` with per-agent and
+  per-profile token totals, cache hit rates, and recent 429 or quota events so direct
+  subscription profiles appear alongside router-accounted profiles. Surface profile
+  headroom hints during profile selection when a profile recently hit a rate limit.
+- **Reliability and friction reports.** Add `harness logs` (or extend `harness doctor`)
+  to summarize tool call failure rates, permission denials, flaky MCP servers, expired
+  auth tokens, and repeated failed commands grouped by agent, profile, model, and repo.
+- **Silent stall detection.** Optionally tail active log sources for live panes and emit
+  backoff or repeated-error signals into `spacecore` so the Attention Inbox flags silent
+  429 loops or stuck retries when hooks and terminal scraping see no change.
+
+### 14.4 Package layout, phasing, and testing bar
+
+```text
+internal/harness/logstore/
+  adapter.go      Adapter interface, DiscoveredSource, SourceCursor, EventsResult
+  schema.go       SQLite WAL schema for sources, events, and daily rollups
+  store.go        Sync loop, cursor persistence, retention pruning, rollup queries
+  adapters/       Per-agent log and transcript parsers (claude, codex, antigravity, ...)
+```
+
+Phases:
+
+1. **Phase 1.** Implement `LOG-1` (`logs.db` schema, cursor persistence, rotation-safe
+   JSONL/text tailing, and rollup queries) reusing `convstore`'s profile discovery helpers.
+2. **Phase 2.** Ship `LOG-2` adapters for `claude`, `codex`, and `antigravity`, covering
+   `usage`, `rate_limit`, `tool_call`, `error`, and `compaction` events across isolated
+   profiles.
+3. **Phase 3.** Wire `LOG-3` into `harness usage`, `harness doctor`, profile headroom
+   hints, and optional `spacecore` stall signals, then expand adapters to the remaining
+   supported agents.
+
+Testing bar:
+
+- Table-test each adapter against anonymized log and transcript fixtures covering partial
+  trailing lines, incremental appends, log rotation or truncation (`prefix_hash`
+  mismatch), malformed lines, and symlinked profile homes.
+- Verify `MarkRealPath` prevents double-counting when two profiles share an overlay path.
+- Verify daily rollup queries reconcile with raw event rows after retention pruning.
+
+[Conversation store adapter](../internal/harness/convstore/adapter.go) ·
+[Conversation store schema](../internal/harness/convstore/schema.go) ·
+[Usage rollups](../internal/harness/usage/usage.go) ·
+[Passive telemetry (§12)](#12-passive-telemetry-for-native-clis)
