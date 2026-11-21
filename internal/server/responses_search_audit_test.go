@@ -1,7 +1,7 @@
 package server
 
 // Independent audit regression for the Responses->Chat complete search
-// vertical (contract docs/go-search-runtime-contract.md). All cases are
+// vertical. All cases are
 // hermetic: fake Chat + fake SearXNG, no live endpoints, credentials,
 // cache or logs. Each test locks a contract clause not covered by the
 // existing search suite.
