@@ -46,6 +46,8 @@ All keys are bound in the `prefix` table.
 | `prefix + i`    | `tmux-spaces inbox`  | Attention Inbox (agents + live previews across spaces) |
 | `prefix + y`    | `tmux-spaces conversations` | Conversations (fuzzy + full-message search & resume across harnesses) |
 | `prefix + u`    | `tmux-spaces shared` | Shared MCP servers & skills browser (`~/dev/dots/harnesses/shared`) |
+| `prefix + T`    | `tmux-spaces tabs`   | Tabs inspector (all tabs in current workspace with full pane, git/PR & agent telemetry) |
+| `prefix + c`    | `tmux-spaces tabs --new` | Create a new tab inside the Tabs popup |
 | `prefix + a`    | `tmux-spaces agents` | Agents selector TUI           |
 | `prefix + N`    | `tmux-spaces popup --new` | Create a new space       |
 
@@ -62,6 +64,8 @@ set -g @spaces-inbox-key 'i'         # Attention Inbox key
 set -g @spaces-conversations-key 'y' # Conversations search/resume key
 set -g @spaces-shared-key 'u'        # Shared MCP & skills browser key
 set -g @spaces-shared-dir ''         # Override shared harnesses dir (default ~/dev/dots/harnesses/shared)
+set -g @spaces-tabs-key 'T'          # Current-workspace Tabs inspector key
+set -g @spaces-new-tab-key 'c'       # New-tab key (opens Tabs popup in new-tab flow; set 'off' to keep tmux default)
 set -g @spaces-agents-key 'a'        # Agents selector key
 set -g @spaces-new-key 'N'           # New-space key
 set -g @spaces-popup-width '86%'     # display-popup width
@@ -203,10 +207,21 @@ tmux-spaces conversations [--query Q]
 tmux-spaces chats [--query Q]       # alias
 tmux-spaces shared [--dir DIR] [--query Q]
 tmux-spaces skills|mcp [--dir DIR] [--query Q] # aliases
+tmux-spaces tabs [--new] [--session SPACE] [--query Q]
+tmux-spaces tab [--new] [--session SPACE] [--query Q]  # alias
 tmux-spaces agents
 ```
 
-Open the Navigator / Attention Inbox / Conversations / Shared MCP & Skills / Agents TUI (wired by the full binary).
+Open the Navigator / Attention Inbox / Conversations / Shared MCP & Skills / Tabs / Agents TUI (wired by the full binary).
+In the Tabs popup (`prefix + T`), inspect every open tab in the current workspace in a split
+master-detail view with multi-pane breakdown, live foreground process command lines, full git
+branch/diff/PR/CI details, and full scrollable agent telemetry (state/event/model/turn timings,
+session ID, waiting-on callouts, wrapped prompt, tool call input & result, latest reply, and
+complete subagents/background jobs/services trees; `↑↓`/`jk` switch tabs, `←→`/`hl` cycle split
+panes inside a tab, `J`/`K` or `[`/`]` scroll telemetry, `v` expand telemetry width, `0`–`9` jump
+to window index, `Enter` focus pane, `/` filter, `Tab` or `b`/`w`/`d`/`i`/`a` status filters, `s`
+cycle sort order `index`/`attention`/`activity`, `n` new tab, `r` rename tab, `x` close tab, `H`
+full hook overlay).
 In the Conversations popup (`prefix + y`), start typing immediately for instant fuzzy filtering
 plus debounced full-message search across all coding harnesses (use `@<agent>` inline filters,
 `Tab`/`Shift-Tab` to cycle harnesses, `Alt-c` for current workspace, `Ctrl-s` to cycle search

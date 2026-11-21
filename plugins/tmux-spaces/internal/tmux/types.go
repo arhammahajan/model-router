@@ -21,7 +21,12 @@ type Window struct {
 	Bell        bool
 	Activity    bool
 	Silence     bool
-	Layout      string // #{window_layout} for resurrect
+	Layout      string    // #{window_layout} for resurrect
+	Last        bool      // #{window_last_flag}
+	Zoomed      bool      // #{window_zoomed_flag}
+	Width       int       // #{window_width}
+	Height      int       // #{window_height}
+	ActivityAt  time.Time // #{window_activity}
 }
 
 // Pane represents one tmux pane parsed from `tmux list-panes -a`, including
@@ -44,6 +49,12 @@ type Pane struct {
 	WindowBell     bool
 	WindowActivity bool
 	WindowSilence  bool
+	Width          int    // #{pane_width}
+	Height         int    // #{pane_height}
+	InMode         bool   // #{pane_in_mode}
+	Synchronized   bool   // #{pane_synchronized}
+	StartCommand   string // #{pane_start_command}
+	DeadStatus     int    // #{pane_dead_status}
 
 	// Native @spaces_* per-pane options set by hooks/shims/oscwatch.
 	SpacesState   string

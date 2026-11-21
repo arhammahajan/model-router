@@ -16,7 +16,9 @@ const sessionListFormat = "#{session_id}\x1f#{session_name}\x1f" +
 // windowListFormat is the -F format for ListWindows.
 const windowListFormat = "#{session_name}\x1f#{window_id}\x1f#{window_index}\x1f" +
 	"#{window_name}\x1f#{window_active}\x1f#{window_bell_flag}\x1f" +
-	"#{window_activity_flag}\x1f#{window_silence_flag}\x1f#{window_layout}"
+	"#{window_activity_flag}\x1f#{window_silence_flag}\x1f#{window_layout}\x1f" +
+	"#{window_last_flag}\x1f#{window_zoomed_flag}\x1f#{window_width}\x1f" +
+	"#{window_height}\x1f#{window_activity}"
 
 // spacesOptions are the native per-pane tmux user options maintained by
 // hooks/shims and read back by ListPanes.
@@ -293,6 +295,12 @@ func (c *Client) RenameWindow(ctx context.Context, target, newName string) error
 // KillSession kills the named session.
 func (c *Client) KillSession(ctx context.Context, name string) error {
 	_, err := c.run(ctx, "kill-session", "-t", name)
+	return err
+}
+
+// KillWindow kills the target window (e.g. "@1" or "session:1").
+func (c *Client) KillWindow(ctx context.Context, target string) error {
+	_, err := c.run(ctx, "kill-window", "-t", target)
 	return err
 }
 

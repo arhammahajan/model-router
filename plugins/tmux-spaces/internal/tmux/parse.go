@@ -146,7 +146,7 @@ func parseSessionRecord(line string) (Session, bool) {
 // parseWindowRecord parses one list-windows -F record.
 func parseWindowRecord(line string) (Window, bool) {
 	fields := splitFields(line)
-	if len(fields) != 8 && len(fields) != 9 {
+	if len(fields) < 8 {
 		return Window{}, false
 	}
 	w := Window{
@@ -159,8 +159,25 @@ func parseWindowRecord(line string) (Window, bool) {
 		Activity:    parseTmuxBool(fields[6]),
 		Silence:     parseTmuxBool(fields[7]),
 	}
-	if len(fields) >= 9 {
+	if len(fields) > 8 {
 		w.Layout = fields[8]
+	}
+	if len(fields) > 9 {
+		w.Last = parseTmuxBool(fields[9])
+	}
+	if len(fields) > 10 {
+		w.Zoomed = parseTmuxBool(fields[10])
+	}
+	if len(fields) > 11 {
+		w.Width = parseTmuxInt(fields[11])
+	}
+	if len(fields) > 12 {
+		w.Height = parseTmuxInt(fields[12])
+	}
+	if len(fields) > 13 {
+		if secs, err := strconv.ParseInt(strings.TrimSpace(fields[13]), 10, 64); err == nil && secs > 0 {
+			w.ActivityAt = time.Unix(secs, 0)
+		}
 	}
 	return w, true
 }
@@ -173,7 +190,8 @@ const paneFormat = "#{session_name}\x1f#{window_id}\x1f#{window_index}\x1f" +
 	"#{pane_dead}\x1f#{window_bell_flag}\x1f#{window_activity_flag}\x1f" +
 	"#{window_silence_flag}\x1f#{@spaces_state}\x1f#{@spaces_app}\x1f" +
 	"#{@spaces_kind}\x1f#{@spaces_msg}\x1f#{@spaces_ts}\x1f" +
-	"#{pane_index}\x1f#{@spaces_resume_session}\x1f#{@spaces_profile}\x1f#{@spaces_source}\x1f#{@spaces_title}"
+	"#{pane_index}\x1f#{@spaces_resume_session}\x1f#{@spaces_profile}\x1f#{@spaces_source}\x1f#{@spaces_title}\x1f" +
+	"#{pane_width}\x1f#{pane_height}\x1f#{pane_in_mode}\x1f#{pane_synchronized}\x1f#{pane_start_command}\x1f#{pane_dead_status}"
 
 // paneFieldCount is the minimum number of \x1f-separated fields ListPanes expects.
 const paneFieldCount = 20
@@ -221,6 +239,24 @@ func parsePaneRecord(line string) (Pane, bool) {
 	}
 	if len(fields) > 24 {
 		p.SpacesTitle = spacesValue(fields[24])
+	}
+	if len(fields) > 25 {
+		p.Width = parseTmuxInt(fields[25])
+	}
+	if len(fields) > 26 {
+		p.Height = parseTmuxInt(fields[26])
+	}
+	if len(fields) > 27 {
+		p.InMode = parseTmuxBool(fields[27])
+	}
+	if len(fields) > 28 {
+		p.Synchronized = parseTmuxBool(fields[28])
+	}
+	if len(fields) > 29 {
+		p.StartCommand = strings.TrimSpace(fields[29])
+	}
+	if len(fields) > 30 {
+		p.DeadStatus = parseTmuxInt(fields[30])
 	}
 	return p, true
 }

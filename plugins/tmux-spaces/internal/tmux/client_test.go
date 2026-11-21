@@ -710,3 +710,62 @@ fi
 		t.Fatalf("got %q, %v", out, err)
 	}
 }
+
+func TestListWindowsExtendedFieldsAndKillWindow(t *testing.T) {
+	fake := newFakeRunner()
+	fake.stubOutput([]string{"list-windows", "-a", "-F", windowListFormat},
+		strings.Join([]string{
+			"dev", "@1", "0", "agent", "1", "0", "1", "0", "bb62,180x48,0,0,1",
+			"0", "1", "180", "48", "1700000123",
+		}, "\x1f")+"\n"+
+			strings.Join([]string{
+				"dev", "@2", "1", "tests", "0", "0", "0", "0", "abcd,180x48,0,0,2",
+				"1", "0", "160", "40", "1700000000",
+			}, "\x1f")+"\n")
+	c := testClient(fake, nil)
+	wins, err := c.ListWindows(ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wins) != 2 {
+		t.Fatalf("got %d windows", len(wins))
+	}
+	if !wins[0].Active || !wins[0].Zoomed || wins[0].Last || wins[0].Width != 180 || wins[0].Height != 48 || wins[0].ActivityAt.Unix() != 1700000123 {
+		t.Fatalf("wins[0] = %+v", wins[0])
+	}
+	if wins[1].Active || !wins[1].Last || wins[1].Zoomed || wins[1].Width != 160 || wins[1].Height != 40 || wins[1].ActivityAt.Unix() != 1700000000 {
+		t.Fatalf("wins[1] = %+v", wins[1])
+	}
+
+	if err := c.KillWindow(ctx(), "@2"); err != nil {
+		t.Fatalf("KillWindow: %v", err)
+	}
+	gotArgvs := fake.argvs()
+	if len(gotArgvs) == 0 || gotArgvs[len(gotArgvs)-1] != "kill-window -t @2" {
+		t.Fatalf("last argv = %v, want kill-window -t @2", gotArgvs)
+	}
+}
+
+func TestListPanesExtendedFields(t *testing.T) {
+	fake := newFakeRunner()
+	fields := []string{
+		"dev", "@1", "0", "agent", "%12", "pane title",
+		"node", "/home/u/proj", "4242", "1", "1", "0", "0", "0", "0",
+		"working", "claude", "edit", "Writing code", "1700000000123",
+		"2", "sess-abc", "opus", "hook", "Fix auth",
+		"120", "34", "1", "1", "claude --resume sess-abc", "0",
+	}
+	fake.stubOutput([]string{"list-panes", "-a", "-F", paneFormat}, strings.Join(fields, "\x1f")+"\n")
+	c := testClient(fake, nil)
+	panes, err := c.ListPanes(ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(panes) != 1 {
+		t.Fatalf("got %d panes", len(panes))
+	}
+	p := panes[0]
+	if p.Width != 120 || p.Height != 34 || !p.InMode || !p.Synchronized || p.StartCommand != "claude --resume sess-abc" || p.DeadStatus != 0 {
+		t.Fatalf("extended pane fields = %+v", p)
+	}
+}

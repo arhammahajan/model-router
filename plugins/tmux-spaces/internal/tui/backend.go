@@ -41,6 +41,13 @@ type WindowRenameBackend interface {
 	RenameWindow(ctx context.Context, windowID, newName string) error
 }
 
+// WindowManageBackend is an optional extension of Backend for creating and
+// closing tmux windows (tabs) from the Tabs popup.
+type WindowManageBackend interface {
+	NewWindow(ctx context.Context, session, cwd, name string) error
+	KillWindow(ctx context.Context, windowID string) error
+}
+
 // GitBackend is an optional extension of Backend for asynchronously collecting
 // git branch/diff stats and GitHub PR/CI status for pane and space CWDs.
 type GitBackend interface {
@@ -86,6 +93,7 @@ const (
 	ModeInbox
 	ModeConversations
 	ModeShared
+	ModeTabs
 )
 
 // Options configures a TUI run.

@@ -112,3 +112,25 @@ func cmdShared(args []string, env Env) int {
 	}
 	return env.RunShared(env, args)
 }
+
+// cmdTabs opens the current-workspace Tabs inspector & switcher TUI.
+func cmdTabs(args []string, env Env) int {
+	f, err := parseFlags(args, []string{"session", "query"}, []string{"new"}, map[string]string{"s": "session", "q": "query"})
+	if err != nil {
+		if err == errHelp {
+			env.outf("usage: tmux-spaces tabs [--new] [--session SPACE] [--query Q]\n")
+			return ExitOK
+		}
+		env.errf("tmux-spaces tabs: %s\n", err)
+		return ExitUsage
+	}
+	if len(f.pos) > 0 {
+		env.errf("usage: tmux-spaces tabs [--new] [--session SPACE] [--query Q]\n")
+		return ExitUsage
+	}
+	if env.RunTabs == nil {
+		env.errf("tmux-spaces tabs: TUI not wired (cmd/tmux-spaces must provide RunTabs)\n")
+		return ExitError
+	}
+	return env.RunTabs(env, args)
+}

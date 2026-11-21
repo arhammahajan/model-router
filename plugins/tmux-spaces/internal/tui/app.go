@@ -36,6 +36,7 @@ type Row struct {
 type (
 	tickMsg   time.Time
 	spacesMsg struct {
+		seq      uint64
 		spaces   []model.Space
 		exited   []model.ExitedSpace
 		outcomes []model.OutcomeEntry
@@ -69,25 +70,28 @@ type Model struct {
 	width  int
 	height int
 
-	spaces   []model.Space
-	exited   []model.ExitedSpace
-	outcomes []model.OutcomeEntry
-	filter   model.AttentionFilter
-	query    string
-	cursor   int
-	selected int
+	spaces    []model.Space
+	exited    []model.ExitedSpace
+	outcomes  []model.OutcomeEntry
+	spacesSeq uint64
+	filter    model.AttentionFilter
+	query     string
+	cursor    int
+	selected  int
 
 	collapsed  map[string]bool
 	expandedBg map[string]bool
 	bgDetails  map[string]*model.HookDetail
 	toast      string
 
-	newName     string
-	newNameCur  int
-	newCWD      string
-	newCWDCur   int
-	newField    int // 0 = name, 1 = cwd
-	newError    string
+	newName          string
+	newNameCur       int
+	newCWD           string
+	newCWDCur        int
+	newField         int // 0 = name, 1 = cwd
+	newError         string
+	newIsTab         bool
+	newTabSession    string
 	renameOld        string
 	renameText       string
 	renameCur        int
@@ -96,10 +100,15 @@ type Model struct {
 	renameWindowID   string
 	renameStandalone bool
 
-	confirmSpace   string
-	confirmWindows int
-	confirmPanes   int
-	confirmExited  bool
+	confirmSpace      string
+	confirmWindows    int
+	confirmPanes      int
+	confirmExited     bool
+	confirmWindow     bool
+	confirmWindowID   string
+	confirmWindowName string
+	confirmWindowBusy bool
+	confirmWindowLast bool
 
 	hookSession string
 	hookPaneNum int
@@ -147,6 +156,14 @@ type Model struct {
 	sharedInspecting   bool
 	sharedDetailScroll int
 
+	tabsSearching         bool
+	tabsSort              TabSortMode
+	tabsPaneSel           map[string]int
+	tabsTelemetryExpanded bool
+	tabsInspectorScroll   int
+	tabsInitSelected      bool
+	tabsHookInFlight      string
+
 	pendingTarget string
 	quitting      bool
 }
@@ -157,6 +174,7 @@ func New(backend Backend, opts Options) Model {
 		backend:        backend,
 		opts:           opts,
 		mode:           opts.InitialMode,
+		spacesSeq:      1,
 		filter:         model.FilterAll,
 		query:          opts.InitialQuery,
 		cursor:         len([]rune(opts.InitialQuery)),
@@ -165,15 +183,23 @@ func New(backend Backend, opts Options) Model {
 		bgDetails:      map[string]*model.HookDetail{},
 		previews:       map[string]string{},
 		gitInfo:        map[string]*model.GitInfo{},
+		tabsPaneSel:    map[string]int{},
 		convScope:      "all",
 		convSearchHits: map[string]model.ConversationSearchHit{},
 		lastClickRow:   -1,
 		pendingTarget:  strings.TrimSpace(opts.Target),
 	}
+	if m.mode == ModeTabs {
+		m.pendingTarget = ""
+	}
 	if opts.InitialQuery != "" && m.mode == ModeNavigate {
 		m.mode = ModeSearch
 	}
 	if opts.OpenNew {
+		if m.mode == ModeTabs {
+			m.returnMode = ModeTabs
+			m.newIsTab = true
+		}
 		m.mode = ModeNewSpace
 	}
 	if opts.OpenRenameWindow || opts.OpenRenameSpace {
@@ -238,25 +264,35 @@ func (m Model) tickCmd() tea.Cmd {
 }
 
 func (m Model) loadSpacesCmd() tea.Cmd {
+	return m.loadSpacesCmdWithSeq(m.spacesSeq)
+}
+
+func (m *Model) nextLoadSpacesCmd() tea.Cmd {
+	m.spacesSeq++
+	return m.loadSpacesCmdWithSeq(m.spacesSeq)
+}
+
+func (m Model) loadSpacesCmdWithSeq(seq uint64) tea.Cmd {
+	backend := m.backend
 	return func() tea.Msg {
 		ctx := context.Background()
-		spaces, err := m.backend.LoadSpaces(ctx)
+		spaces, err := backend.LoadSpaces(ctx)
 		if err != nil {
-			return spacesMsg{err: err.Error()}
+			return spacesMsg{seq: seq, err: err.Error()}
 		}
 		var exited []model.ExitedSpace
-		if rb, ok := m.backend.(ResurrectBackend); ok {
+		if rb, ok := backend.(ResurrectBackend); ok {
 			if list, eErr := rb.LoadExited(ctx); eErr == nil {
 				exited = list
 			}
 		}
 		var outcomes []model.OutcomeEntry
-		if ob, ok := m.backend.(OutcomesBackend); ok {
+		if ob, ok := backend.(OutcomesBackend); ok {
 			if list, oErr := ob.LoadOutcomes(ctx); oErr == nil {
 				outcomes = list
 			}
 		}
-		return spacesMsg{spaces: spaces, exited: exited, outcomes: outcomes}
+		return spacesMsg{seq: seq, spaces: spaces, exited: exited, outcomes: outcomes}
 	}
 }
 
@@ -359,7 +395,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Static in Agents, Conversations, and Shared modes: no polling flicker.
 			return m, nil
 		}
-		return m, tea.Batch(m.loadSpacesCmd(), m.tickCmd())
+		return m, tea.Batch(m.nextLoadSpacesCmd(), m.tickCmd())
 	case sharedMsg:
 		return m.handleSharedMsg(msg)
 	case conversationsMsg:
@@ -369,6 +405,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case convSearchResultMsg:
 		return m.handleConvSearchResult(msg)
 	case spacesMsg:
+		if msg.seq > 0 && msg.seq < m.spacesSeq {
+			return m, nil
+		}
 		if msg.err != "" {
 			if m.mode != ModeConversations {
 				m.toast = msg.err
@@ -379,14 +418,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.exited = msg.exited
 		m.outcomes = msg.outcomes
 		m.applyGitInfo()
+		if m.mode == ModeTabs || (m.mode == ModeNewSpace && m.newIsTab) {
+			m.selectInitialActiveTab()
+		}
 		m.clampSelection()
-		if m.mode == ModeNewSpace && m.newName == "" && m.newCWD == "" {
+		if m.mode == ModeNewSpace && !m.newIsTab && m.newName == "" && m.newCWD == "" {
 			m.prefillNewSpace("")
+		}
+		if m.mode == ModeNewSpace && m.newIsTab && m.newTabSession == "" {
+			m.prefillNewTab()
 		}
 		if m.mode == ModeRename && m.renameStandalone && m.renameOld == "" {
 			m.prefillStandaloneRename()
 		}
-		if m.pendingTarget != "" && m.mode != ModeAgents && m.mode != ModeInbox && m.mode != ModeConversations {
+		if m.pendingTarget != "" && m.mode != ModeAgents && m.mode != ModeInbox && m.mode != ModeConversations && m.mode != ModeTabs {
 			target := m.pendingTarget
 			m.pendingTarget = ""
 			if m.spaceExists(target) {
@@ -403,13 +448,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 			m.clampSelection()
 		}
+		var cmds []tea.Cmd
 		if !m.gitFetching && m.mode != ModeAgents && m.mode != ModeRename && m.mode != ModeConversations {
 			if cwds := m.collectCWDs(); len(cwds) > 0 {
 				if cmd := m.loadGitStatusCmd(cwds, false); cmd != nil {
 					m.gitFetching = true
-					return m, cmd
+					cmds = append(cmds, cmd)
 				}
 			}
+		}
+		if m.mode == ModeTabs {
+			if cmd := m.syncTabsInspectorCmd(false); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if len(cmds) > 0 {
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 	case gitInfoMsg:
@@ -439,6 +493,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyGitInfo()
 		return m, nil
 	case hookDetailMsg:
+		if m.tabsHookInFlight == tabsHookKey(msg.session, msg.paneNum) {
+			m.tabsHookInFlight = ""
+		}
 		if msg.detail != nil && msg.err == "" {
 			for _, sp := range m.spaces {
 				if sp.Name != msg.session {
@@ -598,6 +655,8 @@ func (m *Model) clampSelection() {
 		n = len(m.conversationItems())
 	case ModeShared:
 		n = len(m.sharedItems())
+	case ModeTabs:
+		n = len(m.tabsItems())
 	default:
 		n = len(m.visibleRows())
 	}
@@ -623,6 +682,12 @@ func (m *Model) selectedRow() *Row {
 }
 
 func (m *Model) selectedSpaceName() string {
+	if m.isTabsContext() {
+		if _, sp := m.tabsSpace(); sp != nil {
+			return sp.Name
+		}
+		return ""
+	}
 	if m.isInboxContext() {
 		items := m.inboxItems()
 		if m.selected >= 0 && m.selected < len(items) {
@@ -655,6 +720,13 @@ func (m *Model) selectedSpaceName() string {
 }
 
 func (m *Model) selectedPane() *model.Pane {
+	if m.isTabsContext() {
+		tab := m.selectedTab()
+		if tab == nil {
+			return nil
+		}
+		return m.selectedTabPane(*tab)
+	}
 	if m.isInboxContext() {
 		items := m.inboxItems()
 		if m.selected < 0 || m.selected >= len(items) {
@@ -1213,20 +1285,25 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.mode == ModeConversations {
 			m.convRefreshing = true
-			return m, tea.Batch(m.loadConversationsCmd(true, m.convIncludeArchived), m.loadSpacesCmd())
+			return m, tea.Batch(m.loadConversationsCmd(true, m.convIncludeArchived), m.nextLoadSpacesCmd())
 		}
 		if m.mode == ModeShared {
 			m.sharedLoading = true
 			return m, m.loadSharedCmd()
 		}
-		if m.mode == ModeNavigate || m.mode == ModeSearch || m.mode == ModeHelp || m.mode == ModeInbox {
-			cmds := []tea.Cmd{m.loadSpacesCmd()}
+		if m.mode == ModeNavigate || m.mode == ModeSearch || m.mode == ModeHelp || m.mode == ModeInbox || m.mode == ModeTabs {
+			cmds := []tea.Cmd{m.nextLoadSpacesCmd()}
 			if !m.gitFetching {
 				if cwds := m.collectCWDs(); len(cwds) > 0 {
 					if gcmd := m.loadGitStatusCmd(cwds, true); gcmd != nil {
 						m.gitFetching = true
 						cmds = append(cmds, gcmd)
 					}
+				}
+			}
+			if m.mode == ModeTabs {
+				if tcmd := m.syncTabsInspectorCmd(true); tcmd != nil {
+					cmds = append(cmds, tcmd)
 				}
 			}
 			return m, tea.Batch(cmds...)
@@ -1260,6 +1337,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConversations(msg)
 	case ModeShared:
 		return m.handleShared(msg)
+	case ModeTabs:
+		return m.handleTabs(msg)
 	}
 	return m, nil
 }
@@ -1577,10 +1656,38 @@ func nextFilter(f model.AttentionFilter, backwards bool) model.AttentionFilter {
 func (m Model) handleNewSpace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.mode = ModeNavigate
+		m.newIsTab = false
+		m.mode = m.exitOverlayMode()
 		m.newError = ""
+		m.clampSelection()
+		if m.mode == ModeTabs {
+			return m, m.syncTabsInspectorCmd(false)
+		}
 		return m, nil
 	case tea.KeyEnter:
+		if m.newIsTab {
+			name := strings.TrimSpace(m.newName)
+			for _, r := range name {
+				if r < 32 {
+					m.newError = "Tab name cannot contain control characters."
+					return m, nil
+				}
+			}
+			wb, ok := m.backend.(WindowManageBackend)
+			if !ok {
+				m.newError = "Creating tabs is not supported."
+				return m, nil
+			}
+			cwd := strings.TrimSpace(m.newCWD)
+			if err := wb.NewWindow(context.Background(), m.newTabSession, cwd, name); err != nil {
+				m.newError = err.Error()
+				return m, nil
+			}
+			m.newIsTab = false
+			m.mode = m.exitOverlayMode()
+			m.quitting = true
+			return m, tea.Quit
+		}
 		name := strings.TrimSpace(m.newName)
 		if errStr := validateSpaceName(name); errStr != "" {
 			m.newError = errStr
@@ -1643,7 +1750,7 @@ func (m Model) handleRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
-		m.mode = ModeNavigate
+		m.mode = m.exitOverlayMode()
 		return m, nil
 	case tea.KeyEnter:
 		name := strings.TrimSpace(m.renameText)
@@ -1657,7 +1764,7 @@ func (m Model) handleRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.quitting = true
 					return m, tea.Quit
 				}
-				m.mode = ModeNavigate
+				m.mode = m.exitOverlayMode()
 				return m, nil
 			}
 			wb, ok := m.backend.(WindowRenameBackend)
@@ -1668,6 +1775,22 @@ func (m Model) handleRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err := wb.RenameWindow(context.Background(), m.renameWindowID, name); err != nil {
 				m.renameError = err.Error()
 				return m, nil
+			}
+			if m.returnMode == ModeTabs {
+				for si := range m.spaces {
+					for wi := range m.spaces[si].Windows {
+						if m.spaces[si].Windows[wi].ID == m.renameWindowID {
+							m.spaces[si].Windows[wi].Name = name
+						}
+					}
+					for pi := range m.spaces[si].Panes {
+						if m.spaces[si].Panes[pi].WindowID == m.renameWindowID {
+							m.spaces[si].Panes[pi].WindowName = name
+						}
+					}
+				}
+				m.mode = ModeTabs
+				return m, m.nextLoadSpacesCmd()
 			}
 			m.mode = ModeNavigate
 			m.quitting = true
@@ -1712,7 +1835,8 @@ func (m Model) handleRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.mode = ModeNavigate
+		m.confirmWindow = false
+		m.mode = m.exitOverlayMode()
 		return m, nil
 	case tea.KeyEnter:
 		return m.confirmKill()
@@ -1724,7 +1848,8 @@ func (m Model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "y", "Y":
 			return m.confirmKill()
 		case "n", "N":
-			m.mode = ModeNavigate
+			m.confirmWindow = false
+			m.mode = m.exitOverlayMode()
 			return m, nil
 		}
 		return m, nil
@@ -1733,6 +1858,46 @@ func (m Model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) confirmKill() (tea.Model, tea.Cmd) {
+	if m.confirmWindow {
+		wb, ok := m.backend.(WindowManageBackend)
+		if !ok {
+			m.toast = "Closing tabs is not supported."
+			m.confirmWindow = false
+			m.mode = m.exitOverlayMode()
+			return m, nil
+		}
+		winID := m.confirmWindowID
+		if err := wb.KillWindow(context.Background(), winID); err != nil {
+			m.toast = err.Error()
+			m.confirmWindow = false
+			m.mode = m.exitOverlayMode()
+			return m, nil
+		}
+		for si := range m.spaces {
+			if m.spaces[si].Name != m.confirmSpace {
+				continue
+			}
+			var keptWins []model.Window
+			for _, w := range m.spaces[si].Windows {
+				if w.ID != winID {
+					keptWins = append(keptWins, w)
+				}
+			}
+			m.spaces[si].Windows = keptWins
+			var keptPanes []model.Pane
+			for _, p := range m.spaces[si].Panes {
+				if p.WindowID != winID {
+					keptPanes = append(keptPanes, p)
+				}
+			}
+			m.spaces[si].Panes = keptPanes
+		}
+		delete(m.tabsPaneSel, winID)
+		m.confirmWindow = false
+		m.mode = ModeTabs
+		m.clampSelection()
+		return m, tea.Batch(m.nextLoadSpacesCmd(), m.syncTabsInspectorCmd(false))
+	}
 	if m.confirmExited {
 		if rb, ok := m.backend.(ResurrectBackend); ok {
 			if err := rb.DeleteExited(context.Background(), m.confirmSpace); err != nil {
@@ -1748,6 +1913,7 @@ func (m Model) confirmKill() (tea.Model, tea.Cmd) {
 			}
 		}
 		m.exited = kept
+		m.spacesSeq++
 		m.confirmExited = false
 		m.mode = ModeNavigate
 		m.clampSelection()
@@ -1773,6 +1939,7 @@ func (m Model) confirmKill() (tea.Model, tea.Cmd) {
 		}
 	}
 	m.spaces = kept
+	m.spacesSeq++
 	m.selected = 0
 	m.clampSelection()
 	m.mode = ModeNavigate
@@ -2032,6 +2199,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if m.mode == ModeTabs {
+			return m.handleTabsWheel(msg.X, -1)
+		}
 		if m.mode == ModeHookDetail {
 			if m.hookScroll > 0 {
 				m.hookScroll--
@@ -2062,6 +2232,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if m.mode == ModeTabs {
+			return m.handleTabsWheel(msg.X, 1)
+		}
 		if m.mode == ModeHookDetail {
 			m.hookScroll++
 			return m, nil
@@ -2086,6 +2259,9 @@ func (m Model) handleLeftClick(x, y int) (tea.Model, tea.Cmd) {
 	}
 	if m.mode == ModeShared {
 		return m.handleSharedLeftClick(x, y)
+	}
+	if m.mode == ModeTabs {
+		return m.handleTabsLeftClick(x, y)
 	}
 	if m.mode == ModeAgents {
 		idx := y - agentsListTop()
