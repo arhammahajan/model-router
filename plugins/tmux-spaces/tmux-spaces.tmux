@@ -51,6 +51,8 @@ SPACES_INBOX_KEY="$(get_tmux_option "@spaces-inbox-key" "i")"
 SPACES_CHATS_KEY="$(get_tmux_option "@spaces-conversations-key" "y")"
 SPACES_SHARED_KEY="$(get_tmux_option "@spaces-shared-key" "u")"
 SPACES_SHARED_DIR="$(get_tmux_option "@spaces-shared-dir" "")"
+SPACES_TABS_KEY="$(get_tmux_option "@spaces-tabs-key" "T")"
+SPACES_NEW_TAB_KEY="$(get_tmux_option "@spaces-new-tab-key" "c")"
 POPUP_WIDTH="$(get_tmux_option "@spaces-popup-width" "86%")"
 POPUP_HEIGHT="$(get_tmux_option "@spaces-popup-height" "82%")"
 POPUP_BORDER="$(get_tmux_option "@spaces-border" "rounded")"
@@ -94,6 +96,10 @@ if [ -n "$SPACES_SHARED_DIR" ]; then
 	tmux bind-key "$SPACES_SHARED_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN shared --dir \"$SPACES_SHARED_DIR\""
 else
 	tmux bind-key "$SPACES_SHARED_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN shared"
+fi
+tmux bind-key "$SPACES_TABS_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN tabs"
+if [ "$SPACES_NEW_TAB_KEY" != "off" ]; then
+	tmux bind-key "$SPACES_NEW_TAB_KEY" display-popup -E -w "$POPUP_WIDTH" -h "$POPUP_HEIGHT" -b "$POPUP_BORDER" "$BIN tabs --new"
 fi
 
 # Replace tmux's modal status-line `command-prompt` for renaming tabs (,) and

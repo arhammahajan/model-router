@@ -96,6 +96,15 @@ func buildEnv(client *tmux.Client) cli.Env {
 		}
 		return cli.ExitOK
 	}
+	env.RunTabs = func(e cli.Env, args []string) int {
+		opts := parseTabsOptions(args)
+		opts.HomeDir = homeDir()
+		if err := tui.Run(backend, opts); err != nil {
+			fmt.Fprintf(e.Stderr, "tmux-spaces tabs: %v\n", err)
+			return cli.ExitError
+		}
+		return cli.ExitOK
+	}
 	env.HookHealth = func() (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -198,6 +207,33 @@ func parseSharedOptions(args []string) tui.Options {
 			opts.SharedDir = args[i]
 		case strings.HasPrefix(args[i], "--dir="):
 			opts.SharedDir = strings.TrimPrefix(args[i], "--dir=")
+		}
+	}
+	return opts
+}
+
+func parseTabsOptions(args []string) tui.Options {
+	opts := tui.Options{
+		InitialMode: tui.ModeTabs,
+	}
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--new":
+			opts.OpenNew = true
+		case (args[i] == "--query" || args[i] == "-q") && i+1 < len(args):
+			i++
+			opts.InitialQuery = args[i]
+		case strings.HasPrefix(args[i], "--query="):
+			opts.InitialQuery = strings.TrimPrefix(args[i], "--query=")
+		case strings.HasPrefix(args[i], "-q="):
+			opts.InitialQuery = strings.TrimPrefix(args[i], "-q=")
+		case (args[i] == "--session" || args[i] == "-s") && i+1 < len(args):
+			i++
+			opts.Target = args[i]
+		case strings.HasPrefix(args[i], "--session="):
+			opts.Target = strings.TrimPrefix(args[i], "--session=")
+		case strings.HasPrefix(args[i], "-s="):
+			opts.Target = strings.TrimPrefix(args[i], "-s=")
 		}
 	}
 	return opts
@@ -836,6 +872,19 @@ func (b *tuiBackend) RenameSpace(ctx context.Context, oldName, newName string) e
 
 func (b *tuiBackend) RenameWindow(ctx context.Context, windowID, newName string) error {
 	return b.client.RenameWindow(ctx, windowID, newName)
+}
+
+var (
+	_ tui.PreviewBackend      = (*tuiBackend)(nil)
+	_ tui.WindowManageBackend = (*tuiBackend)(nil)
+)
+
+func (b *tuiBackend) NewWindow(ctx context.Context, session, cwd, name string) error {
+	return b.client.NewWindow(ctx, session, cwd, name)
+}
+
+func (b *tuiBackend) KillWindow(ctx context.Context, windowID string) error {
+	return b.client.KillWindow(ctx, windowID)
 }
 
 func (b *tuiBackend) KillSpace(ctx context.Context, name string) error {

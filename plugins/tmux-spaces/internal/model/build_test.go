@@ -318,3 +318,67 @@ func TestBuildSpacesLiveDescendantAgentOverridesStaleSpacesApp(t *testing.T) {
 		t.Errorf("stale @spaces_state/@spaces_msg from previous agent should be ignored, got status=%v text=%q", p.Status, p.Text)
 	}
 }
+
+func TestBuildSpacesWindowAndPaneExtendedMetadata(t *testing.T) {
+	origInspect := InspectPaneProcessFn
+	defer func() { InspectPaneProcessFn = origInspect }()
+	InspectPaneProcessFn = func(pid int) (string, int) {
+		if pid == 9001 {
+			return "go test -v ./internal/tui/...", 3
+		}
+		return "", 0
+	}
+
+	actAt := time.Unix(1_700_000_500, 0)
+	snap := tmux.ServerSnapshot{
+		CurrentSession: "model-router",
+		Sessions:       []tmux.Session{{ID: "$0", Name: "model-router"}},
+		Windows: []tmux.Window{{
+			SessionName: "model-router",
+			ID:          "@4",
+			Index:       2,
+			Name:        "tests",
+			Active:      true,
+			Zoomed:      true,
+			Width:       180,
+			Height:      48,
+			ActivityAt:  actAt,
+			Layout:      "bb62,180x48,0,0,4",
+		}},
+		Panes: []tmux.Pane{{
+			SessionName:    "model-router",
+			WindowID:       "@4",
+			WindowIndex:    2,
+			WindowName:     "tests",
+			ID:             "%9",
+			NumericID:      9,
+			PaneIndex:      1,
+			CurrentCommand: "go",
+			CurrentPath:    "/home/u/dev/model-router",
+			PID:            9001,
+			Active:         true,
+			WindowActive:   true,
+			Width:          90,
+			Height:         48,
+			InMode:         true,
+			Synchronized:   true,
+			StartCommand:   "zsh",
+		}},
+	}
+
+	spaces := BuildSpaces(snap, 1_700_000_600_000)
+	if len(spaces) != 1 || len(spaces[0].Windows) != 1 || len(spaces[0].Panes) != 1 {
+		t.Fatalf("unexpected spaces: %+v", spaces)
+	}
+	w := spaces[0].Windows[0]
+	if !w.Zoomed || w.Width != 180 || w.Height != 48 || !w.ActivityAt.Equal(actAt) || w.Layout != "bb62,180x48,0,0,4" {
+		t.Errorf("window metadata = %+v", w)
+	}
+	p := spaces[0].Panes[0]
+	if p.PaneIndex != 1 || p.Width != 90 || p.Height != 48 || !p.WindowActive || !p.InMode || !p.Synchronized {
+		t.Errorf("pane layout metadata = %+v", p)
+	}
+	if p.StartCommand != "zsh" || p.ForegroundCmd != "go test -v ./internal/tui/..." || p.ChildProcessCount != 3 {
+		t.Errorf("pane process metadata = %+v", p)
+	}
+}

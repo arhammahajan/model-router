@@ -34,13 +34,19 @@ func BuildSpaces(snap tmux.ServerSnapshot, nowMs int64) []Space {
 		}
 		for _, w := range windowsBySession[s.Name] {
 			space.Windows = append(space.Windows, Window{
-				ID:       w.ID,
-				Index:    w.Index,
-				Name:     w.Name,
-				Active:   w.Active,
-				Bell:     w.Bell,
-				Activity: w.Activity,
-				Silence:  w.Silence,
+				ID:         w.ID,
+				Index:      w.Index,
+				Name:       w.Name,
+				Active:     w.Active,
+				Last:       w.Last,
+				Zoomed:     w.Zoomed,
+				Bell:       w.Bell,
+				Activity:   w.Activity,
+				Silence:    w.Silence,
+				Width:      w.Width,
+				Height:     w.Height,
+				ActivityAt: w.ActivityAt,
+				Layout:     w.Layout,
 			})
 		}
 		sort.SliceStable(space.Windows, func(i, j int) bool {
@@ -65,6 +71,11 @@ func BuildSpaces(snap tmux.ServerSnapshot, nowMs int64) []Space {
 // identify harnesses running under generic runtimes (node, bun, python, etc.)
 // or versioned binaries (e.g. "2.1.76"). Overridden in tests.
 var DetectDescendantAgentFn = detectDescendantAgent
+
+// InspectPaneProcessFn inspects live descendant processes of a pane's PID to
+// capture a readable foreground command line and descendant process count.
+// Overridden in tests.
+var InspectPaneProcessFn = inspectPaneProcess
 
 // buildPane maps one tmux pane to a model Pane, seeding Base* baselines.
 func buildPane(p tmux.Pane, nowMs int64) Pane {
@@ -116,9 +127,15 @@ func buildPane(p tmux.Pane, nowMs int64) Pane {
 			ageMs = 0
 		}
 	}
+	var fgCmd string
+	var childProcs int
+	if !p.Dead && p.PID > 0 && InspectPaneProcessFn != nil {
+		fgCmd, childProcs = InspectPaneProcessFn(p.PID)
+	}
 	pane := Pane{
 		ID:                p.ID,
 		NumericID:         p.NumericID,
+		PaneIndex:         p.PaneIndex,
 		WindowID:          p.WindowID,
 		WindowIndex:       p.WindowIndex,
 		WindowName:        p.WindowName,
@@ -128,6 +145,9 @@ func buildPane(p tmux.Pane, nowMs int64) Pane {
 		ResumeSession:     resumeSession,
 		Profile:           profile,
 		Command:           p.CurrentCommand,
+		StartCommand:      p.StartCommand,
+		ForegroundCmd:     fgCmd,
+		ChildProcessCount: childProcs,
 		App:               resolveApp(p, returned, descAgent),
 		Status:            status,
 		BaseStatus:        status,
@@ -138,8 +158,14 @@ func buildPane(p tmux.Pane, nowMs int64) Pane {
 		CWD:               p.CurrentPath,
 		AgeMs:             ageMs,
 		BaseAgeMs:         ageMs,
+		Width:             p.Width,
+		Height:            p.Height,
 		IsActive:          p.Active,
+		WindowActive:      p.WindowActive,
+		InMode:            p.InMode,
+		Synchronized:      p.Synchronized,
 		IsDead:            p.Dead,
+		DeadStatus:        p.DeadStatus,
 		HasSpacesMeta:     hasMeta,
 		ReturnedToShell:   returned,
 		PID:               p.PID,

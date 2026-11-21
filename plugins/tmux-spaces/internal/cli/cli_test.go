@@ -194,3 +194,35 @@ func TestSharedCommand(t *testing.T) {
 		t.Errorf("shared with extra positional = %d, want ExitUsage", code)
 	}
 }
+
+func TestTabsCommand(t *testing.T) {
+	fc := &FakeClient{Up: true}
+	env := testEnv(fc)
+
+	for _, cmd := range []string{"tabs", "tab"} {
+		if code := Run([]string{cmd, "--help"}, env); code != ExitOK {
+			t.Errorf("%s --help = %d", cmd, code)
+		}
+		if code := Run([]string{"help", cmd}, env); code != ExitOK {
+			t.Errorf("help %s = %d", cmd, code)
+		}
+	}
+	if code := Run([]string{"tabs"}, env); code != ExitError {
+		t.Errorf("tabs without RunTabs = %d, want ExitError", code)
+	}
+
+	var gotArgs []string
+	env.RunTabs = func(_ Env, args []string) int {
+		gotArgs = append([]string(nil), args...)
+		return ExitOK
+	}
+	if code := Run([]string{"tab", "--new", "--session", "model-router", "--query", "auth"}, env); code != ExitOK {
+		t.Errorf("tab wired = %d", code)
+	}
+	if len(gotArgs) != 5 || gotArgs[0] != "--new" || gotArgs[1] != "--session" || gotArgs[2] != "model-router" || gotArgs[3] != "--query" || gotArgs[4] != "auth" {
+		t.Errorf("gotArgs = %v", gotArgs)
+	}
+	if code := Run([]string{"tabs", "extra"}, env); code != ExitUsage {
+		t.Errorf("tabs with extra positional = %d, want ExitUsage", code)
+	}
+}

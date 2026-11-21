@@ -560,13 +560,19 @@ type HarnessFile struct {
 
 // Window represents one tmux window inside a Space.
 type Window struct {
-	ID       string // e.g. "@1"
-	Index    int
-	Name     string
-	Active   bool
-	Bell     bool
-	Activity bool
-	Silence  bool
+	ID         string // e.g. "@1"
+	Index      int
+	Name       string
+	Active     bool
+	Last       bool
+	Zoomed     bool
+	Bell       bool
+	Activity   bool
+	Silence    bool
+	Width      int
+	Height     int
+	ActivityAt time.Time
+	Layout     string
 }
 
 // CheckState represents aggregated CI/CD status for a PR or branch commit.
@@ -652,6 +658,7 @@ func (g *GitInfo) Clone() *GitInfo {
 type Pane struct {
 	ID                string // tmux pane id, e.g. "%12"
 	NumericID         int    // numeric part of ID (12) for hook store lookups
+	PaneIndex         int    // #{pane_index}
 	WindowID          string // e.g. "@1"
 	WindowIndex       int
 	WindowName        string
@@ -662,6 +669,9 @@ type Pane struct {
 	ResumeSession     string // #{@spaces_resume_session}
 	Profile           string // #{@spaces_profile}
 	Command           string // #{pane_current_command}
+	StartCommand      string // #{pane_start_command}
+	ForegroundCmd     string // deepest live child cmdline from /proc (when available)
+	ChildProcessCount int    // live descendant process count under PID
 	App               string // resolved display app name
 	Status            Status
 	BaseStatus        Status
@@ -674,8 +684,14 @@ type Pane struct {
 	CWD               string
 	AgeMs             int64
 	BaseAgeMs         int64
+	Width             int
+	Height            int
 	IsActive          bool
+	WindowActive      bool
+	InMode            bool
+	Synchronized      bool
 	IsDead            bool
+	DeadStatus        int
 	HasSpacesMeta     bool
 	ReturnedToShell   bool
 	PID               int

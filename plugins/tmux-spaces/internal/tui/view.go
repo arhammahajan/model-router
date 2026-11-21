@@ -282,6 +282,8 @@ func (m Model) renderFull(width, height int) string {
 			return styleHeader.Render("Conversations")
 		case ModeShared:
 			return styleHeader.Render("Shared")
+		case ModeTabs:
+			return styleHeader.Render("Tabs")
 		default:
 			return styleHeader.Render("Spaces")
 		}
@@ -307,6 +309,8 @@ func (m Model) renderFull(width, height int) string {
 		return m.renderConversations(width, height)
 	case ModeShared:
 		return m.renderShared(width, height)
+	case ModeTabs:
+		return m.renderTabs(width, height)
 	}
 	return m.renderNavigator(width, height)
 }
@@ -1732,7 +1736,15 @@ func (m Model) hintsLine(width int) string {
 
 func (m Model) newSpaceDialog(width int) string {
 	var b strings.Builder
-	b.WriteString(styleAccent.Render("New space"))
+	if m.newIsTab {
+		title := "New tab"
+		if m.newTabSession != "" {
+			title = "New tab · " + m.newTabSession
+		}
+		b.WriteString(styleAccent.Render(title))
+	} else {
+		b.WriteString(styleAccent.Render("New space"))
+	}
 	b.WriteString("\n")
 	nameCaret := ""
 	cwdCaret := ""
@@ -1745,6 +1757,9 @@ func (m Model) newSpaceDialog(width int) string {
 	b.WriteString(fmt.Sprintf("Folder: %s%s\n", m.newCWD, cwdCaret))
 	if m.newError != "" {
 		b.WriteString(styleError.Render(m.newError))
+		b.WriteString("\n")
+	} else if m.newIsTab {
+		b.WriteString(styleMuted.Render("Leave name blank to use the default tab name."))
 		b.WriteString("\n")
 	} else {
 		b.WriteString(styleMuted.Render("The folder is the starting directory."))
@@ -1805,6 +1820,23 @@ func (m Model) renameDialog(width int) string {
 
 func (m Model) confirmDialog(width int) string {
 	var b strings.Builder
+	if m.confirmWindow {
+		b.WriteString(styleError.Render("Close tab?"))
+		b.WriteString("\n")
+		pnoun := "panes"
+		if m.confirmPanes == 1 {
+			pnoun = "pane"
+		}
+		b.WriteString(fmt.Sprintf("Close tab %q (%s)? Its %d %s will stop.\n", m.confirmWindowName, m.confirmWindowID, m.confirmPanes, pnoun))
+		if m.confirmWindowBusy {
+			b.WriteString(styleError.Render("Warning: an agent in this tab is currently working or waiting for you.") + "\n")
+		}
+		if m.confirmWindowLast {
+			b.WriteString(styleError.Render("Warning: this is the only tab in "+m.confirmSpace+"; closing it will close the space.") + "\n")
+		}
+		b.WriteString(styleMuted.Render("y/Enter confirm · n/Esc cancel"))
+		return styleDialogBox.Render(b.String())
+	}
 	if m.confirmExited {
 		b.WriteString(styleError.Render("Delete saved space?"))
 		b.WriteString("\n")
@@ -1835,6 +1867,35 @@ func (m Model) helpDialog(width int) string {
 		return "  " + keySt.Render(fmt.Sprintf("%-14s", k)) + " " + descSt.Render(d)
 	}
 
+	if m.returnMode == ModeTabs {
+		lines := []string{
+			styleAccent.Render("Tabs · keys"),
+			"",
+			sectionSt.Render("Navigate"),
+			kv("↑ ↓ / j k", "move between tabs in current workspace"),
+			kv("← → / h l", "cycle split panes inside selected tab"),
+			kv("0 … 9", "jump to tab by tmux window index"),
+			kv("Enter / 2xClick", "focus selected tab & pane"),
+			kv("/", "filter by index, name, agent, title, cmd, branch, path"),
+			kv("H", "full scrollable hook detail overlay"),
+			kv("Esc / q", "close tabs popup"),
+			"",
+			sectionSt.Render("Manage & View"),
+			kv("n / r / x", "new · rename · close tab"),
+			kv("s", "cycle sort order (index · attention · activity)"),
+			kv("J K / [ ]", "scroll full telemetry inspector"),
+			kv("v", "expand or balance telemetry panel width"),
+			"",
+			sectionSt.Render("Filter"),
+			kv("Tab / S-Tab", "cycle status filter"),
+			kv("b / w / d / i", "blocked · working · done · idle"),
+			kv("a", "show all tabs"),
+			kv("Ctrl-r", "force refresh tabs, git & agent telemetry"),
+			"",
+			styleMuted.Render("? / Esc close"),
+		}
+		return styleDialogBox.Render(strings.Join(lines, "\n"))
+	}
 	if m.returnMode == ModeInbox {
 		lines := []string{
 			styleAccent.Render("Inbox · keys"),
