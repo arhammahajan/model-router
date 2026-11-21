@@ -139,6 +139,11 @@ func NormalizeEvent(agent, rawEvent string, payload map[string]any, env map[stri
 	toolOutput := first(payload,
 		"tool_response", "toolResponse", "tool_output", "toolOutput",
 		"tool_result", "toolResult", "output", "result")
+	if agent == "antigravity" && event == "post_tool" && toolOutput == nil && isAntigravityBackgroundTool(tool) {
+		if content := antigravityStepToolOutput(payload, tool); content != "" {
+			toolOutput = content
+		}
+	}
 	prompt := firstStr(payload,
 		"prompt", "user_prompt", "userPrompt", "lastUserInput", "last_user_input",
 		"initial_prompt", "initialPrompt", "user_message", "message")
@@ -432,6 +437,8 @@ func mergeEventApplied(existing, event map[string]any, now int64) (map[string]an
 	if _, ok := record["background_tasks"].([]any); !ok {
 		record["background_tasks"] = []any{}
 	}
+
+	event = promoteAntigravitySubagentFromRecord(existing, event, now)
 
 	if last, ok := record["last_event"].(map[string]any); ok {
 		lastEvent, _ := last["event"].(string)

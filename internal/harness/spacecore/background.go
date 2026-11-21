@@ -1224,7 +1224,8 @@ func ResolvePaneEvent(session string, pane any, event map[string]any) map[string
 	}
 	eventName, _ := event["event"].(string)
 	state, _ := event["state"].(string)
-	if eventName != "stop" && !(eventName == "notification" && state == "done") {
+	isAgy := stringKey(event["agent"]) == "antigravity"
+	if !isAgy && eventName != "stop" && !(eventName == "notification" && state == "done") {
 		return event
 	}
 
@@ -1240,6 +1241,15 @@ func ResolvePaneEvent(session string, pane any, event map[string]any) map[string
 	now := toInt64(event["ts_ms"])
 	if now <= 0 {
 		now = nowMs()
+	}
+	if isAgy {
+		promoted := promoteAntigravitySubagentFromRecord(existing, event, now)
+		if child, ok := promoted["child"].(map[string]any); ok && child != nil {
+			return promoted
+		}
+		if eventName != "stop" && !(eventName == "notification" && state == "done") {
+			return event
+		}
 	}
 	// Run merge logic on a non-deduped copy to obtain the exact resolved state.
 	simExisting := existing

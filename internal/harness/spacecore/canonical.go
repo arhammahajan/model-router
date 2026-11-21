@@ -402,6 +402,16 @@ func childInfo(agent string, payload map[string]any, event, tool, text string) m
 	subConv := isSubagentConversation(payload)
 	agentID := firstStr(payload, "agent_id", "agentId", "parent_agent_id", "parentAgentId")
 	agentType := firstStr(payload, "agentName", "agent_name", "agent_type", "agentType", "subagent_type", "subagentType")
+	var agyPromptHint string
+	if agent == "antigravity" && !subConv {
+		if meta := inspectAntigravitySubagent(payload); meta.IsSubagent {
+			subConv = true
+			if agentType == "" && meta.AgentName != "" {
+				agentType = meta.AgentName
+			}
+			agyPromptHint = meta.PromptHint
+		}
+	}
 	if !subConv && event != "subagent_start" && event != "subagent_stop" && agentID == "" && agentType == "" {
 		return nil
 	}
@@ -469,6 +479,9 @@ func childInfo(agent string, payload map[string]any, event, tool, text string) m
 		childText := ""
 		if event == "session_start" || event == "pre_invocation" || event == "prompt" {
 			childText = oneLine(firstStr(payload, "lastUserInput", "last_user_input", "prompt", "description"), MaxText, false)
+			if childText == "" && agyPromptHint != "" {
+				childText = oneLine(agyPromptHint, MaxText, false)
+			}
 		}
 		return map[string]any{
 			"id":            truncateRunes(childID, MaxSession),
