@@ -66,7 +66,7 @@ func findDefaultConfig() (string, bool) {
 		}
 		configHome = filepath.Join(home, ".config")
 	}
-	path := filepath.Join(configHome, ".router", "router.toml")
+	path := filepath.Join(configHome, "router", "router.toml")
 	if st, err := os.Stat(path); err == nil && !st.IsDir() {
 		return path, true
 	}
