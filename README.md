@@ -36,9 +36,14 @@ go build -o router ./cmd/router
 ./router validate [--config PATH]
 ./router logs [--follow] [-n LINES]
 ./router usage [--days N] [--by day|model] [--json] [PATH]
+./router proxy status [--json]
+./router proxy models [--json]
+./router proxy plugins [--json]
+./router proxy plugin enable|disable --id ID [--json]
+./router proxy accounts [--json]
 ```
 
-Run `router help` to print the full command list.
+Run `router help` to print the full command list. The `router proxy` family inspects the CLIProxyAPI proxy: mode (disabled/external/embedded from `[cliproxyapi]`), sanitized endpoint, live reachability and model count, the model inventory with opaque IDs, the plugin inventory, and a sanitized credential summary. Plugin enable/disable uses the proxy management API and needs `CLIPROXYAPI_MANAGEMENT_KEY`, which is separate from the proxy inference key in the router config (no fallback is attempted).
 
 ## Endpoints
 

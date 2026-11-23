@@ -28,6 +28,12 @@ access:
   api-keys:
     - "replace-this-proxy-key"
 
+# Optional router CLI management access. Set this key in the proxy YAML,
+# then export CLIPROXYAPI_MANAGEMENT_KEY with the same value for `router proxy`.
+# management:
+#   allow-remote: false
+#   secret-key: "replace-this-management-key"
+
 # Standard dynamic library plugins are trusted in-process code.
 plugins:
   enabled: true

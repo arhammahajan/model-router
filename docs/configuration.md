@@ -123,6 +123,50 @@ to 30 seconds for the authenticated model endpoint before discovery.
 `--check-readiness` queries the configured proxy endpoint without starting
 an embedded listener. Run the service before using an online readiness check.
 
+### Proxy inspection CLI
+
+The `router` companion CLI (`cmd/router`) adds a `router proxy` family for
+the CLIProxyAPI integration. It reads `[cliproxyapi]` from the detected
+router config (override with `--config PATH` on each subcommand), reports
+the configured mode (`disabled`, `external`, or `embedded`), the sanitized
+proxy endpoint, live reachability, and the model count, and exits non-zero
+when the proxy is unreachable:
+
+```bash
+go build -o router ./cmd/router
+./router proxy status [--json]
+./router proxy models [--json]
+./router proxy plugins [--json]
+./router proxy plugin enable|disable --id ID [--json]
+./router proxy accounts [--json]
+```
+
+- `status` probes the authenticated `GET {base_url}/models` endpoint with
+  the proxy inference key and, when the management key is set, the
+  `GET /v0/management/plugins` endpoint for management availability
+  (`ok`, `missing-key`, `unauthorized`, `unreachable`, `unavailable`, or
+  `disabled`).
+- `models` lists proxy models by their opaque IDs with the reported
+  `owned_by` provider metadata.
+- `plugins` lists proxy plugins with their `enabled`, `effective_enabled`,
+  `registered`, OAuth, and quota flags.
+- `plugin enable|disable --id ID` calls
+  `PATCH /v0/management/plugins/:id/enabled` with `{"enabled": ...}`. The
+  change persists proxy-side and applies after the proxy reloads. It is an
+  explicit operator action with no extra confirmation.
+- `accounts` summarizes `GET /v0/management/auth-files` as name, type,
+  status, and availability flags. Tokens, secrets, file paths, and raw
+  auth-file content are never printed.
+
+Configure `management.secret-key` in the CLIProxyAPI YAML to enable its
+management API. Keep `management.allow-remote` false for local access.
+Management commands (`plugins`, `plugin`, `accounts`) read the same key from
+`CLIPROXYAPI_MANAGEMENT_KEY`. The management key is separate from the proxy
+inference key (`[cliproxyapi] api_key`): no fallback is attempted, and
+neither key is ever written to terminal output, JSON output, or errors.
+HTTP clients use bounded timeouts and never follow redirects while holding
+credentials.
+
 The `harness` OpenCode agent launcher is unrelated: it starts the local
 OpenCode coding tool and is unaffected by this upstream change. The
 `metadata_source = "opencode-go-v1"` catalog option below selects frozen
