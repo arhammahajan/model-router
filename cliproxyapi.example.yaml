@@ -20,6 +20,10 @@ server:
   host: "127.0.0.1"
   port: 8317
 
+# Directory for CLIProxyAPI auth files and local KV store (required by embedded mode).
+oauth:
+  auth-dir: "~/.config/router/cliproxyapi-auth"
+
 # Client authentication for the proxy API. model-router presents one of these
 # keys as its `[cliproxyapi] api_key`. Replace this dummy value in both files.
 # CLIProxyAPI access keys are literal YAML strings. The OpenCode plugin below

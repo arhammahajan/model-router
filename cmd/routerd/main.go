@@ -270,7 +270,7 @@ func run(args []string) int {
 			fmt.Fprintf(os.Stderr, "routerd: cliproxy shutdown: %v\n", sanitizeErr(cfg, err))
 		}
 	}()
-	if err := clipMgr.Start(context.Background()); err != nil {
+	if err := clipMgr.Start(sigCtx); err != nil {
 		fmt.Fprintf(os.Stderr, "routerd: cliproxy: %v\n", sanitizeErr(cfg, err))
 		return 1
 	}
