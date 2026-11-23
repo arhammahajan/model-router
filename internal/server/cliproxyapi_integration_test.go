@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/discovery"
-	"github.com/arhammahajan/model-router/internal/server"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/discovery"
+	"github.com/arhammahajan/router/internal/server"
 )
 
 func TestCLIProxyAPIDiscoveryAndTranslation(t *testing.T) {

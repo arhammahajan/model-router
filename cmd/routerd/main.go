@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arhammahajan/router/internal/cliproxy"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/discovery"
 	"github.com/arhammahajan/router/internal/redact"
@@ -261,6 +262,31 @@ func run(args []string) int {
 	defer signal.Stop(ch)
 	sigCtx, sigStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer sigStop()
+	clipMgr := cliproxy.New(clipSettings(cfg))
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := clipMgr.Shutdown(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "routerd: cliproxy shutdown: %v\n", sanitizeErr(cfg, err))
+		}
+	}()
+	if err := clipMgr.Start(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "routerd: cliproxy: %v\n", sanitizeErr(cfg, err))
+		return 1
+	}
+	proxyExit := make(chan error, 1)
+	if clipMgr.Mode() == cliproxy.Embedded {
+		go func() {
+			err := clipMgr.Wait()
+			proxyExit <- err
+			if sigCtx.Err() == nil {
+				select {
+				case ch <- syscall.SIGTERM:
+				default:
+				}
+			}
+		}()
+	}
 	// Cache load happens before the first probe under a 2s handoff
 	// deadline; on cancel/timeout the load is skipped with an empty seed.
 	if store != nil {
@@ -299,7 +325,16 @@ func run(args []string) int {
 	if llamaWorker != nil {
 		llamaWorker.Start(sigCtx)
 	}
-	return serve(ln, srv, catWorker, llamaWorker, store, drainTimeout, ch)
+	code := serve(ln, srv, catWorker, llamaWorker, store, drainTimeout, ch)
+	select {
+	case <-proxyExit:
+		if sigCtx.Err() == nil {
+			fmt.Fprintln(os.Stderr, "routerd: embedded proxy stopped unexpectedly")
+			return 1
+		}
+	default:
+	}
+	return code
 }
 
 // runOnlineCheck performs exactly one bounded attempt per configured
@@ -322,6 +357,14 @@ func runOnlineCheck(cfg *config.Config, catWorker *discovery.Worker, llamaWorker
 		cancel()
 	}
 	return nil
+}
+
+// clipSettings maps optional config to the embedded proxy lifecycle.
+func clipSettings(cfg *config.Config) cliproxy.Settings {
+	if cfg == nil || cfg.CLIProxyAPI == nil {
+		return cliproxy.Settings{}
+	}
+	return cliproxy.FromFields(cfg.CLIProxyAPI.BaseURL, cfg.CLIProxyAPI.APIKey, cfg.CLIProxyAPI.ConfigPath)
 }
 
 // sanitizeErr redacts a runtime check failure with the app-owned secret
