@@ -100,7 +100,7 @@ The router integrates several milestone 4 foundations:
 - Provider session affinity, verified by 22 independent affinity contracts.
 - CLI validation, readiness, and offline checks using the reviewed exit code contract of 0, 2, 3, and 4. See [Configuration and CLI](configuration.md) for all supported CLI and environment-file flags.
 
-Further discovery enrichment, reasoning variants, media and tool variants, broader search replacement beyond the opt-in Responses-to-Chat SearXNG binding, the `harness`-native tool matrix, and full CLI parity remain deferred.
+Further discovery enrichment, reasoning variants, media and tool variants, broader search replacement beyond the opt-in Responses-to-Chat SearXNG binding, the native coding-agent tool matrix, and full CLI parity remain deferred.
 
 Token counting follows strict startup and request rules:
 

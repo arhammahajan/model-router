@@ -53,7 +53,7 @@ model = "upstream-gemini-model"
 
 # Opt-in usage metering: one metadata-only JSONL record per completed
 # generation (never bodies, prompts, headers or identities). Uncomment to
-# enable; `harness usage` aggregates the file. Records rotate to
+# enable; `router usage` aggregates the file. Records rotate to
 # usage.jsonl.1 once the file exceeds the bound, keeping one generation.
 # [accounting]
 # path = "${HOME}/.local/state/model-router/usage.jsonl"

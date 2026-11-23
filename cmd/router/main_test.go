@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/harness/harnessenv"
-	"github.com/arhammahajan/model-router/internal/harness/modelpick"
-	"github.com/arhammahajan/model-router/internal/harness/routerctl"
+	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
+	"github.com/arhammahajan/model-router/internal/routercli/modelpick"
+	"github.com/arhammahajan/model-router/internal/routercli/routerctl"
 )
 
 func captureBoth(t *testing.T, fn func() int) (int, string, string) {
@@ -43,10 +43,10 @@ func captureBoth(t *testing.T, fn func() int) (int, string, string) {
 	return code, string(out), string(errs)
 }
 
-func isolateEnv(t *testing.T) harnessenv.Paths {
+func isolateEnv(t *testing.T) routerenv.Paths {
 	t.Helper()
 	tmp := t.TempDir()
-	paths := harnessenv.Paths{
+	paths := routerenv.Paths{
 		Home:       filepath.Join(tmp, "home"),
 		ConfigHome: filepath.Join(tmp, "config"),
 		DataHome:   filepath.Join(tmp, "data"),
@@ -238,7 +238,7 @@ func TestStatusAndModelsLiveHTTP(t *testing.T) {
 	// Avoid hitting real systemctl in tests.
 	origDetect := routerDetect
 	t.Cleanup(func() { routerDetect = origDetect })
-	routerDetect = func(paths harnessenv.Paths, router harnessenv.RouterSettings) routerctl.Options {
+	routerDetect = func(paths routerenv.Paths, router routerenv.RouterSettings) routerctl.Options {
 		opts := origDetect(paths, router)
 		opts.Exec = func(_ context.Context, _ string, _ ...string) ([]byte, error) {
 			return nil, errors.New("no systemd")

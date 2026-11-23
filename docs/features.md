@@ -14,7 +14,7 @@ Tracks shipped and planned work for `model-router`. Check the code for current b
 | Area | Path or section |
 | --- | --- |
 | Router and engine behavior | Code and `conformance/`, which replace the retired M4 through M6 contracts |
-| Standalone `router` CLI | `cmd/router`, `internal/harness/routerctl` |
+| Standalone `router` CLI | `cmd/router`, `internal/routercli/routerctl` |
 | Proposed router diagnostics | §1 |
 
 ## Tracker

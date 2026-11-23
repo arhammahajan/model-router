@@ -40,25 +40,6 @@ go build -o router ./cmd/router
 
 Run `router help` to print the full command list.
 
-The `harness` CLI in `cmd/harness` launches coding tools against the router, manages provider profiles in `internal/harness/profiles`, controls the router service, and provides the `spaces` helper commands used by [tmux-spaces](plugins/tmux-spaces/README.md).
-
-```bash
-go build -o harness ./cmd/harness
-./harness claude                     # launch the default profile or pick when two or more exist
-./harness claude profile default     # launch the unmodified default profile
-./harness profile list               # list defaults, custom profiles, and native Antigravity profiles
-./harness profile list --agent claude
-./harness profile create claude_alt --agent claude --seed-from claude
-./harness profile claude/claude_alt  # qualify a profile name shared by multiple agents
-./harness router status              # systemd-first router control
-./harness models                     # interactive model picker over /v1/models
-./harness usage --by model           # token and cost rollups from the optional accounting log
-./harness doctor                     # whole-stack health report
-./harness spaces hooks status        # spaces helper entry point
-```
-
-Run `harness help` to print the full command list.
-
 ## Endpoints
 
 | Endpoint | Behavior |
@@ -81,7 +62,7 @@ See [Endpoints and protocol translation](docs/endpoints-and-translation.md) for 
 - [Endpoints and protocol translation](docs/endpoints-and-translation.md) documents the shared IR architecture, HTTP endpoints, Gemini 4 extensions, reasoning translation, and all six bidirectional dialect pairs.
 - [Transport, security, and scope](docs/transport-and-security.md) documents client and upstream authentication, header isolation, retries, admission bounds, behavior changes compared to Python, known limits, and deferred milestones.
 - [Verification and release archives](docs/verification-and-releases.md) documents test commands, conformance coverage, recorded Python baseline divergences, and development release builds.
-- [Feature tracker](docs/features.md) tracks shipped and planned work for `tmux-spaces`, orchestration, `harness`, and the router.
+- [Feature tracker](docs/features.md) tracks shipped and planned work for `tmux-spaces`, orchestration, and the router.
 - [Install and roll back](RELEASE.md) documents archive verification, staged cutover from Python, and rollback.
 - [tmux-spaces](plugins/tmux-spaces/README.md) documents the tmux navigator plugin and Attention Inbox.
 

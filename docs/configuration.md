@@ -325,7 +325,7 @@ Each record carries only the fields `ts`, `model`, `provider`, `ingress`, `upstr
 
 Metering is fail-open. The router drops write and rotation errors and never fails a request because of them. Once the file exceeds `max_file_bytes`, the router rotates it to `path.1` and keeps one prior generation.
 
-`harness usage` aggregates the JSONL file into per-day and per-model rollups reporting request counts, error counts for status codes of 400 and above, and token sums.
+`router usage` aggregates the JSONL file into per-day and per-model rollups reporting request counts, error counts for status codes of 400 and above, and token sums.
 
 ## Opt-in search replacement
 

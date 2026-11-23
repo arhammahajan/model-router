@@ -25,10 +25,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/harness/harnessenv"
-	"github.com/arhammahajan/model-router/internal/harness/modelpick"
-	"github.com/arhammahajan/model-router/internal/harness/routerctl"
-	usageagg "github.com/arhammahajan/model-router/internal/harness/usage"
+	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
+	"github.com/arhammahajan/model-router/internal/routercli/modelpick"
+	"github.com/arhammahajan/model-router/internal/routercli/routerctl"
+	usageagg "github.com/arhammahajan/model-router/internal/routercli/usage"
 	"github.com/arhammahajan/model-router/internal/server"
 )
 
@@ -41,8 +41,8 @@ func main() {
 // Seams for unit tests so tests never touch the real home directory,
 // systemd, or live router processes unless explicitly testing them.
 var (
-	routerDefaultPaths    = harnessenv.DefaultPaths
-	routerEnv             = harnessenv.RouterEnv
+	routerDefaultPaths    = routerenv.DefaultPaths
+	routerEnv             = routerenv.RouterEnv
 	routerDetect          = routerctl.Detect
 	routerStart           = routerctl.Start
 	routerStop            = routerctl.Stop
@@ -74,8 +74,8 @@ Commands:
 Environment:
   MODEL_ROUTER_URL       router base URL (default: http://127.0.0.1:4000)
   MODEL_ROUTER_API_KEY   router bearer token
-  MODEL_ROUTER_BIN       router binary path override (also ROUTER_BIN, HARNESS_ROUTER_BIN)
-  MODEL_ROUTER_CONFIG    router config path override (also ROUTER_CONFIG, HARNESS_ROUTER_CONFIG)
+  MODEL_ROUTER_BIN       router binary path override (also ROUTER_BIN; HARNESS_ROUTER_BIN is a legacy alias)
+  MODEL_ROUTER_CONFIG    router config path override (also ROUTER_CONFIG; HARNESS_ROUTER_CONFIG is a legacy alias)
 `)
 }
 
@@ -147,7 +147,7 @@ func topicHelp(topic string) int {
 	return 0
 }
 
-func routerOptions() (routerctl.Options, harnessenv.Paths, harnessenv.RouterSettings) {
+func routerOptions() (routerctl.Options, routerenv.Paths, routerenv.RouterSettings) {
 	paths := routerDefaultPaths()
 	router := routerEnv(paths)
 	return routerDetect(paths, router), paths, router
@@ -367,7 +367,7 @@ func runLogs(args []string) int {
 	return 0
 }
 
-func defaultUsagePath(paths harnessenv.Paths) string {
+func defaultUsagePath(paths routerenv.Paths) string {
 	return filepath.Join(paths.StateHome, "model-router", "accounting.jsonl")
 }
 
