@@ -20,7 +20,7 @@ In all paths, the router drops the following inbound headers:
 - Quota and billing attribution headers
 - Representation headers
 
-Static provider headers override inbound opt-in headers, and the selected upstream credential takes final precedence. The router enforces `Content-Type: application/json` and `Accept-Encoding: identity` on outbound requests. The router also clears `GetBody` on outbound requests so the HTTP transport layer cannot silently replay a generation outside the explicit retry policy.
+Static provider headers override inbound opt-in headers, and the selected upstream credential takes final precedence. In the default CLIProxyAPI setup, the only credential in the router TOML is the proxy access key (`[cliproxyapi] api_key`); upstream AI/OAuth credentials live only in the CLIProxyAPI YAML file and environment. The router enforces `Content-Type: application/json` and `Accept-Encoding: identity` on outbound requests. The router also clears `GetBody` on outbound requests so the HTTP transport layer cannot silently replay a generation outside the explicit retry policy.
 
 ## Timeouts, retries, and encoding
 

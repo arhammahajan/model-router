@@ -37,7 +37,7 @@ def archive(path: Path, prefix: str, files: dict[str, tuple[bytes, int]]) -> Non
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--go", default="go", help="Go 1.24+ executable")
+    parser.add_argument("--go", default="go", help="Go 1.26.10+ executable")
     parser.add_argument("--version", required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--target", choices=TARGETS, action="append")
@@ -67,12 +67,15 @@ def main() -> None:
         + f"\n\n{toml['Path']} {toml['Version']}\n\n"
         + (Path(toml["Dir"]) / "LICENSE").read_text()
     ).encode()
+    proxy = json.loads(run([args.go, "list", "-m", "-json", "github.com/router-for-me/CLIProxyAPI/v8"], env))
+    notices += (f"\n\ngithub.com/router-for-me/CLIProxyAPI/v8 {proxy['Version']}\n\n"
+                + (Path(proxy["Dir"]) / "LICENSE").read_text()).encode()
     manifest = {
         "version": args.version,
         "source_revision": run(["git", "rev-parse", "HEAD"], env),
         "source_dirty": bool(run(["git", "status", "--porcelain", "--", "."], env)),
         "go_version": run([args.go, "version"], env),
-        "dependencies": {toml["Path"]: toml["Version"]},
+        "dependencies": {toml["Path"]: toml["Version"], proxy["Path"]: proxy["Version"]},
         "artifacts": [],
     }
     with tempfile.TemporaryDirectory(prefix=".release-", dir=out) as directory:
@@ -91,6 +94,7 @@ def main() -> None:
             archive(packed, prefix, {
                 "routerd": (binary.read_bytes(), 0o755),
                 "config.example.toml": ((ROOT / "config.example.toml").read_bytes(), 0o600),
+                "cliproxyapi.example.yaml": ((ROOT / "cliproxyapi.example.yaml").read_bytes(), 0o600),
                 "README.md": ((ROOT / "RELEASE.md").read_bytes(), 0o644),
                 "THIRD_PARTY_NOTICES": (notices, 0o644),
             })

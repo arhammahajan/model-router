@@ -41,6 +41,9 @@ The suite also verifies these translation and state rules:
 
 Tool-result regression tests pin exact content preservation, which covers empty strings and Unicode strings. The tests reject duplicated tool-result content.
 
+## Toolchain notes
+
+The router root module and CLIProxyAPI v8 SDK dependency require Go 1.26.10 or later. Building the `opencode-go-cliproxyapi` shared library requires CGO (`-buildmode=c-shared`). Release archives use CGO-disabled builds and can connect to an external CLIProxyAPI service. To load the OpenCode plugin in embedded mode, build with `CGO_ENABLED=1` and install the plugin binary in CLIProxyAPI's configured plugin directory.
 ## Development release archives
 
 Build development archives separately from deployment:

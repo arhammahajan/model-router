@@ -1,9 +1,11 @@
 # Install and roll back routerd
 
 These development archives contain a standalone Go executable, a dummy-key
-configuration example, this guide, and bundled upstream notices. Linux and macOS builds target amd64 and
+router and CLIProxyAPI configuration examples, this guide, and bundled upstream notices. Linux and macOS builds target amd64 and
 arm64 with CGO disabled. Windows is not declared supported: the discovery cache
-requires Unix file ownership and no-follow semantics.
+requires Unix file ownership and no-follow semantics. To load dynamic plugins
+in embedded mode, build model-router with CGO enabled. CGO-disabled archives
+connect to a separately running CLIProxyAPI instance for OpenCode plugin access.
 
 Cross-compilation proves a target builds; only an archive tested on its target
 platform has runtime smoke evidence. These artifacts do not establish complete
@@ -19,8 +21,11 @@ Extract the archive into a fresh directory. Then run:
 ./routerd --config config.example.toml --validate-config --offline
 ```
 
-The example has dummy credentials and local placeholder upstreams. Replace the
-keys, URLs, and model IDs in a separate private configuration before serving.
+The example holds dummy ingress credentials and points at a local CLIProxyAPI
+listener. Replace the keys and URLs in a separate private configuration before
+serving. Upstream AI/OAuth credentials live only in the CLIProxyAPI YAML
+file and environment (see `cliproxyapi.example.yaml`), never in the router
+configuration.
 For environment credentials, replace `api_key` with `api_key_env`; never publish
 your private configuration or credential files in an archive.
 

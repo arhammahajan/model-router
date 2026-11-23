@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -9,6 +10,7 @@ import socket
 import subprocess
 import tarfile
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -24,10 +26,10 @@ def main() -> None:
         with tarfile.open(args.archive, "r:gz") as packed:
             members = packed.getmembers()
             prefixes = {PurePosixPath(item.name).parts[0] for item in members}
-            if len(prefixes) != 1 or len(members) != 4:
-                raise ValueError("expected exactly four files under one archive directory")
+            if len(prefixes) != 1 or len(members) != 5:
+                raise ValueError("expected exactly five files under one archive directory")
             prefix = next(iter(prefixes))
-            allowed = {"routerd", "config.example.toml", "README.md", "THIRD_PARTY_NOTICES"}
+            allowed = {"routerd", "config.example.toml", "cliproxyapi.example.yaml", "README.md", "THIRD_PARTY_NOTICES"}
             found = set()
             for item in members:
                 path = PurePosixPath(item.name)
@@ -64,13 +66,38 @@ def main() -> None:
         if json.loads(offline) != {"status": "indeterminate", "network_checked": False,
                                   "reason": "offline_readiness_requires_discovery"}:
             raise AssertionError("offline readiness contract changed")
-        # The static example has no discovery workers. Cached reads exercise
-        # the extracted server without calling any configured upstream.
+        class ProxyHandler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                if (self.path != "/v1/models"
+                        or self.headers.get("Authorization") != "Bearer proxy-smoke-key"):
+                    self.send_error(403)
+                    return
+                body = json.dumps({"data": [{"id": "opencode-go/smoke-model"}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args: object) -> None:
+                pass
+
+        # Exercise proxy discovery against a local fixture with dummy credentials.
+        proxy = ThreadingHTTPServer(("127.0.0.1", 0), ProxyHandler)
+        proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+        proxy_thread.start()
+        smoke_config = home / "smoke.toml"
+        smoke_config.write_text(
+            '[server]\napi_keys = ["replace-this-local-key"]\n'
+            '[cliproxyapi]\n'
+            f'base_url = "http://127.0.0.1:{proxy.server_port}/v1"\n'
+            'api_key = "proxy-smoke-key"\n'
+        )
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
         process = subprocess.Popen(
-            [binary, "--config", config, "--host", "127.0.0.1", "--port", str(port)],
+            [binary, "--config", str(smoke_config), "--host", "127.0.0.1", "--port", str(port)],
             cwd=home, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -105,9 +132,12 @@ def main() -> None:
             if status != 401:
                 raise AssertionError("archive model listing bypassed authentication")
             status, models = get("/v1/models", authenticated=True)
-            if status != 200 or len(models.get("data", [])) != 4:
-                raise AssertionError("archive model listing lost the configured static routes")
+            if status != 200 or [row["id"] for row in models.get("data", [])] != ["opencode-go/smoke-model"]:
+                raise AssertionError("archive model listing lost the discovered proxy route")
         finally:
+            proxy.shutdown()
+            proxy.server_close()
+            proxy_thread.join(timeout=5)
             if process.poll() is None:
                 process.terminate()
             try:

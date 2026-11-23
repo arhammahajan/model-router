@@ -86,9 +86,54 @@ Configure upstream retries and absolute request deadlines in `[retry]`.
 | `backoff_max` | Maximum backoff delay between retry attempts. |
 | `deadline` | Absolute deadline covering request preparation, attempts, backoff, and full stream consumption. The clock starts at handler entry. |
 
+## CLIProxyAPI upstream (default)
+
+The default setup fronts CLIProxyAPI instead of configuring upstream
+providers directly. Upstream AI/OAuth credentials live only in the
+CLIProxyAPI YAML file and environment, never in the router TOML.
+
+```toml
+[cliproxyapi]
+base_url = "http://127.0.0.1:8317/v1"
+api_key = "replace-this-proxy-key"
+# api_key_env = "CLIPROXYAPI_API_KEY"  # alternative: read the key from env
+# config_path = "/path/to/cliproxyapi-config.yaml"  # optional embedded mode
+```
+
+| Key | Description |
+| --- | --- |
+| `base_url` | Proxy base URL. Defaults to `http://127.0.0.1:8317/v1`. |
+| `api_key`, `api_key_env`, `api_key_file` | Proxy access key supplied inline, from an environment variable, or from a file. This is the client key in the proxy's `access.api-keys` list, not an upstream provider credential. |
+| `config_path` | Optional path to a CLIProxyAPI YAML file. When set, model-router runs the SDK service embedded in-process; when omitted, it dials an external proxy listener. |
+
+A default external-wrapper config needs no `[providers.*]`,
+`[[models]]`, or `[catalog]` sections. Model names are discovered from the
+proxy as opaque `opencode-go/...` IDs. Discovery refreshes every five
+seconds so newly loaded plugins and OAuth accounts become available promptly. The generated `cliproxyapi` provider
+speaks OpenAI Chat on the wire, while model-router retains cross-dialect
+translation for all ingress dialects.
+
+External mode: start CLIProxyAPI separately (see
+[cliproxyapi.example.yaml](../cliproxyapi.example.yaml) for the proxy-side
+access key and `plugins.configs.opencode-go-cliproxyapi` setup with secrets
+from env), then start model-router with the wrapper config. Embedded mode:
+set `config_path` and model-router starts the SDK service itself. The proxy
+`base_url` must match the YAML listener and include `/v1`. Startup waits up
+to 30 seconds for the authenticated model endpoint before discovery.
+`--check-readiness` queries the configured proxy endpoint without starting
+an embedded listener. Run the service before using an online readiness check.
+
+The `harness` OpenCode agent launcher is unrelated: it starts the local
+OpenCode coding tool and is unaffected by this upstream change. The
+`metadata_source = "opencode-go-v1"` catalog option below selects frozen
+historical capability provenance only; it carries no credentials and never
+contacts `opencode.ai`.
+
 ## Providers
 
-Configure upstream providers under `[providers.<name>]`.
+Direct `[providers.*]` entries remain supported for non-proxy upstreams and
+local fixtures, but the default configuration uses `[cliproxyapi]` above
+and configures no providers directly.
 
 | Key | Description |
 | --- | --- |
