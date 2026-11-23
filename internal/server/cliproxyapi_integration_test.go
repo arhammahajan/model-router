@@ -116,3 +116,65 @@ api_key = "proxy-key"
 		})
 	}
 }
+
+func TestCLIProxyAPIPassthrough(t *testing.T) {
+	const model = "gpt-6-luna"
+	var seenPaths []string
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/models":
+			fmt.Fprintf(w, `{"object":"list","data":[{"id":%q,"object":"model"}]}`, model)
+		case "/v1/chat/completions":
+			seenPaths = append(seenPaths, r.URL.Path)
+			fmt.Fprintf(w, `{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":%q,"choices":[{"index":0,"message":{"role":"assistant","content":"chat-ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`, model)
+		case "/v1/responses":
+			seenPaths = append(seenPaths, r.URL.Path)
+			fmt.Fprintf(w, `{"id":"resp_1","object":"response","created_at":1,"status":"completed","model":%q,"output":[{"id":"msg_1","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"resp-ok","annotations":[]}]}]}`, model)
+		case "/v1/messages":
+			seenPaths = append(seenPaths, r.URL.Path)
+			fmt.Fprintf(w, `{"id":"msg_1","type":"message","role":"assistant","model":%q,"content":[{"type":"text","text":"anth-ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`, model)
+		default:
+			t.Errorf("unexpected proxy path %q", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer proxy.Close()
+	path := filepath.Join(t.TempDir(), "router.toml")
+	raw := fmt.Sprintf("[server]\nallow_dynamic_routes = false\n[cliproxyapi]\nbase_url = %q\npassthrough = true\n", proxy.URL+"/v1")
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadWithOptions(path, config.LoadOptions{NoDefaultEnv: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := server.New(cfg)
+	defer app.CloseIdleConnections()
+	worker := discovery.NewCatalogWorker(cfg.Catalog, cfg.Providers, app.Registry())
+	defer worker.CloseIdleConnections()
+	worker.RefreshOnce(context.Background())
+	rt := httptest.NewServer(app.Handler())
+	defer rt.Close()
+
+	for _, tc := range []struct{ path, body, want string }{
+		{"/v1/chat/completions", `{"model":"gpt-6-luna","messages":[{"role":"user","content":"Hi"}]}`, "chat-ok"},
+		{"/v1/responses", `{"model":"gpt-6-luna","input":[{"role":"developer","content":"x"},{"role":"user","content":"Hi"}],"prompt_cache_key":"k"}`, "resp-ok"},
+		{"/v1/messages", `{"model":"gpt-6-luna","max_tokens":16,"messages":[{"role":"user","content":"Hi"}]}`, "anth-ok"},
+	} {
+		resp, err := rt.Client().Post(rt.URL+tc.path, "application/json", strings.NewReader(tc.body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 || !strings.Contains(string(b), tc.want) {
+			t.Fatalf("%s: status=%d body=%s", tc.path, resp.StatusCode, b)
+		}
+	}
+	got := strings.Join(seenPaths, ",")
+	want := "/v1/chat/completions,/v1/responses,/v1/messages"
+	if got != want {
+		t.Fatalf("proxy paths = %q, want %q", got, want)
+	}
+}

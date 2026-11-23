@@ -29,6 +29,7 @@ type CLIProxyAPIConfig struct {
 	APIKey           string
 	ConfigPath       string
 	Lossy            bool
+	Passthrough      bool
 	CompatibilityRaw string
 }
 
@@ -48,6 +49,7 @@ func (c *CLIProxyAPIConfig) Provider() *Provider {
 		Headers:          map[string]string{},
 		Timeout:          DefaultProviderTimeout,
 		Lossy:            c.Lossy,
+		Passthrough:      c.Passthrough,
 		LitellmProvider:  "openai",
 		CompatibilityRaw: c.CompatibilityRaw,
 	}
@@ -65,12 +67,13 @@ func (c *Config) CLIProxyProvider() *Provider {
 var cliproxyAPIKeys = map[string]bool{
 	"base_url": true, "api_key": true, "api_key_env": true,
 	"api_key_file": true, "config_path": true, "compatibility": true,
+	"passthrough": true,
 }
 
 func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 	const where = "cliproxyapi"
 	if err := rejectUnknown(tab, cliproxyAPIKeys, where,
-		" (supported: base_url, api_key/api_key_env/api_key_file, config_path, compatibility)"); err != nil {
+		" (supported: base_url, api_key/api_key_env/api_key_file, config_path, compatibility, passthrough)"); err != nil {
 		return nil, err
 	}
 	base := DefaultCLIProxyAPIBaseURL
@@ -107,11 +110,20 @@ func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 		compatRaw = s
 		lossy = s == "lossy"
 	}
+	passthrough := false
+	if v, ok := tab["passthrough"]; ok {
+		b, ok := asBool(v)
+		if !ok {
+			return nil, fmt.Errorf("%s: 'passthrough' must be boolean", where)
+		}
+		passthrough = b
+	}
 	return &CLIProxyAPIConfig{
 		BaseURL:          base,
 		APIKey:           key,
 		ConfigPath:       configPath,
 		Lossy:            lossy,
+		Passthrough:      passthrough,
 		CompatibilityRaw: compatRaw,
 	}, nil
 }

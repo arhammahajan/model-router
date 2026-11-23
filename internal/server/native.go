@@ -220,6 +220,10 @@ func (s *Server) startPreamble(w http.ResponseWriter, r *http.Request, ingress s
 		}
 		return fail(merr.Status, *merr)
 	}
+	if provider.Passthrough && model.Dialect == "" &&
+		(ingress == config.DialectOpenAIChat || ingress == config.DialectOpenAIResponses || ingress == config.DialectAnthropic) {
+		provider.Dialect = ingress
+	}
 	p := &preamble{ctx: ctx, body: body, model: model, provider: provider, snap: snap}
 	// Wrap cancel so the generation slot is always released.
 	origCancel := cancel

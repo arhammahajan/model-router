@@ -105,6 +105,7 @@ type Provider struct {
 	Headers         map[string]string
 	Timeout         float64
 	Lossy           bool // compatibility = "lossy" (or legacy drop_params = true)
+	Passthrough     bool // native same-dialect passthrough for Chat, Responses, and Anthropic
 	AuthHeader      string
 	CountTokens     *bool
 	LitellmProvider string // validated default adapter spelling (openai/anthropic/gemini)
