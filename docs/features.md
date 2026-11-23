@@ -16,12 +16,14 @@ Tracks shipped and planned work for `router`. Check the code for current behavio
 | Router and engine behavior | Code and `conformance/`, which replace the retired M4 through M6 contracts |
 | Standalone `router` CLI | `cmd/router`, `internal/routercli/routerctl` |
 | Proposed router diagnostics | §1 |
+| Proposed harness plugins | §2 |
 
 ## Tracker
 
 | ID | Area | Item | Status | Section |
 | --- | --- | --- | --- | --- |
 | RTR-1 | router | Explain model routing and effective capabilities | Proposed | §1 |
+| RTR-2 | integrations | Rich coding agent harness plugins | Proposed | §2 |
 
 ## 0. Shipped baseline
 
@@ -50,3 +52,17 @@ diagnostics interface. Return route metadata without credentials or request data
 [route resolution](../internal/router/snapshot.go) ·
 [effective capabilities](../internal/router/reasoning.go) ·
 [router diagnostics](configuration.md#diagnostics-endpoint)
+
+## 2. Rich coding agent harness plugins (RTR-2)
+
+**Proposed.**
+
+Provide rich plugins for supported coding agent harnesses that consume the live
+model catalog directly from `router` (`/v1/models`) instead of relying on static
+per-harness model lists.
+
+- Expose model-specific thinking/reasoning toggles, supported effort levels, and
+  context window limits derived from router capability metadata.
+- Track live `llama.cpp` and Strata servers in real time so loaded local models
+  appear with their actual model display name and dynamically updated context
+  size as slots or models change.
