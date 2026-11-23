@@ -427,7 +427,7 @@ func (d *ChatStreamDecoder) handleChoice(raw json.RawMessage) ([]ResponseEvent, 
 	}
 	for k := range choice {
 		switch k {
-		case "index", "delta", "finish_reason", "logprobs":
+		case "index", "delta", "finish_reason", "logprobs", "native_finish_reason":
 		default:
 			return nil, chatStreamUnrep("chunk.choices[0]." + k)
 		}

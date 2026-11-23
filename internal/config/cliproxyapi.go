@@ -25,9 +25,11 @@ const DefaultCLIProxyAPIBaseURL = "http://127.0.0.1:8317/v1"
 // unauthenticated). ConfigPath is the optional embedded SDK YAML config
 // path loaded by the embedded service at startup.
 type CLIProxyAPIConfig struct {
-	BaseURL    string
-	APIKey     string
-	ConfigPath string
+	BaseURL          string
+	APIKey           string
+	ConfigPath       string
+	Lossy            bool
+	CompatibilityRaw string
 }
 
 // Provider builds the trusted generated provider from config only: no I/O,
@@ -45,8 +47,9 @@ func (c *CLIProxyAPIConfig) Provider() *Provider {
 		APIKey:           c.APIKey,
 		Headers:          map[string]string{},
 		Timeout:          DefaultProviderTimeout,
+		Lossy:            c.Lossy,
 		LitellmProvider:  "openai",
-		CompatibilityRaw: "",
+		CompatibilityRaw: c.CompatibilityRaw,
 	}
 }
 
@@ -61,13 +64,13 @@ func (c *Config) CLIProxyProvider() *Provider {
 
 var cliproxyAPIKeys = map[string]bool{
 	"base_url": true, "api_key": true, "api_key_env": true,
-	"api_key_file": true, "config_path": true,
+	"api_key_file": true, "config_path": true, "compatibility": true,
 }
 
 func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 	const where = "cliproxyapi"
 	if err := rejectUnknown(tab, cliproxyAPIKeys, where,
-		" (supported: base_url, api_key/api_key_env/api_key_file, config_path)"); err != nil {
+		" (supported: base_url, api_key/api_key_env/api_key_file, config_path, compatibility)"); err != nil {
 		return nil, err
 	}
 	base := DefaultCLIProxyAPIBaseURL
@@ -94,7 +97,23 @@ func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 		}
 		configPath = strings.TrimSpace(s)
 	}
-	return &CLIProxyAPIConfig{BaseURL: base, APIKey: key, ConfigPath: configPath}, nil
+	compatRaw := ""
+	lossy := false
+	if v, ok := tab["compatibility"]; ok {
+		s, ok := asString(v)
+		if !ok || (s != "strict" && s != "lossy") {
+			return nil, fmt.Errorf("%s: 'compatibility' must be \"strict\" or \"lossy\"", where)
+		}
+		compatRaw = s
+		lossy = s == "lossy"
+	}
+	return &CLIProxyAPIConfig{
+		BaseURL:          base,
+		APIKey:           key,
+		ConfigPath:       configPath,
+		Lossy:            lossy,
+		CompatibilityRaw: compatRaw,
+	}, nil
 }
 
 // catalog supplies trusted discovery settings for the existing catalog worker.

@@ -15,6 +15,7 @@ allow_dynamic_routes = false
 max_attempts = 1
 
 [cliproxyapi]
+compatibility = "lossy"
 base_url = "http://127.0.0.1:8317/v1"
 api_key = "replace-this-proxy-key"
 # To supply the proxy key from the environment instead of inline, replace

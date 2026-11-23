@@ -122,3 +122,24 @@ func TestCLIProxyAPIConfigPathOptional(t *testing.T) {
 		t.Fatalf("omitted config_path must stay empty: %q", cfg.CLIProxyAPI.ConfigPath)
 	}
 }
+
+func TestCLIProxyAPICompatibility(t *testing.T) {
+	cfg, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"lossy\"\n")))
+	if err != nil {
+		t.Fatalf("compatibility=lossy must be accepted: %v", err)
+	}
+	p := cfg.CLIProxyProvider()
+	if !p.Lossy || p.CompatibilityRaw != "lossy" {
+		t.Fatalf("provider lossy=%v raw=%q, want true/lossy", p.Lossy, p.CompatibilityRaw)
+	}
+	cfg, err = Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"strict\"\n")))
+	if err != nil {
+		t.Fatalf("compatibility=strict must be accepted: %v", err)
+	}
+	if cfg.CLIProxyProvider().Lossy || cfg.CLIProxyProvider().CompatibilityRaw != "strict" {
+		t.Fatalf("strict must leave Lossy=false")
+	}
+	if _, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"invalid\"\n"))); err == nil {
+		t.Fatal("invalid compatibility must fail")
+	}
+}
