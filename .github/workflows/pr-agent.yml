@@ -73,13 +73,13 @@ jobs:
         env:
           AUDIENCE: https://opencode.ai/console
         run: |
-          oidc=$(curl -sS --fail-with-body --oauth2-bearer "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -er .value)
-          token=$(curl -sS --fail-with-body https://opencode.ai/console/auth/oauth/token \
+          oidc=$(curl -sSf --oauth2-bearer "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -r .value)
+          token=$(curl -sSf https://opencode.ai/console/auth/oauth/token \
             -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
             -d subject_token_type=urn:ietf:params:oauth:token-type:jwt \
-            -d client_id=sk_4f4332c1-7388-4e23-ad0e-c9735f416c74 \
-            -d subject_token="$oidc" | jq -er .access_token)
+            -d client_id=sk_fbcc2a67-67ec-455a-9411-6b4c51fa1e77 \
+            -d subject_token="$oidc" | jq -r .access_token)
           echo "::add-mask::$token"
           echo "OPENCODE_API_KEY=$token" >> "$GITHUB_ENV"
 
