@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func finalCatalogAt(t *testing.T, path string) float64 {

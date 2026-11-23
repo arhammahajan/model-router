@@ -11,8 +11,8 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/catalog"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/catalog"
 )
 
 // Catalog defaults mirror the Python baseline: timeout 30s, refresh 300s.

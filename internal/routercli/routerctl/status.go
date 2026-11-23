@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // Status is the point-in-time router overview. Degradation is expressed in

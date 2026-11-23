@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/discovery"
-	"github.com/arhammahajan/model-router/internal/server"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/discovery"
+	"github.com/arhammahajan/router/internal/server"
 )
 
 func writeLlamaCLICfg(t *testing.T, serversTOML string) string {
@@ -171,7 +171,7 @@ func TestLlamaServeStaleRetainedNoRequestIO(t *testing.T) {
 		}
 		var out []string
 		for _, m := range payload.Data {
-			if m.OwnedBy != "model-router" {
+			if m.OwnedBy != "router" {
 				t.Fatalf("owned_by=%q", m.OwnedBy)
 			}
 			out = append(out, m.ID)

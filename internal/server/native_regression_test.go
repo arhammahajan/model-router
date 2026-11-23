@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func geminiPercentCfgPath(t *testing.T) *config.Config {

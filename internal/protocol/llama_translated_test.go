@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 func llamaCaps(t *testing.T, mutate func(*capability.Contract)) capability.ReasoningCapabilities {

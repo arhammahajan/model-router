@@ -1,4 +1,4 @@
-// Package routerctl controls and queries the model-router daemon.
+// Package routerctl controls and queries the router daemon.
 //
 // It implements the standalone router CLI control surface:
 // systemd-first start/stop/restart with a direct-spawn fallback, plus
@@ -23,11 +23,11 @@ import (
 	"syscall"
 	"time"
 
-	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
+	routerenv "github.com/arhammahajan/router/internal/routercli/env"
 )
 
 // DefaultUnit is the systemd user unit managed in systemd mode.
-const DefaultUnit = "model-router.service"
+const DefaultUnit = "router.service"
 
 // DefaultHTTPTimeout applies to all router HTTP queries when
 // Options.HTTPTimeout is zero.
@@ -49,8 +49,8 @@ type Options struct {
 	Journalctl   string                   // journalctl binary path, default "journalctl"; tests inject fakes
 	RouterBin    string                   // direct-mode binary; Detect fills it
 	RouterConfig string                   // --config for direct mode; Detect fills it
-	LogPath      string                   // direct-mode log; default $StateHome/harness/router.log
-	PidPath      string                   // direct-mode pidfile; default $StateHome/harness/router.pid
+	LogPath      string                   // direct-mode log; default $StateHome/router/router.log
+	PidPath      string                   // direct-mode pidfile; default $StateHome/router/router.pid
 	HTTPTimeout  time.Duration            // default DefaultHTTPTimeout
 
 	// Exec runs a command to completion and returns its combined output.
@@ -155,23 +155,28 @@ func (o Options) spawnFn() func(string, []string, string) (int, error) {
 // Detect builds Options from paths and router settings, resolving the
 // direct-mode binary and config with the contract search orders:
 //
-// RouterBin: $MODEL_ROUTER_BIN / $ROUTER_BIN / $HARNESS_ROUTER_BIN, then the
-// newest $Home/.local/libexec/model-router/model-router-go*, then
-// $Home/dev/model-router/model-router-go, then "model-router-go" from PATH.
+// RouterBin: $ROUTER_BIN / $MODEL_ROUTER_BIN / $HARNESS_ROUTER_BIN, then the
+// newest $Home/.local/libexec/router/routerd*, then
+// $Home/dev/router/routerd, then "routerd" from PATH.
 //
-// RouterConfig: $MODEL_ROUTER_CONFIG / $ROUTER_CONFIG / $HARNESS_ROUTER_CONFIG,
-// then $ConfigHome/model-router/router-go.toml, then the literal "router.toml".
+// RouterConfig: $ROUTER_CONFIG / $MODEL_ROUTER_CONFIG / $HARNESS_ROUTER_CONFIG,
+// then $ConfigHome/router/router.toml (legacy model-router path also accepted), then the literal "router.toml".
 //
-// Log/Pid default to $StateHome/harness/router.log and router.pid;
+// Log/Pid default to $StateHome/router/router.log and router.pid;
 // HTTPTimeout defaults to DefaultHTTPTimeout.
 func Detect(paths routerenv.Paths, router routerenv.RouterSettings) Options {
 	opts := Options{
 		Paths:       paths,
 		Router:      router,
 		Unit:        DefaultUnit,
-		LogPath:     filepath.Join(paths.StateHome, "harness", "router.log"),
-		PidPath:     filepath.Join(paths.StateHome, "harness", "router.pid"),
+		LogPath:     filepath.Join(paths.StateHome, "router", "router.log"),
+		PidPath:     filepath.Join(paths.StateHome, "router", "router.pid"),
 		HTTPTimeout: DefaultHTTPTimeout,
+	}
+	legacyUnit := filepath.Join(paths.ConfigHome, "systemd", "user", "model-router.service")
+	newUnit := filepath.Join(paths.ConfigHome, "systemd", "user", DefaultUnit)
+	if fileExists(legacyUnit) && !fileExists(newUnit) {
+		opts.Unit = "model-router.service"
 	}
 	lookPath := exec.LookPath
 	if opts.LookPath != nil {
@@ -187,21 +192,27 @@ func Detect(paths routerenv.Paths, router routerenv.RouterSettings) Options {
 	} else {
 		opts.Journalctl = "journalctl"
 	}
-	if bin := firstEnv("MODEL_ROUTER_BIN", "ROUTER_BIN", "HARNESS_ROUTER_BIN"); bin != "" {
+	if bin := firstEnv("ROUTER_BIN", "MODEL_ROUTER_BIN", "HARNESS_ROUTER_BIN"); bin != "" {
 		opts.RouterBin = bin
 	} else if newest, ok := newestLibexecBin(paths); ok {
 		opts.RouterBin = newest
-	} else if dev := filepath.Join(paths.Home, "dev", "model-router", "model-router-go"); fileExists(dev) {
+	} else if dev := filepath.Join(paths.Home, "dev", "router", "routerd"); fileExists(dev) {
 		opts.RouterBin = dev
+	} else if legacy := filepath.Join(paths.Home, "dev", "model-router", "model-router-go"); fileExists(legacy) {
+		opts.RouterBin = legacy
+	} else if p, err := lookPath("routerd"); err == nil && p != "" {
+		opts.RouterBin = p
 	} else if p, err := lookPath("model-router-go"); err == nil && p != "" {
 		opts.RouterBin = p
 	} else {
-		opts.RouterBin = "model-router-go"
+		opts.RouterBin = "routerd"
 	}
-	if cfg := firstEnv("MODEL_ROUTER_CONFIG", "ROUTER_CONFIG", "HARNESS_ROUTER_CONFIG"); cfg != "" {
+	if cfg := firstEnv("ROUTER_CONFIG", "MODEL_ROUTER_CONFIG", "HARNESS_ROUTER_CONFIG"); cfg != "" {
 		opts.RouterConfig = cfg
-	} else if cand := filepath.Join(paths.ConfigHome, "model-router", "router-go.toml"); fileExists(cand) {
+	} else if cand := filepath.Join(paths.ConfigHome, "router", "router.toml"); fileExists(cand) {
 		opts.RouterConfig = cand
+	} else if legacy := filepath.Join(paths.ConfigHome, "model-router", "router-go.toml"); fileExists(legacy) {
+		opts.RouterConfig = legacy
 	} else {
 		opts.RouterConfig = "router.toml"
 	}
@@ -223,12 +234,18 @@ func fileExists(path string) bool {
 }
 
 // newestLibexecBin returns the most recently modified
-// $Home/.local/libexec/model-router/model-router-go* entry. Ties break by
+// $Home/.local/libexec/router/routerd* entry. Ties break by
 // greatest base name so the choice is deterministic.
 func newestLibexecBin(paths routerenv.Paths) (string, bool) {
-	matches, err := filepath.Glob(filepath.Join(paths.Home, ".local", "libexec", "model-router", "model-router-go*"))
-	if err != nil || len(matches) == 0 {
+	matches, err := filepath.Glob(filepath.Join(paths.Home, ".local", "libexec", "router", "routerd*"))
+	if err != nil {
 		return "", false
+	}
+	if len(matches) == 0 {
+		matches, err = filepath.Glob(filepath.Join(paths.Home, ".local", "libexec", "model-router", "model-router-go*"))
+		if err != nil {
+			return "", false
+		}
 	}
 	type candidate struct {
 		path    string
@@ -286,7 +303,7 @@ func Start(ctx context.Context, opts Options, waitReady time.Duration) error {
 func startDirect(ctx context.Context, opts Options, waitReady time.Duration) error {
 	bin := opts.RouterBin
 	if bin == "" {
-		return fmt.Errorf("no router binary: set HARNESS_ROUTER_BIN")
+		return fmt.Errorf("no router binary: set ROUTER_BIN (MODEL_ROUTER_BIN and HARNESS_ROUTER_BIN are legacy aliases)")
 	}
 	args := []string{}
 	if opts.RouterConfig != "" {

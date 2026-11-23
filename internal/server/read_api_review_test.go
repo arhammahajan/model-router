@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 func testReviewContract(t *testing.T, dialect string) capability.Contract {
@@ -460,7 +460,7 @@ default = "low"
 		ids[row["id"].(string)] = true
 		meta := row["metadata"].(map[string]any)
 		mc[row["id"].(string)] = meta["muse-code"].(map[string]any)
-		if row["owned_by"] != "model-router" || row["object"] != "model" {
+		if row["owned_by"] != "router" || row["object"] != "model" {
 			t.Fatalf("muse row envelope must stay OpenAI-shaped: %v", row)
 		}
 	}
@@ -546,7 +546,7 @@ model = "x-upstream"
 	var gr map[string]any
 	_ = json.Unmarshal(gd, &gr)
 	desc, _ := gr["description"].(string)
-	if desc != "Routed to provider 'up' (anthropic) by model-router." {
+	if desc != "Routed to provider 'up' (anthropic) by router." {
 		t.Fatalf("description must be provider+EffectiveDialect, got %q (%s)", desc, gd)
 	}
 	if strings.Contains(string(gd), "127.0.0.1:9") || strings.Contains(string(gd), "upstream-secret") || strings.Contains(string(gd), "http") {
@@ -564,8 +564,8 @@ model = "x-upstream"
 	var out map[string]any
 	_ = json.Unmarshal(od, &out)
 	row := out["data"].([]any)[0].(map[string]any)
-	if row["id"] != "a" || row["owned_by"] != "model-router" || row["object"] != "model" {
-		t.Fatalf("OpenAI envelope must retain owned_by=model-router: %s", od)
+	if row["id"] != "a" || row["owned_by"] != "router" || row["object"] != "model" {
+		t.Fatalf("OpenAI envelope must retain owned_by=router: %s", od)
 	}
 	meta := row["metadata"].(map[string]any)
 	if _, ok := meta["router"]; !ok {
@@ -578,7 +578,7 @@ model = "x-upstream"
 	if idx["version"] != BuildVersion {
 		t.Fatalf("index version must share server.BuildVersion %q, got %s", BuildVersion, id)
 	}
-	if idx["name"] != "model-router-go" {
+	if idx["name"] != "routerd" {
 		t.Fatalf("index must stay Go-owned literal: %s", id)
 	}
 	// Unknown reasoning is omission, explicit false stays false.

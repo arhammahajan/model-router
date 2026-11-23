@@ -1,5 +1,4 @@
-/model-router
-/model-router-go
+/routerd
 /dist/
 /router.toml
 /router-*.toml
@@ -12,5 +11,4 @@
 *.log
 __pycache__/
 .venv/
-/harness
 /router

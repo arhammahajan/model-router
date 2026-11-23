@@ -13,7 +13,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 var capabilityKeys = map[string]bool{"overrides": true}

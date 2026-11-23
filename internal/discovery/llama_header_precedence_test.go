@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func TestLlamaProbeHeaderServerWinsAcrossCasing(t *testing.T) {

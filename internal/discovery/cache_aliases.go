@@ -3,7 +3,7 @@ package discovery
 import (
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Normalize each server independently, keeping even routes hidden by

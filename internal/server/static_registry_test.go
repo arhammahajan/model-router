@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func writeStaticCfg(t *testing.T, body string) string {
@@ -149,7 +149,7 @@ model = "up-2"
 	if out.Data[0].ID != "first" || out.Data[1].ID != "second" {
 		t.Fatalf("order must follow config: %s", rec.Body.String())
 	}
-	if out.Data[0].Object != "model" || out.Data[0].OwnedBy != "model-router" {
+	if out.Data[0].Object != "model" || out.Data[0].OwnedBy != "router" {
 		t.Fatalf("minimal shape changed: %+v", out.Data[0])
 	}
 	meta := string(out.Data[0].Metadata)

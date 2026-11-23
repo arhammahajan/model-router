@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/accounting"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/accounting"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // meteredHarness builds a fake upstream plus router. accPath empty means

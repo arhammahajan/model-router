@@ -19,7 +19,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 const CacheVersion = 2

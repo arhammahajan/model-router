@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // nativeCfg builds a router config with all four native dialects plus

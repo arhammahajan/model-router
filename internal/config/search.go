@@ -24,7 +24,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/searxng"
+	"github.com/arhammahajan/router/internal/searxng"
 )
 
 // SearchBackend is one validated SearXNG backend.

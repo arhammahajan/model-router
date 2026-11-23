@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func overrideCfg(t *testing.T) *config.Config {

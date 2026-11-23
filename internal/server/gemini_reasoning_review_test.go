@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Independent adversarial review of Gemini thinking -> Chat bridges over

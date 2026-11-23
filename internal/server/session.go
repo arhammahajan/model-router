@@ -3,9 +3,9 @@ package server
 import (
 	"net/http"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/protocol"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // prepareSession is the single shared affinity prep for all sixteen

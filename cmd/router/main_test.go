@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
-	"github.com/arhammahajan/model-router/internal/routercli/modelpick"
-	"github.com/arhammahajan/model-router/internal/routercli/routerctl"
+	routerenv "github.com/arhammahajan/router/internal/routercli/env"
+	"github.com/arhammahajan/router/internal/routercli/modelpick"
+	"github.com/arhammahajan/router/internal/routercli/routerctl"
 )
 
 func captureBoth(t *testing.T, fn func() int) (int, string, string) {
@@ -152,14 +152,14 @@ func TestStartStopRestartLogs(t *testing.T) {
 		gotArgv = append([]string(nil), argv...)
 		return 0
 	}
-	t.Setenv("MODEL_ROUTER_BIN", "/usr/local/bin/model-router-go")
+	t.Setenv("MODEL_ROUTER_BIN", "/usr/local/bin/routerd")
 	code, _, stderr := captureBoth(t, func() int {
 		return run([]string{"start", "--foreground", "--config", "/tmp/fg.toml"})
 	})
 	if code != 0 || !strings.Contains(stderr, "foreground start:") {
 		t.Fatalf("start --foreground = (%d, %q)", code, stderr)
 	}
-	wantArgv := []string{"/usr/local/bin/model-router-go", "--config", "/tmp/fg.toml"}
+	wantArgv := []string{"/usr/local/bin/routerd", "--config", "/tmp/fg.toml"}
 	if !reflect.DeepEqual(gotArgv, wantArgv) {
 		t.Fatalf("foreground argv = %v, want %v", gotArgv, wantArgv)
 	}
@@ -215,7 +215,7 @@ func TestStatusAndModelsLiveHTTP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
-			_, _ = w.Write([]byte(`{"name":"model-router-go","version":"0.2.0-test"}`))
+			_, _ = w.Write([]byte(`{"name":"routerd","version":"0.2.0-test"}`))
 		case "/livez":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -323,7 +323,7 @@ func TestStatusNotLiveReturnsExit1(t *testing.T) {
 func TestValidateAndUsage(t *testing.T) {
 	paths := isolateEnv(t)
 
-	cfgPath := filepath.Join(paths.ConfigHome, "model-router", "router-go.toml")
+	cfgPath := filepath.Join(paths.ConfigHome, "router", "router.toml")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -361,7 +361,7 @@ model = "demo-upstream"
 	}
 
 	// Usage against default XDG_STATE_HOME location.
-	usagePath := filepath.Join(paths.StateHome, "model-router", "accounting.jsonl")
+	usagePath := filepath.Join(paths.StateHome, "router", "accounting.jsonl")
 	if err := os.MkdirAll(filepath.Dir(usagePath), 0o755); err != nil {
 		t.Fatal(err)
 	}

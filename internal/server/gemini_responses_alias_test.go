@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 	"net/http"
 	"os"
 	"path/filepath"

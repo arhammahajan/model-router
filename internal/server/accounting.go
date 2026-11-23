@@ -20,8 +20,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/accounting"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/accounting"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // beginAccounting wraps the downstream writer for metering when the

@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/accounting"
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/protocol"
-	"github.com/arhammahajan/model-router/internal/router"
-	"github.com/arhammahajan/model-router/internal/transport"
+	"github.com/arhammahajan/router/internal/accounting"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/router"
+	"github.com/arhammahajan/router/internal/transport"
 )
 
 // Server is the configured HTTP router.
@@ -38,7 +38,7 @@ type Server struct {
 
 // New builds a Server from validated config. It performs no I/O: it
 // publishes the static snapshot and leaves catalog refresh to the
-// composition root (cmd/model-router), which owns startup inventory.
+// composition root (cmd/routerd), which owns startup inventory.
 func New(cfg *config.Config) *Server {
 	return NewWithRegistry(cfg, router.NewRegistry(cfg))
 }

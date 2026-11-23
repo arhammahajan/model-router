@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 const bearerRevTokA = "router-session-12345678-1234-4234-8234-123456789abc"

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // rdReviewCfg builds providers for every default dialect plus a session

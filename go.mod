@@ -1,4 +1,4 @@
-module github.com/arhammahajan/model-router
+module github.com/arhammahajan/router
 
 go 1.24.0
 

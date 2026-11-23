@@ -7,11 +7,11 @@ This document covers local verification commands, conformance suite coverage, re
 Run these commands from the repository root to build the Go binary, run static checks, execute Go tests, and run the conformance suite:
 
 ```bash
-go build -o /tmp/model-router-go ./cmd/model-router
+go build -o /tmp/routerd ./cmd/routerd
 go vet ./... && gofmt -l internal cmd
 go test -count=1 ./...
 go test -race -count=1 ./...
-python3 conformance/run.py --backend go --go-bin /tmp/model-router-go
+python3 conformance/run.py --backend go --go-bin /tmp/routerd
 python3 conformance/test_run.py
 ```
 
@@ -19,11 +19,11 @@ Each command verifies a specific stage:
 
 | Command | Verification target |
 | --- | --- |
-| `go build -o /tmp/model-router-go ./cmd/model-router` | Builds the Go binary at `/tmp/model-router-go`. |
+| `go build -o /tmp/routerd ./cmd/routerd` | Builds the Go binary at `/tmp/routerd`. |
 | `go vet ./... && gofmt -l internal cmd` | Runs static analysis and checks formatting. The `gofmt -l` output must be empty. |
 | `go test -count=1 ./...` | Runs unit tests and fake-upstream tests without test caching. |
 | `go test -race -count=1 ./...` | Runs concurrency checks under the Go race detector. |
-| `python3 conformance/run.py --backend go --go-bin /tmp/model-router-go` | Runs the external conformance suite against the built binary and reports case counts. |
+| `python3 conformance/run.py --backend go --go-bin /tmp/routerd` | Runs the external conformance suite against the built binary and reports case counts. |
 | `python3 conformance/test_run.py` | Runs the 78 conformance runner unit tests. |
 
 Conformance cases live in `conformance/cases/*.json` and assert both upstream wire requests and client-visible output. Run `python3 conformance/run.py --backend go --list` to list all cases. To compare the Go router against the Python baseline, place the legacy checkout next to this repository or set `MODEL_ROUTER_LEGACY_REPO` to its path.
@@ -66,7 +66,7 @@ Build development archives separately from deployment:
 
 ```bash
 python3 scripts/build_release.py --go go --version 0.1.0-dev --out dist/0.1.0-dev
-python3 scripts/check_release.py dist/0.1.0-dev/model-router-go-0.1.0-dev-linux-amd64.tar.gz --version 0.1.0-dev
+python3 scripts/check_release.py dist/0.1.0-dev/routerd-0.1.0-dev-linux-amd64.tar.gz --version 0.1.0-dev
 ```
 
 The build script uses cached dependencies only. It emits deterministic tarballs, `SHA256SUMS`, and a source and toolchain manifest for Linux and macOS on amd64 and arm64. Pass `--target OS/ARCH` to build one target. Use a separate output directory for each version and target set. The build script rejects mixed outputs instead of leaving stale archives behind.

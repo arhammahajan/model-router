@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 func TestEmptyCapabilityListsRenderAsArrays(t *testing.T) {

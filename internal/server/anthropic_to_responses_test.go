@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // a2rBridgeCfg builds a router with Anthropic ingress models routed to a

@@ -15,9 +15,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/redact"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/redact"
 )
 
 // ResolveFault names the resolve outcome. Callers map faults to ingress

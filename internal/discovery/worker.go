@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Backoff bounds (adopted from the compat doc, not the [retry]

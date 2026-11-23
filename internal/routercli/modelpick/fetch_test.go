@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
-	"github.com/arhammahajan/model-router/internal/routercli/routerctl"
+	routerenv "github.com/arhammahajan/router/internal/routercli/env"
+	"github.com/arhammahajan/router/internal/routercli/routerctl"
 )
 
 // fixtureModels is the canned GET /v1/models body, written from the
@@ -26,7 +26,7 @@ const fixtureModels = `{
     {
       "id": "glm-5.3-flash",
       "object": "model",
-      "owned_by": "model-router",
+      "owned_by": "router",
       "metadata": {
         "label": "fixture",
         "router": {
@@ -85,7 +85,7 @@ const fixtureModels = `{
     {
       "id": "openai/gpt-5-mini",
       "object": "model",
-      "owned_by": "model-router",
+      "owned_by": "router",
       "metadata": {
         "router": {
           "limits": {
@@ -123,24 +123,24 @@ const fixtureModels = `{
     {
       "id": "bare/row-without-metadata",
       "object": "model",
-      "owned_by": "model-router"
+      "owned_by": "router"
     },
     {
       "id": "nulls/everywhere",
       "object": "model",
-      "owned_by": "model-router",
+      "owned_by": "router",
       "metadata": null
     },
     {
       "id": "label-only/row",
       "object": "model",
-      "owned_by": "model-router",
+      "owned_by": "router",
       "metadata": {"label": "no router facts", "router": null}
     },
     {
       "id": "",
       "object": "model",
-      "owned_by": "model-router"
+      "owned_by": "router"
     }
   ]
 }`
@@ -169,7 +169,7 @@ func TestFetchParsesLiveShapes(t *testing.T) {
 	want := []Model{
 		{
 			ID:            "glm-5.3-flash",
-			OwnedBy:       "model-router",
+			OwnedBy:       "router",
 			ContextWindow: 1000000,
 			MaxOutput:     131072,
 			Reasoning:     "low,high,max",
@@ -177,14 +177,14 @@ func TestFetchParsesLiveShapes(t *testing.T) {
 		},
 		{
 			ID:         "openai/gpt-5-mini",
-			OwnedBy:    "model-router",
+			OwnedBy:    "router",
 			Reasoning:  "supported",
 			Modalities: []string{"text"},
 			Stale:      true,
 		},
-		{ID: "bare/row-without-metadata", OwnedBy: "model-router"},
-		{ID: "nulls/everywhere", OwnedBy: "model-router"},
-		{ID: "label-only/row", OwnedBy: "model-router"},
+		{ID: "bare/row-without-metadata", OwnedBy: "router"},
+		{ID: "nulls/everywhere", OwnedBy: "router"},
+		{ID: "label-only/row", OwnedBy: "router"},
 	}
 	if !reflect.DeepEqual(models, want) {
 		t.Fatalf("parsed listing:\n got %#v\nwant %#v", models, want)

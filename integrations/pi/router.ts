@@ -1,17 +1,20 @@
-// Auto-discovers models from a local litellm-model-router and registers them
-// as the "model-router" provider. Replaces a hand-written models.json entry.
+// Auto-discovers models from a local litellm-router and registers them
+// as the "router" provider. Replaces a hand-written models.json entry.
 //
 // Includes local llama.cpp and Strata engines discovered by the router.
 //
-//   MODEL_ROUTER_URL      router origin (default http://127.0.0.1:4000)
-//   MODEL_ROUTER_API_KEY  sent as the API key when the router requires one
+//   ROUTER_URL      router origin (default http://127.0.0.1:4000)
+//   ROUTER_API_KEY  sent as the API key when the router requires one
+//   MODEL_ROUTER_*  accepted as legacy aliases
 //
 // Each model is reached with its upstream's native protocol so the router can
 // pass requests through untouched (no translation loss).
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const ORIGIN = (process.env.MODEL_ROUTER_URL ?? "http://127.0.0.1:4000").replace(/\/+$/, "");
-const PROVIDER = "model-router";
+const ROUTER_URL = process.env.ROUTER_URL ?? process.env.MODEL_ROUTER_URL;
+const ROUTER_API_KEY = process.env.ROUTER_API_KEY ?? process.env.MODEL_ROUTER_API_KEY;
+const ORIGIN = (ROUTER_URL ?? "http://127.0.0.1:4000").replace(/\/+$/, "");
+const PROVIDER = "router";
 
 const val = (x: any) => x?.value ?? undefined;
 
@@ -37,8 +40,8 @@ async function discover(signal?: AbortSignal): Promise<any[]> {
   const timeout = AbortSignal.timeout(5000);
   const res = await fetch(`${ORIGIN}/v1/models`, {
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    headers: process.env.MODEL_ROUTER_API_KEY
-      ? { Authorization: `Bearer ${process.env.MODEL_ROUTER_API_KEY}` }
+    headers: ROUTER_API_KEY
+      ? { Authorization: `Bearer ${ROUTER_API_KEY}` }
       : {},
   });
   if (!res.ok) throw new Error(`router /v1/models returned ${res.status}`);
@@ -115,7 +118,7 @@ export default async function (pi: ExtensionAPI) {
   pi.registerProvider(PROVIDER, {
     name: "Model Router",
     baseUrl: `${ORIGIN}/v1`,
-    apiKey: process.env.MODEL_ROUTER_API_KEY || "unused",
+    apiKey: ROUTER_API_KEY || "unused",
     api: "openai-completions",
     models,
     refreshModels: ({ signal }) => discover(signal),

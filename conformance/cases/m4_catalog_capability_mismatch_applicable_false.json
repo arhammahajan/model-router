@@ -10,7 +10,7 @@
         "data.0.id": "m-a",
         "data.0.metadata.router.schema_version": 1,
         "data.0.object": "model",
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "data.1.id": "grok-4.7",
         "data.1.metadata.router.freshness.discovery.stale": false,
         "data.1.metadata.router.limits.context_window.kind": "unknown",
@@ -31,7 +31,7 @@
         "data.1.metadata.router.sources.catalog.stale": false,
         "data.1.metadata.router.sources.catalog.verification": "availability only",
         "data.1.object": "model",
-        "data.1.owned_by": "model-router",
+        "data.1.owned_by": "router",
         "object": "list"
       }
     },

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 // Bounded Anthropic thinking enabled HTTP wire: exact llama budget,

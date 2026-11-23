@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func overrideTestConfig() *config.Config {

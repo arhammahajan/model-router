@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
+	routerenv "github.com/arhammahajan/router/internal/routercli/env"
 )
 
 func testPaths(t *testing.T) routerenv.Paths {
@@ -87,13 +87,13 @@ func failingExec(_ context.Context, _ string, _ ...string) ([]byte, error) {
 func TestDetectDefaults(t *testing.T) {
 	p := testPaths(t)
 	opts := Detect(p, testRouter("http://127.0.0.1:4000"))
-	if opts.Unit != "model-router.service" {
+	if opts.Unit != "router.service" {
 		t.Fatalf("unit = %q", opts.Unit)
 	}
-	if want := filepath.Join(p.StateHome, "harness", "router.log"); opts.LogPath != want {
+	if want := filepath.Join(p.StateHome, "router", "router.log"); opts.LogPath != want {
 		t.Fatalf("log = %q want %q", opts.LogPath, want)
 	}
-	if want := filepath.Join(p.StateHome, "harness", "router.pid"); opts.PidPath != want {
+	if want := filepath.Join(p.StateHome, "router", "router.pid"); opts.PidPath != want {
 		t.Fatalf("pid = %q want %q", opts.PidPath, want)
 	}
 	if opts.HTTPTimeout != 5*time.Second {
@@ -133,9 +133,9 @@ func TestDetectRouterBinOrder(t *testing.T) {
 	t.Run("newest libexec wins over dev and PATH", func(t *testing.T) {
 		p := testPaths(t)
 		t.Setenv("HARNESS_ROUTER_BIN", "")
-		old := newBin(filepath.Join(p.Home, ".local", "libexec", "model-router"), "model-router-go-old", now.Add(-time.Hour))
-		newest := newBin(filepath.Join(p.Home, ".local", "libexec", "model-router"), "model-router-go-new", now)
-		newBin(filepath.Join(p.Home, "dev", "model-router"), "model-router-go", now.Add(time.Hour))
+		old := newBin(filepath.Join(p.Home, ".local", "libexec", "router"), "routerd-old", now.Add(-time.Hour))
+		newest := newBin(filepath.Join(p.Home, ".local", "libexec", "router"), "routerd-new", now)
+		newBin(filepath.Join(p.Home, "dev", "router"), "routerd", now.Add(time.Hour))
 		t.Setenv("HARNESS_ROUTER_CONFIG", "")
 		opts := Detect(p, testRouter("http://x"))
 		if opts.RouterBin != newest {
@@ -146,7 +146,7 @@ func TestDetectRouterBinOrder(t *testing.T) {
 	t.Run("dev fallback", func(t *testing.T) {
 		p := testPaths(t)
 		t.Setenv("HARNESS_ROUTER_BIN", "")
-		dev := newBin(filepath.Join(p.Home, "dev", "model-router"), "model-router-go", now)
+		dev := newBin(filepath.Join(p.Home, "dev", "router"), "routerd", now)
 		t.Setenv("HARNESS_ROUTER_CONFIG", "")
 		t.Setenv("PATH", t.TempDir())
 		opts := Detect(p, testRouter("http://x"))
@@ -159,7 +159,7 @@ func TestDetectRouterBinOrder(t *testing.T) {
 		p := testPaths(t)
 		t.Setenv("HARNESS_ROUTER_BIN", "")
 		bindir := t.TempDir()
-		want := newBin(bindir, "model-router-go", now)
+		want := newBin(bindir, "routerd", now)
 		t.Setenv("PATH", bindir)
 		t.Setenv("HARNESS_ROUTER_CONFIG", "")
 		opts := Detect(p, testRouter("http://x"))
@@ -174,7 +174,7 @@ func TestDetectRouterBinOrder(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
 		t.Setenv("HARNESS_ROUTER_CONFIG", "")
 		opts := Detect(p, testRouter("http://x"))
-		if opts.RouterBin != "model-router-go" {
+		if opts.RouterBin != "routerd" {
 			t.Fatalf("bin = %q", opts.RouterBin)
 		}
 	})
@@ -204,7 +204,7 @@ func TestDetectRouterConfigOrder(t *testing.T) {
 		p := testPaths(t)
 		t.Setenv("HARNESS_ROUTER_CONFIG", "")
 		t.Setenv("HARNESS_ROUTER_BIN", "")
-		want := filepath.Join(p.ConfigHome, "model-router", "router-go.toml")
+		want := filepath.Join(p.ConfigHome, "router", "router.toml")
 		write(want)
 		opts := Detect(p, testRouter("http://x"))
 		if opts.RouterConfig != want {
@@ -231,7 +231,7 @@ func TestSystemdSelection(t *testing.T) {
 		enableErr error
 		want      bool
 	}{
-		{"list-unit-files names unit", "model-router.service enabled\n", nil, errors.New("disabled"), true},
+		{"list-unit-files names unit", "router.service enabled\n", nil, errors.New("disabled"), true},
 		{"is-enabled succeeds", "UNIT FILE STATE\n", nil, nil, true},
 		{"neither succeeds", "UNIT FILE STATE\n", nil, errors.New("disabled"), false},
 		{"list fails, is-enabled succeeds", "", errors.New("nope"), nil, true},
@@ -243,7 +243,7 @@ func TestSystemdSelection(t *testing.T) {
 			opts := Options{
 				Paths:     testPaths(t),
 				Router:    testRouter("http://127.0.0.1:1"),
-				Unit:      "model-router.service",
+				Unit:      "router.service",
 				Systemctl: "systemctl",
 				Exec:      f.exec,
 			}
@@ -270,12 +270,12 @@ func directOpts(p routerenv.Paths, url string) Options {
 	return Options{
 		Paths:        p,
 		Router:       testRouter(url),
-		Unit:         "model-router.service",
+		Unit:         "router.service",
 		Systemctl:    "systemctl",
 		Journalctl:   "journalctl",
 		Exec:         failingExec,
-		LogPath:      filepath.Join(p.StateHome, "harness", "router.log"),
-		PidPath:      filepath.Join(p.StateHome, "harness", "router.pid"),
+		LogPath:      filepath.Join(p.StateHome, "router", "router.log"),
+		PidPath:      filepath.Join(p.StateHome, "router", "router.pid"),
 		HTTPTimeout:  2 * time.Second,
 		Kill:         syscall.Kill,
 		RouterConfig: filepath.Join(p.ConfigHome, "router.toml"),
@@ -291,7 +291,7 @@ func TestStartDirect(t *testing.T) {
 	var gotArgs []string
 	var gotLog string
 	opts := directOpts(p, srv.URL)
-	opts.RouterBin = "/fake/model-router-go"
+	opts.RouterBin = "/fake/routerd"
 	opts.Spawn = func(bin string, args []string, logPath string) (int, error) {
 		gotBin, gotArgs, gotLog = bin, append([]string(nil), args...), logPath
 		return 4242, nil
@@ -299,7 +299,7 @@ func TestStartDirect(t *testing.T) {
 	if err := Start(context.Background(), opts, 5*time.Second); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if gotBin != "/fake/model-router-go" {
+	if gotBin != "/fake/routerd" {
 		t.Fatalf("spawn bin = %q", gotBin)
 	}
 	wantArgs := []string{"--config", opts.RouterConfig}
@@ -321,7 +321,7 @@ func TestStartDirect(t *testing.T) {
 func TestStartDirectSpawnError(t *testing.T) {
 	p := testPaths(t)
 	opts := directOpts(p, "http://127.0.0.1:1")
-	opts.RouterBin = "/fake/model-router-go"
+	opts.RouterBin = "/fake/routerd"
 	opts.Spawn = func(string, []string, string) (int, error) {
 		return 0, errors.New("exec failed")
 	}
@@ -344,7 +344,7 @@ func TestStartDirectLivezTimeout(t *testing.T) {
 	srv := livezServer(t, 500)
 	defer srv.Close()
 	opts := directOpts(p, srv.URL)
-	opts.RouterBin = "/fake/model-router-go"
+	opts.RouterBin = "/fake/routerd"
 	opts.Spawn = func(string, []string, string) (int, error) { return 4242, nil }
 	if err := Start(context.Background(), opts, 300*time.Millisecond); err == nil {
 		t.Fatal("expected livez timeout error")
@@ -355,7 +355,7 @@ func TestStartSystemd(t *testing.T) {
 	p := testPaths(t)
 	srv := livezServer(t, 200)
 	defer srv.Close()
-	f := &execFake{handler: systemdStub("model-router.service enabled\n", nil, nil)}
+	f := &execFake{handler: systemdStub("router.service enabled\n", nil, nil)}
 	opts := directOpts(p, srv.URL)
 	opts.Exec = f.exec
 	if err := Start(context.Background(), opts, 5*time.Second); err != nil {
@@ -363,7 +363,7 @@ func TestStartSystemd(t *testing.T) {
 	}
 	found := false
 	for _, c := range f.argStrings() {
-		if strings.Contains(c, "--user start model-router.service") {
+		if strings.Contains(c, "--user start router.service") {
 			found = true
 		}
 	}
@@ -376,7 +376,7 @@ func TestStartSystemdStartError(t *testing.T) {
 	f := &execFake{handler: func(_ string, args []string) ([]byte, error) {
 		for _, a := range args {
 			if a == "list-unit-files" {
-				return []byte("model-router.service enabled\n"), nil
+				return []byte("router.service enabled\n"), nil
 			}
 			if a == "start" {
 				return []byte("failed"), errors.New("exit 1")
@@ -499,7 +499,7 @@ func TestStopDirectEscalatesToSIGKILL(t *testing.T) {
 }
 
 func TestStopSystemd(t *testing.T) {
-	f := &execFake{handler: systemdStub("model-router.service enabled\n", nil, nil)}
+	f := &execFake{handler: systemdStub("router.service enabled\n", nil, nil)}
 	opts := directOpts(testPaths(t), "http://127.0.0.1:1")
 	opts.Exec = f.exec
 	if err := Stop(context.Background(), opts, time.Second); err != nil {
@@ -507,7 +507,7 @@ func TestStopSystemd(t *testing.T) {
 	}
 	found := false
 	for _, c := range f.argStrings() {
-		if strings.Contains(c, "--user stop model-router.service") {
+		if strings.Contains(c, "--user stop router.service") {
 			found = true
 		}
 	}
@@ -521,7 +521,7 @@ func statusServer(t *testing.T, readyCode, diagCode int) (*httptest.Server, *map
 	seen := &map[string]string{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"name":"model-router-go","version":"9.9.9"}`))
+		_, _ = w.Write([]byte(`{"name":"routerd","version":"9.9.9"}`))
 	})
 	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -532,7 +532,7 @@ func statusServer(t *testing.T, readyCode, diagCode int) (*httptest.Server, *map
 	})
 	mux.HandleFunc("/v1/models", func(w http.ResponseWriter, r *http.Request) {
 		(*seen)["auth"] = r.Header.Get("Authorization")
-		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"b-model","object":"model","owned_by":"model-router","metadata":{"router":{"x":1}}},{"id":"a-model","object":"model","owned_by":"other"}]}`))
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"b-model","object":"model","owned_by":"router","metadata":{"router":{"x":1}}},{"id":"a-model","object":"model","owned_by":"other"}]}`))
 	})
 	mux.HandleFunc("/diagnostics", func(w http.ResponseWriter, r *http.Request) {
 		(*seen)["diag-auth"] = r.Header.Get("Authorization")
@@ -638,7 +638,7 @@ func TestFetchStatusManagedModes(t *testing.T) {
 	srv, _ := statusServer(t, 200, 403)
 	defer srv.Close()
 
-	f := &execFake{handler: systemdStub("model-router.service enabled\n", nil, nil)}
+	f := &execFake{handler: systemdStub("router.service enabled\n", nil, nil)}
 	st, err := FetchStatus(context.Background(), statusOpts(p, srv.URL, f.exec))
 	if err != nil {
 		t.Fatal(err)
@@ -795,7 +795,7 @@ model = "claude-haiku-4-5"
 
 func TestLogsDirectTail(t *testing.T) {
 	p := testPaths(t)
-	logPath := filepath.Join(p.StateHome, "harness", "router.log")
+	logPath := filepath.Join(p.StateHome, "router", "router.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -821,7 +821,7 @@ func TestLogsDirectTail(t *testing.T) {
 
 func TestLogsDirectWholeFile(t *testing.T) {
 	p := testPaths(t)
-	logPath := filepath.Join(p.StateHome, "harness", "router.log")
+	logPath := filepath.Join(p.StateHome, "router", "router.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -871,14 +871,14 @@ func TestLogsSystemdArgs(t *testing.T) {
 		lines  int
 		want   []string
 	}{
-		{"with lines", false, 25, []string{"journalctl", "--user", "-u", "model-router.service", "-n", "25"}},
-		{"follow appends -f", true, 10, []string{"journalctl", "--user", "-u", "model-router.service", "-n", "10", "-f"}},
-		{"no lines omits -n", false, 0, []string{"journalctl", "--user", "-u", "model-router.service"}},
+		{"with lines", false, 25, []string{"journalctl", "--user", "-u", "router.service", "-n", "25"}},
+		{"follow appends -f", true, 10, []string{"journalctl", "--user", "-u", "router.service", "-n", "10", "-f"}},
+		{"no lines omits -n", false, 0, []string{"journalctl", "--user", "-u", "router.service"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var got []string
-			execFake := &execFake{handler: systemdStub("model-router.service enabled\n", nil, nil)}
+			execFake := &execFake{handler: systemdStub("router.service enabled\n", nil, nil)}
 			var out bytes.Buffer
 			opts := directOpts(testPaths(t), "http://127.0.0.1:1")
 			opts.Exec = execFake.exec
@@ -906,7 +906,7 @@ func TestRestartDirect(t *testing.T) {
 	opts := directOpts(p, srv.URL)
 	opts.Exec = failingExec
 	opts.Kill = rec.kill
-	opts.RouterBin = "/fake/model-router-go"
+	opts.RouterBin = "/fake/routerd"
 	opts.Spawn = func(string, []string, string) (int, error) {
 		spawned++
 		return 4242, nil

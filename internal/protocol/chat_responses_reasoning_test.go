@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 func testContractWith(apply func(c *capability.Contract)) capability.Contract {

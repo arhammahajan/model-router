@@ -106,7 +106,7 @@ func TestFlagVersionQuickExit(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("version must exit 0, got %d", code)
 	}
-	if !strings.Contains(out, "model-router-go") {
+	if !strings.Contains(out, "routerd") {
 		t.Fatalf("version output: %q", out)
 	}
 	// version must not require config

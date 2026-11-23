@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/protocol"
-	"github.com/arhammahajan/model-router/internal/router"
-	"github.com/arhammahajan/model-router/internal/transport"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/router"
+	"github.com/arhammahajan/router/internal/transport"
 )
 
 // serveResponsesTranslated bridges POST /v1/responses to an openai-chat

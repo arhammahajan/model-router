@@ -7,7 +7,7 @@ import (
 	"hash"
 	"unicode/utf8"
 
-	"github.com/arhammahajan/model-router/internal/protocol"
+	"github.com/arhammahajan/router/internal/protocol"
 )
 
 // canonicalHashWriter hashes expanded ensure_ascii bytes in fixed-size chunks.

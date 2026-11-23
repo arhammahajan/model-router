@@ -12,8 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // --- CacheStore: one process-owned I/O owner, depth-1 coalesced ---

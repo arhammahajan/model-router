@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func TestLlamaFleetDeadlineRetainsSuccessfulServers(t *testing.T) {

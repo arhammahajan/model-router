@@ -3,7 +3,7 @@ package transport
 import (
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/endpoint"
+	"github.com/arhammahajan/router/internal/endpoint"
 )
 
 // Review: wrapper reuses the shared helper exactly, including edge inputs.

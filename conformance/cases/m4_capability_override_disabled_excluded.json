@@ -12,7 +12,7 @@
         "data.0.metadata.router.tools.supported.kind": "override",
         "data.0.metadata.router.tools.supported.source": "override.tools.supported",
         "data.0.metadata.router.tools.supported.value": true,
-        "data.0.owned_by": "model-router"
+        "data.0.owned_by": "router"
       }
     },
     "status": 200,

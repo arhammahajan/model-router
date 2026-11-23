@@ -55,7 +55,7 @@ const (
 )
 
 // version mirrors the router User-Agent product token.
-const version = "model-router-go/0.1.0"
+const version = "routerd/0.1.0"
 
 // Static failures. All are value-free sentinels: they never carry the
 // endpoint, query, count, headers, status, body or raw errors.

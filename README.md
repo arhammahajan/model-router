@@ -1,6 +1,6 @@
-# model-router
+# router
 
-`model-router` is a Go gateway for OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Gemini, and local llama.cpp models. It forwards same-dialect requests natively and translates across all twelve cross-dialect pairs.
+`router` is a Go gateway for OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Gemini, and local llama.cpp models. It forwards same-dialect requests natively and translates across all twelve cross-dialect pairs.
 
 The repository builds with Go 1.24 at the root module. It uses `github.com/pelletier/go-toml/v2 v2.2.4` for TOML configuration parsing and the Go standard library for everything else.
 
@@ -11,11 +11,11 @@ The previous Python implementation lives in [model-router-legacy](https://github
 Build and run the router binary from the repository root:
 
 ```bash
-go build -o model-router-go ./cmd/model-router
-./model-router-go --config router-dev.toml
-./model-router-go --validate-config --config router-dev.toml
-./model-router-go --check-readiness --config router-dev.toml
-./model-router-go --version
+go build -o routerd ./cmd/routerd
+./routerd --config router-dev.toml
+./routerd --validate-config --config router-dev.toml
+./routerd --check-readiness --config router-dev.toml
+./routerd --version
 ```
 
 The router reads TOML and JSON configuration files. For local tests, copy [config.example.toml](config.example.toml) and keep dummy keys rather than pointing at a file with real credentials.
@@ -24,7 +24,7 @@ Flags `--host` and `--port` override `server.host` and `server.port`. On `SIGINT
 
 ## Companion tools
 
-The `router` CLI in `cmd/router` manages and inspects the model-router daemon (systemd-first with direct-spawn fallback), lists/picks models, validates configs offline, streams logs, and summarizes accounting usage:
+The `router` CLI in `cmd/router` manages and inspects the router daemon (systemd-first with direct-spawn fallback), lists/picks models, validates configs offline, streams logs, and summarizes accounting usage:
 
 ```bash
 go build -o router ./cmd/router
@@ -68,11 +68,11 @@ See [Endpoints and protocol translation](docs/endpoints-and-translation.md) for 
 ## Verification
 
 ```bash
-go build -o /tmp/model-router-go ./cmd/model-router
+go build -o /tmp/routerd ./cmd/routerd
 go vet ./... && gofmt -l internal cmd
 go test -count=1 ./...
 go test -race -count=1 ./...
-python3 conformance/run.py --backend go --go-bin /tmp/model-router-go
+python3 conformance/run.py --backend go --go-bin /tmp/routerd
 python3 conformance/test_run.py
 ```
 

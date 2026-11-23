@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func mustLoad(t *testing.T, p string) *config.Config {
@@ -72,7 +72,7 @@ supported = true
 		t.Fatalf("data: %v", out)
 	}
 	row := data[0].(map[string]any)
-	if row["id"] != "a" || row["owned_by"] != "model-router" || row["object"] != "model" {
+	if row["id"] != "a" || row["owned_by"] != "router" || row["object"] != "model" {
 		t.Fatalf("envelope: %v", row)
 	}
 	r := rowRouter(t, row)

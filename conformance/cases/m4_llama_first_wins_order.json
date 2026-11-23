@@ -57,12 +57,12 @@
   "client_body": {
    "paths": {
     "data.0.id": "dup",
-    "data.0.owned_by": "model-router",
+    "data.0.owned_by": "router",
     "data.0.metadata.k": 1,
     "data.1.id": "other",
-    "data.1.owned_by": "model-router",
+    "data.1.owned_by": "router",
     "data.2.id": "second",
-    "data.2.owned_by": "model-router"
+    "data.2.owned_by": "router"
    },
    "absent": [
     "data.3"

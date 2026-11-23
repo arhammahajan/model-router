@@ -1373,6 +1373,8 @@ def hermetic_env(tmp: str) -> dict:
     env = dict(os.environ)
     env["HOME"] = home
     env["XDG_CONFIG_HOME"] = xdg
+    env.pop("ROUTER_API_KEY", None)
+    env.pop("ROUTER_API_KEYS", None)
     env.pop("MODEL_ROUTER_API_KEY", None)
     env.pop("MODEL_ROUTER_API_KEYS", None)
     env.pop("ROUTER_CONFIG", None)
@@ -1584,7 +1586,7 @@ def run_case(backend: str, case: dict, go_bin: str,
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend", choices=["python", "go"], required=True)
-    ap.add_argument("--go-bin", default=os.path.join(REPO, "model-router-go"))
+    ap.add_argument("--go-bin", default=os.path.join(REPO, "routerd"))
     ap.add_argument("--python-bin", default=None,
                     help="Python-router interpreter (default: $MODEL_ROUTER_PYTHON, "
                          "legacy checkout .venv, or this interpreter)")

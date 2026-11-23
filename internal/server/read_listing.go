@@ -16,11 +16,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/protocol"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/protocol"
 )
 
-const goIndexName = "model-router-go"
+const goIndexName = "routerd"
 
 // BuildVersion is shared by the endpoint index and CLI. Release builds set
 // it once with -ldflags; it is immutable during server operation.
@@ -119,7 +119,7 @@ func (s *Server) writeOpenAIModels(w http.ResponseWriter, rows []listingRow) {
 	data := make([]modelEntry, 0, len(rows))
 	for _, row := range rows {
 		merged, _ := json.Marshal(row.meta)
-		data = append(data, modelEntry{ID: row.name, Object: "model", OwnedBy: "model-router", Metadata: merged})
+		data = append(data, modelEntry{ID: row.name, Object: "model", OwnedBy: "router", Metadata: merged})
 	}
 	if data == nil {
 		data = []modelEntry{}
@@ -233,7 +233,7 @@ func (s *Server) handleMuseModels(w http.ResponseWriter, r *http.Request) {
 		mc, _ := json.Marshal(museCodeFor(row))
 		cp["muse-code"] = mc
 		merged, _ := json.Marshal(cp)
-		data = append(data, museEntry{ID: row.name, Object: "model", OwnedBy: "model-router", Metadata: merged})
+		data = append(data, museEntry{ID: row.name, Object: "model", OwnedBy: "router", Metadata: merged})
 	}
 	if data == nil {
 		data = []museEntry{}
@@ -265,7 +265,7 @@ func geminiResourceFor(row listingRow) map[string]any {
 		"name":                       "models/" + row.name,
 		"baseModelId":                row.name,
 		"displayName":                row.display,
-		"description":                fmt.Sprintf("Routed to provider '%s' (%s) by model-router.", row.providerName, row.eff),
+		"description":                fmt.Sprintf("Routed to provider '%s' (%s) by router.", row.providerName, row.eff),
 		"supportedGenerationMethods": []string{"generateContent", "streamGenerateContent"},
 	}
 	if v, ok := row.contract.Get("limits.max_input_tokens"); ok {

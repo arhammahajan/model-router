@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/protocol"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/protocol"
 )
 
 // defaultNativeSourceOrder mirrors the reviewed Python baseline order:

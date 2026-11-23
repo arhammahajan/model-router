@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func mustCapRevWire(t *testing.T, base capability.Contract, snap *router.Snapshot, model, provider string) map[string]any {

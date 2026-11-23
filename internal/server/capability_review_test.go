@@ -115,7 +115,7 @@ enabled = false
 		t.Fatalf("disabled excluded, aliases add no rows: %v", data)
 	}
 	row := data[0].(map[string]any)
-	if row["id"] != "b" || row["object"] != "model" || row["owned_by"] != "model-router" {
+	if row["id"] != "b" || row["object"] != "model" || row["owned_by"] != "router" {
 		t.Fatalf("row envelope: %v", row)
 	}
 	rowRouter(t, row) // metadata.router must exist on every listed row

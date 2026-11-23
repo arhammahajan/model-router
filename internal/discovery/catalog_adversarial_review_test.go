@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/catalog"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/catalog"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // TestReviewExactMappingBeatsRuleWhenBothMatch pins "exact model_providers

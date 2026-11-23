@@ -3,8 +3,8 @@ package router
 import (
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // Independent reverse review: same pinned snapshot supplies route, provider

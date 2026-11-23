@@ -1,4 +1,4 @@
-// Command router: CLI for managing and inspecting the model-router daemon.
+// Command router: CLI for managing and inspecting the router daemon.
 //
 // Usage:
 //
@@ -25,11 +25,11 @@ import (
 	"strings"
 	"time"
 
-	routerenv "github.com/arhammahajan/model-router/internal/routercli/env"
-	"github.com/arhammahajan/model-router/internal/routercli/modelpick"
-	"github.com/arhammahajan/model-router/internal/routercli/routerctl"
-	usageagg "github.com/arhammahajan/model-router/internal/routercli/usage"
-	"github.com/arhammahajan/model-router/internal/server"
+	routerenv "github.com/arhammahajan/router/internal/routercli/env"
+	"github.com/arhammahajan/router/internal/routercli/modelpick"
+	"github.com/arhammahajan/router/internal/routercli/routerctl"
+	usageagg "github.com/arhammahajan/router/internal/routercli/usage"
+	"github.com/arhammahajan/router/internal/server"
 )
 
 const progName = "router"
@@ -72,10 +72,10 @@ Commands:
   help [topic]                                             show help for a command
 
 Environment:
-  MODEL_ROUTER_URL       router base URL (default: http://127.0.0.1:4000)
-  MODEL_ROUTER_API_KEY   router bearer token
-  MODEL_ROUTER_BIN       router binary path override (also ROUTER_BIN; HARNESS_ROUTER_BIN is a legacy alias)
-  MODEL_ROUTER_CONFIG    router config path override (also ROUTER_CONFIG; HARNESS_ROUTER_CONFIG is a legacy alias)
+  ROUTER_URL             router base URL (default: http://127.0.0.1:4000; MODEL_ROUTER_URL is a legacy alias)
+  ROUTER_API_KEY         router bearer token (MODEL_ROUTER_API_KEY is a legacy alias)
+  ROUTER_BIN             routerd binary path override (MODEL_ROUTER_BIN and HARNESS_ROUTER_BIN are legacy aliases)
+  ROUTER_CONFIG          router config path override (MODEL_ROUTER_CONFIG and HARNESS_ROUTER_CONFIG are legacy aliases)
 `)
 }
 
@@ -173,7 +173,7 @@ func runStart(args []string) int {
 	}
 	if *foreground {
 		if opts.RouterBin == "" {
-			fmt.Fprintf(os.Stderr, "%s: no model-router binary found\n", progName)
+			fmt.Fprintf(os.Stderr, "%s: no router binary found\n", progName)
 			return 1
 		}
 		argv := []string{opts.RouterBin}
@@ -368,7 +368,7 @@ func runLogs(args []string) int {
 }
 
 func defaultUsagePath(paths routerenv.Paths) string {
-	return filepath.Join(paths.StateHome, "model-router", "accounting.jsonl")
+	return filepath.Join(paths.StateHome, "router", "accounting.jsonl")
 }
 
 func runUsage(args []string) int {

@@ -3,7 +3,7 @@ package router
 import (
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // rdReviewSnapshotConfig covers an override route with an alias, a disabled

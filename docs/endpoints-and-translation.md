@@ -1,6 +1,6 @@
 # Endpoints and protocol translation
 
-This document describes the HTTP endpoints, ingress dispatch rules, intermediate representation, reasoning translation, and dialect translation scopes in `model-router`.
+This document describes the HTTP endpoints, ingress dispatch rules, intermediate representation, reasoning translation, and dialect translation scopes in `router`.
 
 ## Architecture
 
@@ -79,7 +79,7 @@ All six bidirectional dialect pairs share the core translation, compatibility, s
 
 Every translator uses the typed intermediate representation in `internal/protocol` and never uses a `map[string]any` semantic model. The router evaluates destination-specific loss plans against the provider compatibility setting only, and clients cannot select lossy mode.
 
-Strict mode is the default. In strict mode, the router refuses any planned loss before upstream I/O with HTTP 400 and `translation_loss`. In lossy mode, the router drops or approximates reviewed mappings and emits the `x-model-router-loss` header on JSON and SSE responses. Each loss entry reports `field`, `reason`, and `action`, and never includes request values or prompt text.
+Strict mode is the default. In strict mode, the router refuses any planned loss before upstream I/O with HTTP 400 and `translation_loss`. In lossy mode, the router drops or approximates reviewed mappings and emits the `x-model-router-loss` compatibility header on JSON and SSE responses. Each loss entry reports `field`, `reason`, and `action`, and never includes request values or prompt text.
 
 Unknown request fields fail validation with HTTP 400 and are never silently accepted. Unrepresentable upstream response elements fail closed with HTTP 502 in both strict and lossy modes. A truncated stream never produces a synthetic success marker.
 

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/protocol"
-	"github.com/arhammahajan/model-router/internal/transport"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/transport"
 )
 
 // handleCountTokens serves POST /v1/messages/count_tokens (and the

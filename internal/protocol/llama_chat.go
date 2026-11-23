@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 // ApplyLlamaNative consumes the raw reasoning_effort member for a

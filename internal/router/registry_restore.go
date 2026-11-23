@@ -3,7 +3,7 @@
 // in registry.go; all three swap one complete snapshot per call.
 package router
 
-import "github.com/arhammahajan/model-router/internal/capability"
+import "github.com/arhammahajan/router/internal/capability"
 
 type CatalogInventory struct {
 	Entries     []CatalogEntry

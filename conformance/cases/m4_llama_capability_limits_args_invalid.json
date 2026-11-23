@@ -10,7 +10,7 @@
       "paths": {
         "data.0.id": "llama-a",
         "data.0.object": "model",
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "data.0.metadata.router.schema_version": 1,
         "data.0.metadata.router.freshness.discovery.stale": false,
         "data.0.metadata.router.limits.context_window.value": null,

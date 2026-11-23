@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 // Independent adversarial review of the Gemini-request reasoning vertical.

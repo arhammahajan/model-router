@@ -9,7 +9,7 @@
       "paths": {
         "data.0.id": "m-exp",
         "data.0.metadata.router.schema_version": 1,
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "data.1.id": "llama-a",
         "data.1.metadata.label": "la",
         "data.1.metadata.n": 9007199254740993,
@@ -20,7 +20,7 @@
         "data.1.metadata.router.streaming.value": true,
         "data.1.metadata.router.tools.supported.kind": "reported",
         "data.1.metadata.router.tools.supported.value": true,
-        "data.1.owned_by": "model-router",
+        "data.1.owned_by": "router",
         "data.1.metadata.router.modalities.input.image.kind": "reported",
         "data.1.metadata.router.modalities.input.image.source": "llama.props.modalities.vision",
         "data.1.metadata.router.reasoning.effort.supported.kind": "configured",

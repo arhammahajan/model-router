@@ -15,8 +15,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/redact"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/redact"
 )
 
 // --- secret corpus + sanitizer (mirrors Python ErrorSanitizer) ---

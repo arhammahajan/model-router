@@ -20,7 +20,7 @@
     "client_body": {
       "paths": {
         "data.0.id": "m-a",
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "data.0.metadata.muse-code.limit.context": 128000,
         "data.0.metadata.muse-code.limit.output": 16384,
         "first_id": "m-a",

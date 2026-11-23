@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/catalog"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/catalog"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func testProviders() map[string]*config.Provider {
@@ -211,7 +211,7 @@ func TestFetchTrustBoundary(t *testing.T) {
 	if len(entries) != 0 {
 		t.Fatalf("empty valid catalog must replace with zero entries: %+v", entries)
 	}
-	if !strings.HasPrefix(gotUA, "model-router-go/") {
+	if !strings.HasPrefix(gotUA, "routerd/") {
 		t.Fatalf("user-agent wrong: %q", gotUA)
 	}
 	if gotCustom != "trusted" {

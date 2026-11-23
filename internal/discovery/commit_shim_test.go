@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // invCapture pins the staged inventory for unchanged-proof migration:

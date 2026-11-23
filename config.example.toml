@@ -56,5 +56,5 @@ model = "upstream-gemini-model"
 # enable; `router usage` aggregates the file. Records rotate to
 # usage.jsonl.1 once the file exceeds the bound, keeping one generation.
 # [accounting]
-# path = "${HOME}/.local/state/model-router/usage.jsonl"
+# path = "${HOME}/.local/state/router/usage.jsonl"
 # max_file_bytes = 104857600

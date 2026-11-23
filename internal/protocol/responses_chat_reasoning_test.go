@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 // Reverse named-effort: Responses reasoning.effort -> Chat reasoning_effort.

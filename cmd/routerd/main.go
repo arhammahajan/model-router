@@ -1,10 +1,10 @@
-// Command model-router: the Go router executable.
+// Command routerd runs the Go router daemon.
 //
 // Usage:
 //
-//	model-router [--config PATH]                 serve (default)
-//	model-router --validate-config [--config P]
-//	model-router --check-readiness [--config P]
+//	routerd [--config PATH]                 serve (default)
+//	router --validate-config [--config P]
+//	router --check-readiness [--config P]
 package main
 
 import (
@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/discovery"
-	"github.com/arhammahajan/model-router/internal/redact"
-	"github.com/arhammahajan/model-router/internal/server"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/discovery"
+	"github.com/arhammahajan/router/internal/redact"
+	"github.com/arhammahajan/router/internal/server"
 )
 
 // drainTimeout bounds graceful shutdown: in-flight requests may complete
@@ -60,7 +60,7 @@ func findDefaultConfig() (string, bool) {
 }
 
 func run(args []string) int {
-	fs := flag.NewFlagSet("model-router", flag.ContinueOnError)
+	fs := flag.NewFlagSet("routerd", flag.ContinueOnError)
 	cfgPath := fs.String("config", "", "path to router.toml")
 	fs.StringVar(cfgPath, "c", "", "alias of --config")
 	hostOverride := fs.String("host", "", "override server.host")
@@ -77,7 +77,7 @@ func run(args []string) int {
 	showVersion := fs.Bool("version", false, "print version and exit")
 	verbose := fs.Bool("verbose", false, "Enable router debug logs (no dependency body logging)")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: model-router [--config PATH] [--validate-config] [--check-readiness] [--version]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: routerd [--config PATH] [--validate-config] [--check-readiness] [--version]\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -87,34 +87,34 @@ func run(args []string) int {
 		return 2
 	}
 	if *showVersion {
-		fmt.Println("model-router-go", server.BuildVersion)
+		fmt.Println("routerd", server.BuildVersion)
 		return 0
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "model-router: unexpected positional arguments")
+		fmt.Fprintln(os.Stderr, "routerd: unexpected positional arguments")
 		return 2
 	}
 	provided := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { provided[f.Name] = true })
 	check := *checkReady || *checkAlias
 	if *validate && check {
-		fmt.Fprintf(os.Stderr, "model-router: --validate-config and --check-readiness/--check are mutually exclusive\n")
+		fmt.Fprintf(os.Stderr, "routerd: --validate-config and --check-readiness/--check are mutually exclusive\n")
 		return 2
 	}
 	if *offline && !check && !*validate {
-		fmt.Fprintf(os.Stderr, "model-router: --offline requires --validate-config or --check-readiness/--check\n")
+		fmt.Fprintf(os.Stderr, "routerd: --offline requires --validate-config or --check-readiness/--check\n")
 		fs.Usage()
 		return 2
 	}
 	resolved := *cfgPath
 	if resolved == "" && (provided["config"] || provided["c"]) {
-		fmt.Fprintln(os.Stderr, "model-router: --config must be a non-empty path")
+		fmt.Fprintln(os.Stderr, "routerd: --config must be a non-empty path")
 		return 2
 	}
 	if resolved == "" {
 		def, found := findDefaultConfig()
 		if !found {
-			fmt.Fprintf(os.Stderr, "model-router: No config found; pass --config /path/to/router.toml\n")
+			fmt.Fprintf(os.Stderr, "routerd: No config found; pass --config /path/to/router.toml\n")
 			return 2
 		}
 		resolved = def
@@ -124,20 +124,20 @@ func run(args []string) int {
 		EnvFiles:     []string(envFiles),
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "model-router: %v\n", err)
+		fmt.Fprintf(os.Stderr, "routerd: %v\n", err)
 		return 2
 	}
 	if provided["host"] {
 		trimmed := strings.TrimSpace(*hostOverride)
 		if trimmed == "" {
-			fmt.Fprintf(os.Stderr, "model-router: --host must be a non-empty string\n")
+			fmt.Fprintf(os.Stderr, "routerd: --host must be a non-empty string\n")
 			return 2
 		}
 		cfg.Server.Host = trimmed
 	}
 	if provided["port"] {
 		if *portOverride < 1 || *portOverride > 65535 {
-			fmt.Fprintf(os.Stderr, "model-router: --port must be between 1 and 65535\n")
+			fmt.Fprintf(os.Stderr, "routerd: --port must be between 1 and 65535\n")
 			return 2
 		}
 		cfg.Server.Port = *portOverride
@@ -147,7 +147,7 @@ func run(args []string) int {
 		for _, k := range apiKeys {
 			t := strings.TrimSpace(k)
 			if t == "" {
-				fmt.Fprintf(os.Stderr, "model-router: --api-key must be a non-empty string\n")
+				fmt.Fprintf(os.Stderr, "routerd: --api-key must be a non-empty string\n")
 				return 2
 			}
 			trimmed = append(trimmed, t)
@@ -163,15 +163,15 @@ func run(args []string) int {
 		cfg.Server.APIKeys = deduped
 		cfg.Server.AuthMode = "required"
 		if cfg.Server.BearerSessionCompat {
-			fmt.Fprintf(os.Stderr, "model-router: server.bearer_session_compat requires unauthenticated client access\n")
+			fmt.Fprintf(os.Stderr, "routerd: server.bearer_session_compat requires unauthenticated client access\n")
 			return 2
 		}
 	} else if cfg.Server.BearerSessionCompat && len(cfg.Server.APIKeys) > 0 {
-		fmt.Fprintf(os.Stderr, "model-router: server.bearer_session_compat requires unauthenticated client access\n")
+		fmt.Fprintf(os.Stderr, "routerd: server.bearer_session_compat requires unauthenticated client access\n")
 		return 2
 	}
 	if *verbose {
-		fmt.Fprintf(os.Stderr, "model-router: debug config_loaded providers=%d configured_models=%d catalog=%t llama=%t cache=%t\n",
+		fmt.Fprintf(os.Stderr, "routerd: debug config_loaded providers=%d configured_models=%d catalog=%t llama=%t cache=%t\n",
 			len(cfg.Providers), len(cfg.Models), cfg.Catalog != nil, cfg.Llama != nil, cfg.DiscoveryCache != nil)
 	}
 	if *validate {
@@ -185,7 +185,7 @@ func run(args []string) int {
 		return 4
 	}
 	if *offline {
-		fmt.Fprintf(os.Stderr, "model-router: --offline requires --validate-config or --check-readiness/--check\n")
+		fmt.Fprintf(os.Stderr, "routerd: --offline requires --validate-config or --check-readiness/--check\n")
 		return 2
 	}
 	srv := server.New(cfg)
@@ -230,7 +230,7 @@ func run(args []string) int {
 			cancel()
 		}
 		if err := runOnlineCheck(cfg, catWorker, llamaWorker); err != nil {
-			fmt.Fprintf(os.Stderr, "model-router: %v\n", sanitizeErr(cfg, err))
+			fmt.Fprintf(os.Stderr, "routerd: %v\n", sanitizeErr(cfg, err))
 			return 1
 		}
 		report := srv.ReadinessReport()
@@ -275,7 +275,7 @@ func run(args []string) int {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "model-router: listen: %v\n", err)
+		fmt.Fprintf(os.Stderr, "routerd: listen: %v\n", err)
 		return 1
 	}
 	// Periodic refresh starts only after bind, and never when
@@ -358,15 +358,15 @@ func serve(ln net.Listener, srv *server.Server, catWorker *discovery.Worker, lla
 	defer httpSrv.Close()
 	serveErr := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(os.Stderr, "model-router-go %s listening on %s\n", server.BuildVersion, ln.Addr())
+		fmt.Fprintf(os.Stderr, "routerd %s listening on %s\n", server.BuildVersion, ln.Addr())
 		serveErr <- httpSrv.Serve(ln)
 	}()
 	select {
 	case <-stop:
-		fmt.Fprintf(os.Stderr, "model-router: shutting down\n")
+		fmt.Fprintf(os.Stderr, "routerd: shutting down\n")
 	case err := <-serveErr:
 		if err != nil && err.Error() != "http: Server closed" {
-			fmt.Fprintf(os.Stderr, "model-router: %v\n", err)
+			fmt.Fprintf(os.Stderr, "routerd: %v\n", err)
 			return 1
 		}
 		return 0
@@ -387,11 +387,11 @@ func serve(ln net.Listener, srv *server.Server, catWorker *discovery.Worker, lla
 	select {
 	case err := <-serveErr:
 		if err != nil && err.Error() != "http: Server closed" && !errors.Is(err, net.ErrClosed) {
-			fmt.Fprintf(os.Stderr, "model-router: %v\n", err)
+			fmt.Fprintf(os.Stderr, "routerd: %v\n", err)
 			return 1
 		}
 	case <-time.After(timeout + 2*time.Second):
-		fmt.Fprintf(os.Stderr, "model-router: shutdown timed out\n")
+		fmt.Fprintf(os.Stderr, "routerd: shutdown timed out\n")
 		return 1
 	}
 	return 0

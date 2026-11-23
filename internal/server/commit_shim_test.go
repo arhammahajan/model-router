@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // commitCatalogShim migrates the old PublishCatalog call site to a typed

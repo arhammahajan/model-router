@@ -14,7 +14,7 @@
         "data.1.metadata.router.freshness.discovery.stale": false,
         "data.1.metadata.router.schema_version": 1,
         "data.1.metadata.router.sources.routing.verification": "configured transport and adapter paths only",
-        "data.1.owned_by": "model-router"
+        "data.1.owned_by": "router"
       }
     },
     "status": 200,

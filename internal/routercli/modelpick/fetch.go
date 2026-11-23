@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/routercli/routerctl"
+	"github.com/arhammahajan/router/internal/routercli/routerctl"
 )
 
 // fetchBodyLimit caps the listing download, like routerctl's queries.

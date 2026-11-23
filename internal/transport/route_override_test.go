@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func overrideProvider(dialect string) *config.Provider {

@@ -226,7 +226,7 @@ func TestDiscoveryCacheContractWritesRouteOnlyV2(t *testing.T) {
 		}
 	}
 	s := string(raw)
-	for _, leak := range []string{catSrv.URL, llamaSrv.URL, "model-router-no-auth"} {
+	for _, leak := range []string{catSrv.URL, llamaSrv.URL, "router-no-auth"} {
 		if leak != "" && strings.Contains(s, leak) {
 			t.Fatalf("cache must not persist URL/key material %q: %s", leak, s)
 		}

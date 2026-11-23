@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/catalog"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/catalog"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // maxCatalogBodyBytes caps one catalog body before AND after
@@ -28,7 +28,7 @@ import (
 const maxCatalogBodyBytes = 4 * 1024 * 1024
 
 // routerVersion feeds the catalog User-Agent. Keep in sync with
-// cmd/model-router's version constant.
+// cmd/routerd's version constant.
 const routerVersion = "0.1.0"
 
 // Static fetch failures. All are value-free sentinels: ordinary logs
@@ -76,7 +76,7 @@ func FetchMapped(ctx context.Context, client *http.Client, cat *config.Catalog, 
 	// Trusted catalog headers touch ONLY this GET: they are never merged
 	// into generation requests, and provider AuthHeaders are untouched
 	// (client creds never become upstream creds).
-	req.Header.Set("User-Agent", "model-router-go/"+routerVersion)
+	req.Header.Set("User-Agent", "routerd/"+routerVersion)
 	for k, v := range cat.Headers {
 		req.Header.Set(k, v)
 	}

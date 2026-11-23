@@ -21,13 +21,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/endpoint"
-	"github.com/arhammahajan/model-router/internal/protocol"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/endpoint"
+	"github.com/arhammahajan/router/internal/protocol"
 )
 
 // Version is the User-Agent product token.
-const Version = "model-router-go/0.1.0"
+const Version = "routerd/0.1.0"
 
 // dropRequestHeaders are never forwarded upstream: client credentials,
 // transport framing and representation metadata.
@@ -307,7 +307,7 @@ func OutboundHeaders(inbound http.Header, p *config.Provider, ingress, dest stri
 	}
 	out["Accept-Encoding"] = "identity"
 	if _, ok := out["User-Agent"]; !ok {
-		out["User-Agent"] = "litellm-model-router/" + Version
+		out["User-Agent"] = "litellm-router/" + Version
 	}
 	// Legacy translation headers apply to translated traffic only, before
 	// provider.headers so provider.headers wins case-insensitively.

@@ -41,7 +41,7 @@
         "data.0.metadata.router.tools.supported.kind": "unknown",
         "data.0.metadata.router.tools.supported.value": null,
         "data.0.object": "model",
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "object": "list",
         "data.0.metadata.router.reasoning.effort.values.source": "override.reasoning.effort.values",
         "data.0.metadata.router.protocols.known_lossy_features.source": "override.protocols.known_lossy_features",

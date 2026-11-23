@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 // Overrides are keyed by canonical public route name: a canonical key

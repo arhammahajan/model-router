@@ -3,7 +3,7 @@ package discovery
 import (
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func fpCfg() *config.Config {

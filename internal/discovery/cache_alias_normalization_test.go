@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func TestCacheEncoderReservesAllCanonicalNamesBeforeAliases(t *testing.T) {

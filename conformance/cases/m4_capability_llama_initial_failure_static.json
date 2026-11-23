@@ -11,7 +11,7 @@
         "data.0.metadata.router.freshness.discovery.stale": null,
         "data.0.metadata.router.reasoning.supported.value": null,
         "data.0.metadata.router.schema_version": 1,
-        "data.0.owned_by": "model-router"
+        "data.0.owned_by": "router"
       }
     },
     "status": 200,

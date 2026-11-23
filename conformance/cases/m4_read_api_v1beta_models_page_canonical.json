@@ -20,7 +20,7 @@
         "models.0.baseModelId": "m-a",
         "models.0.displayName": "m-a",
         "models.0.description": {
-          "__contains__": "model-router"
+          "__contains__": "router"
         },
         "models.0.supportedGenerationMethods.0": "generateContent",
         "models.1.name": "models/m-b",

@@ -3,8 +3,8 @@ package transport
 import (
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/endpoint"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/endpoint"
 )
 
 func TestUpstreamURLMatchesSharedHelper(t *testing.T) {

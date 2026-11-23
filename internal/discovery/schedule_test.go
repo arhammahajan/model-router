@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Scheduler proofs: hermetic fake clock, jitter drawn exactly once at

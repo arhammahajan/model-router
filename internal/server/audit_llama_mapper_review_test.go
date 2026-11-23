@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 func TestAuditServerNativeNonePreservesBudget(t *testing.T) {

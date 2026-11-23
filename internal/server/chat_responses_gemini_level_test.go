@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // Chat/Responses effort -> Gemini thinkingLevel over HTTP: pinned capability

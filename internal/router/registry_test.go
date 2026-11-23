@@ -5,8 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/catalog"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/catalog"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func catalogCfg() *config.Config {

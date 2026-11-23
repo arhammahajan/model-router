@@ -29,10 +29,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/protocol"
-	"github.com/arhammahajan/model-router/internal/router"
-	"github.com/arhammahajan/model-router/internal/transport"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/router"
+	"github.com/arhammahajan/router/internal/transport"
 )
 
 // MaxCountResponseBytes bounds Anthropic count_tokens responses (success and
@@ -422,7 +422,7 @@ func geminiErrorPayload(rerr protocol.RouterError) []byte {
 		}
 		bodyMap["error"].(map[string]any)["details"] = []any{
 			map[string]any{"@type": "type.googleapis.com/google.rpc.ErrorInfo",
-				"reason": reason, "domain": "model-router"},
+				"reason": reason, "domain": "router"},
 		}
 	}
 	body, _ := json.Marshal(bodyMap)

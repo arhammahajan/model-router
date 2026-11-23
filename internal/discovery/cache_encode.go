@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func (s *CacheStore) buildRestore(inv CachedInventory, nowWall float64) (router.DiscoveryInventory, CacheStatus, int) {

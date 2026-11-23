@@ -3,7 +3,6 @@ package routerenv
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -58,7 +57,7 @@ func TestRouterEnvFileAndOverrides(t *testing.T) {
 	}
 	envFile := "export MODEL_ROUTER_URL=\"${MODEL_ROUTER_URL:-http://127.0.0.1:4100}\"\n" +
 		"export MODEL_ROUTER_API_KEY=\"${MODEL_ROUTER_API_KEY:-filekey}\"\n"
-	if err := os.WriteFile(filepath.Join(cfg, "ai", "model-router.env"), []byte(envFile), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(cfg, "ai", "router.env"), []byte(envFile), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,41 +111,5 @@ func TestParseEnvFileLaterLinesSeeEarlierValues(t *testing.T) {
 	got := ParseEnvFile("X=first\nY=\"prefix-${X}\"\n", nil)
 	if got["Y"] != "prefix-first" {
 		t.Fatalf("Y = %q, want %q", got["Y"], "prefix-first")
-	}
-}
-
-func TestNewRouterSessionShape(t *testing.T) {
-	s := NewRouterSession()
-	if !strings.HasPrefix(s, "router-session-") {
-		t.Fatalf("session %q lacks prefix", s)
-	}
-	uuid := strings.TrimPrefix(s, "router-session-")
-	parts := strings.Split(uuid, "-")
-	if len(parts) != 5 {
-		t.Fatalf("uuid parts = %v", parts)
-	}
-	if len(parts[0]) != 8 || len(parts[1]) != 4 || len(parts[2]) != 4 || len(parts[3]) != 4 || len(parts[4]) != 12 {
-		t.Fatalf("uuid segment lengths wrong: %v", parts)
-	}
-	if parts[2][0] != '4' {
-		t.Fatalf("uuid version nibble = %q, want 4", parts[2][0])
-	}
-	if NewRouterSession() == s {
-		t.Fatal("sessions must be unique")
-	}
-}
-
-func TestDotfilesRootOverride(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("HARNESS_DOTFILES", "/nonexistent-dots")
-	root, ok := DotfilesRoot(DefaultPaths())
-	if root != "/nonexistent-dots" || ok {
-		t.Fatalf("root=%q ok=%v", root, ok)
-	}
-	tmp := t.TempDir()
-	t.Setenv("HARNESS_DOTFILES", tmp)
-	root, ok = DotfilesRoot(DefaultPaths())
-	if root != tmp || !ok {
-		t.Fatalf("root=%q ok=%v", root, ok)
 	}
 }

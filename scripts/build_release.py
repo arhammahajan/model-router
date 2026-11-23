@@ -48,7 +48,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     targets = sorted(set(args.target or TARGETS))
     expected_files = {"manifest.json", "SHA256SUMS"} | {
-        f"model-router-go-{args.version}-{target.replace('/', '-')}.tar.gz"
+        f"routerd-{args.version}-{target.replace('/', '-')}.tar.gz"
         for target in targets
     }
     if any(path.name not in expected_files for path in out.iterdir()):
@@ -80,16 +80,16 @@ def main() -> None:
         for target in targets:
             goos, goarch = target.split("/")
             build_env = dict(env, GOOS=goos, GOARCH=goarch, GOAMD64="v1")
-            binary = staging / "model-router-go"
+            binary = staging / "routerd"
             subprocess.run([
                 args.go, "build", "-trimpath", "-buildvcs=false",
-                "-ldflags", f"-s -w -buildid= -X github.com/arhammahajan/model-router/internal/server.BuildVersion={args.version}",
-                "-o", str(binary), "./cmd/model-router",
+                "-ldflags", f"-s -w -buildid= -X github.com/arhammahajan/router/internal/server.BuildVersion={args.version}",
+                "-o", str(binary), "./cmd/routerd",
             ], cwd=ROOT, env=build_env, check=True)
-            prefix = f"model-router-go-{args.version}-{goos}-{goarch}"
+            prefix = f"routerd-{args.version}-{goos}-{goarch}"
             packed = staging / f"{prefix}.tar.gz"
             archive(packed, prefix, {
-                "model-router-go": (binary.read_bytes(), 0o755),
+                "routerd": (binary.read_bytes(), 0o755),
                 "config.example.toml": ((ROOT / "config.example.toml").read_bytes(), 0o600),
                 "README.md": ((ROOT / "RELEASE.md").read_bytes(), 0o644),
                 "THIRD_PARTY_NOTICES": (notices, 0o644),

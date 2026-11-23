@@ -28,8 +28,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/endpoint"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/endpoint"
 )
 
 // Dialects spoken by upstreams and ingress endpoints.
@@ -41,8 +41,8 @@ const (
 )
 
 // UnauthenticatedUpstreamKey is sent when a provider config has no key,
-// mirroring the Python router's "model-router-no-auth" placeholder.
-const UnauthenticatedUpstreamKey = "model-router-no-auth"
+// using a placeholder to avoid sending an empty credential.
+const UnauthenticatedUpstreamKey = "router-no-auth"
 
 // Defaults mirror config.example.toml / Python defaults.
 const (
@@ -637,20 +637,28 @@ func fillServer(srv *Server, t map[string]any) error {
 		}
 	}
 	// Explicit auth_mode = "none" forbids ambient client keys; otherwise the
-	// MODEL_ROUTER_API_KEY(S) environment fallback mirrors Python behavior.
+	// ROUTER_API_KEY(S) are canonical; MODEL_ROUTER_API_KEY(S) remain legacy aliases.
 	if srv.AuthMode == "none" && len(configured) > 0 {
 		return fmt.Errorf("server.auth_mode='none' conflicts with server.api_keys")
 	}
 	keys := append([]string{}, configured...)
 	if srv.AuthMode != "none" {
-		if env := os.Getenv("MODEL_ROUTER_API_KEYS"); env != "" {
+		envKeys := os.Getenv("ROUTER_API_KEYS")
+		if envKeys == "" {
+			envKeys = os.Getenv("MODEL_ROUTER_API_KEYS")
+		}
+		if env := envKeys; env != "" {
 			for _, part := range strings.Split(env, ",") {
 				if strings.TrimSpace(part) != "" {
 					keys = append(keys, strings.TrimSpace(part))
 				}
 			}
 		}
-		if env := strings.TrimSpace(os.Getenv("MODEL_ROUTER_API_KEY")); env != "" {
+		envKey := strings.TrimSpace(os.Getenv("ROUTER_API_KEY"))
+		if envKey == "" {
+			envKey = strings.TrimSpace(os.Getenv("MODEL_ROUTER_API_KEY"))
+		}
+		if env := envKey; env != "" {
 			keys = append(keys, env)
 		}
 	}

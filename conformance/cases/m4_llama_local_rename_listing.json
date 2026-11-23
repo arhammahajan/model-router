@@ -47,10 +47,10 @@
     "object": "list",
     "data.0.id": "local-llama",
     "data.0.object": "model",
-    "data.0.owned_by": "model-router",
+    "data.0.owned_by": "router",
     "data.0.metadata.origin": "fixture",
     "data.1.id": "m1",
-    "data.1.owned_by": "model-router",
+    "data.1.owned_by": "router",
     "data.1.metadata.n": 9007199254740993,
     "data.1.metadata.label": "b"
    },

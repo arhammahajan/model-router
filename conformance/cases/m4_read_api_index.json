@@ -16,7 +16,7 @@
     },
     "client_body": {
       "paths": {
-        "name": "model-router-go",
+        "name": "routerd",
         "endpoints": {
           "__contains__": "/v1/messages"
         }

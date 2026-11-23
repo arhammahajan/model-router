@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Focused identity + route-only encoding for the explicit limit policy.

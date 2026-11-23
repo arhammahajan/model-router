@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // responsesBridgeCfg builds a router with Chat ingress models routed to a

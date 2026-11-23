@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/server"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/server"
 )
 
 func writeShutdownCfg(t *testing.T) string {

@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/catalog"
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/catalog"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Static llama failures. All are value-free sentinels: ordinary logs
@@ -602,7 +602,7 @@ func llamaRowAliases(row map[string]any) []string {
 // placeholder is emitted when empty; catalog/client auth never applies.
 func llamaProbeHeaders(srv llamaServer) map[string]string {
 	out := make(map[string]string, len(srv.headers)+2)
-	out["User-Agent"] = "model-router-go/" + routerVersion
+	out["User-Agent"] = "routerd/" + routerVersion
 	for k, v := range srv.headers {
 		if llamaAuthScrubbed[strings.ToLower(k)] {
 			continue

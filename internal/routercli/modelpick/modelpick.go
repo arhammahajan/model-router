@@ -1,5 +1,5 @@
 // Package modelpick turns the router's GET /v1/models listing into the
-// interactive `harness models` chooser.
+// interactive model chooser for the router CLI.
 //
 // Fetch performs its own /v1/models request with Bearer auth using
 // routerctl.Options' Router URL and API key, and parses id, owned_by,

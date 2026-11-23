@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 // Catalog capability listing: end-to-end over HTTP with one pinned

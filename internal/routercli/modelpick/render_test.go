@@ -10,7 +10,7 @@ import (
 // and never mutates the caller's slice.
 func goldenModels() []Model {
 	return []Model{
-		{ID: "openai/gpt-5", OwnedBy: "model-router", ContextWindow: 1200000, MaxOutput: 4096},
+		{ID: "openai/gpt-5", OwnedBy: "router", ContextWindow: 1200000, MaxOutput: 4096},
 		{ID: "anthropic/claude-sonnet-4-5", ContextWindow: 200000, MaxOutput: 64000},
 		{ID: "zai/glm-4.6", ContextWindow: 1000000, MaxOutput: 131072, Reasoning: "low,high,max", Modalities: []string{"text", "image", "pdf"}},
 		{ID: "mistral/mystery", OwnedBy: "unknown-owner"},

@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/catalog"
+	"github.com/arhammahajan/router/internal/catalog"
 )
 
 // Llama discovery defaults mirror the Python baseline: conventional local

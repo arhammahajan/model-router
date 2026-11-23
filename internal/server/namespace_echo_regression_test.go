@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/protocol"
+	"github.com/arhammahajan/router/internal/protocol"
 )
 
 func TestNamespaceEchoRestoresDeclarationsAndChoice(t *testing.T) {

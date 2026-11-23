@@ -10,7 +10,7 @@
         "data.0.id": "m-a",
         "data.0.metadata.router.schema_version": 1,
         "data.0.object": "model",
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "data.1.id": "glm-5.3-flash",
         "data.1.metadata.router.freshness.discovery.stale": false,
         "data.1.metadata.router.modalities.input.audio.conflicts.0.kind": "reviewed",
@@ -28,7 +28,7 @@
         "data.1.metadata.router.tools.supported.source": "go.review.tools.supported",
         "data.1.metadata.router.tools.supported.value": true,
         "data.1.object": "model",
-        "data.1.owned_by": "model-router",
+        "data.1.owned_by": "router",
         "object": "list"
       }
     },

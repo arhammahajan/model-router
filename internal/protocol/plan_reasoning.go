@@ -3,7 +3,7 @@ package protocol
 import (
 	"math"
 
-	"github.com/arhammahajan/model-router/internal/capability"
+	"github.com/arhammahajan/router/internal/capability"
 )
 
 // PlannedEffort is the closed typed target shared by both OpenAI effort

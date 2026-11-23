@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func TestUpstreamURLResponsesAndGeminiBase(t *testing.T) {
@@ -99,7 +99,7 @@ func TestAuthHeadersGeminiDefault(t *testing.T) {
 	}
 	// Empty key sends the unauthenticated placeholder, never an empty header.
 	p2 := &config.Provider{Name: "g", Dialect: config.DialectGemini, BaseURL: "https://x"}
-	if h := AuthHeaders(p2); h["x-goog-api-key"] != "model-router-no-auth" {
+	if h := AuthHeaders(p2); h["x-goog-api-key"] != "router-no-auth" {
 		t.Fatalf("empty gemini key must use placeholder: %v", h)
 	}
 }

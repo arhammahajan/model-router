@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 func mustLoadCfg(t *testing.T, p string) *config.Config {

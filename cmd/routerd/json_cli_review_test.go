@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/server"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/server"
 )
 
 func TestJSONCLIReviewConfigAliasLastValueEmptyReject(t *testing.T) {
@@ -409,7 +409,7 @@ func TestJSONCLIReviewVersionMatchesServerIndex(t *testing.T) {
 		t.Fatalf("BuildVersion must be non-empty")
 	}
 	code, out := runCapture(t, []string{"--version"})
-	if code != 0 || !strings.Contains(out, "model-router-go "+before) {
+	if code != 0 || !strings.Contains(out, "routerd "+before) {
 		t.Fatalf("version must print binary and BuildVersion, got %d %q", code, out)
 	}
 	if server.BuildVersion != before {
@@ -438,7 +438,7 @@ func TestJSONCLIReviewVersionMatchesServerIndex(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &idx); err != nil {
 		t.Fatalf("index must be JSON: %v", err)
 	}
-	if idx.Name != "model-router-go" || idx.Version != before {
+	if idx.Name != "routerd" || idx.Version != before {
 		t.Fatalf("index identity must share BuildVersion: %+v want %q", idx, before)
 	}
 	if !strings.HasSuffix(strings.TrimSpace(out), before) {

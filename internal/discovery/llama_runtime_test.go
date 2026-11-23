@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/router"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/router"
 )
 
 func runtimeOf(t *testing.T, reg *router.Registry, name string) capability.LocalRuntime {

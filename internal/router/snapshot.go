@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/catalog"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/catalog"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // Snapshot is the immutable routing table: explicit static routes plus

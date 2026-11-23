@@ -35,9 +35,9 @@ jobs:
           go test -race -count=1 ./...
       - name: External HTTP contracts and runner tests
         run: |
-          go build -o "$RUNNER_TEMP/model-router-go" ./cmd/model-router
+          go build -o "$RUNNER_TEMP/routerd" ./cmd/routerd
           python3 conformance/test_run.py
-          python3 conformance/run.py --backend go --go-bin "$RUNNER_TEMP/model-router-go"
+          python3 conformance/run.py --backend go --go-bin "$RUNNER_TEMP/routerd"
 
   archive-smoke:
     strategy:

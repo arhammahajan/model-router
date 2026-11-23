@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument("archive", type=Path, help="archive for this host OS/architecture")
     parser.add_argument("--version", required=True)
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="model-router-release-smoke-") as directory:
+    with tempfile.TemporaryDirectory(prefix="router-release-smoke-") as directory:
         home = Path(directory)
         with tarfile.open(args.archive, "r:gz") as packed:
             members = packed.getmembers()
@@ -27,7 +27,7 @@ def main() -> None:
             if len(prefixes) != 1 or len(members) != 4:
                 raise ValueError("expected exactly four files under one archive directory")
             prefix = next(iter(prefixes))
-            allowed = {"model-router-go", "config.example.toml", "README.md", "THIRD_PARTY_NOTICES"}
+            allowed = {"routerd", "config.example.toml", "README.md", "THIRD_PARTY_NOTICES"}
             found = set()
             for item in members:
                 path = PurePosixPath(item.name)
@@ -41,8 +41,8 @@ def main() -> None:
                     raise ValueError("missing archive file")
                 dest = home / path.parts[1]
                 dest.write_bytes(stream.read())
-                dest.chmod(0o700 if dest.name == "model-router-go" else 0o600)
-        binary = str(home / "model-router-go")
+                dest.chmod(0o700 if dest.name == "routerd" else 0o600)
+        binary = str(home / "routerd")
         config = str(home / "config.example.toml")
         # No inherited API keys, dotenv, provider proxies, credential paths or cache.
         env = {"HOME": str(home), "XDG_CONFIG_HOME": str(home),
@@ -55,7 +55,7 @@ def main() -> None:
                 raise AssertionError(f"CLI {flags}: exit {result.returncode}, expected {code}")
             return result.stdout.strip()
 
-        if invoke(["--version"], 0) != f"model-router-go {args.version}":
+        if invoke(["--version"], 0) != f"routerd {args.version}":
             raise AssertionError("archive executable has the wrong version")
         valid = invoke(["--config", config, "--validate-config", "--offline"], 0)
         if json.loads(valid) != {"status": "valid", "network_checked": False}:

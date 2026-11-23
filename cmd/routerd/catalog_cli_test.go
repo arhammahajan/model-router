@@ -124,7 +124,7 @@ func TestServeStartupSubprocess(t *testing.T) {
 	defer catSrv.Close()
 
 	binDir := t.TempDir()
-	bin := filepath.Join(binDir, "model-router")
+	bin := filepath.Join(binDir, "router")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}

@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
-	"github.com/arhammahajan/model-router/internal/discovery"
+	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/discovery"
 )
 
 type catalogScript struct {

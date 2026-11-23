@@ -9,8 +9,8 @@
 package router
 
 import (
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // CapabilityOverrides returns copied operator facts from this pinned snapshot.

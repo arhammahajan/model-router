@@ -1,5 +1,5 @@
 // Package routerenv resolves the router CLI runtime environment, including XDG paths
-// and the shared ai/model-router.env endpoint settings.
+// and the shared ai/router.env endpoint settings.
 //
 // All functions that touch the user's home read their locations from the
 // process environment through Paths, so tests can point every lookup at a
@@ -7,9 +7,6 @@
 package routerenv
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,31 +49,28 @@ func DefaultPaths() Paths {
 	}
 }
 
-// ModelRouterDir returns the model-router home directory: $HOME/.model-router.
-func ModelRouterDir(paths Paths) string {
-	return filepath.Join(paths.Home, ".model-router")
-}
-
-// RouterSettings is the resolved model-router endpoint used by launching
-// agents and by router status commands.
+// RouterSettings is the resolved router endpoint used by router status commands.
 type RouterSettings struct {
 	URL    string // no trailing slash
 	APIKey string
 }
 
-// RouterEnvFile is the shared env file each harness maps into its own
-// provider variables, relative to ConfigHome.
+// RouterEnvFile is the shared router endpoint env file, relative to ConfigHome.
 func RouterEnvFile(paths Paths) string {
-	return filepath.Join(paths.ConfigHome, "ai", "model-router.env")
+	return filepath.Join(paths.ConfigHome, "ai", "router.env")
 }
 
 // RouterEnv resolves the router endpoint. Pre-existing process values win
 // over the shared env file, which wins over the documented defaults. This
 // preserves the shared router environment contract.
 func RouterEnv(paths Paths) RouterSettings {
-	url := os.Getenv("MODEL_ROUTER_URL")
-	key := os.Getenv("MODEL_ROUTER_API_KEY")
-	if data, err := os.ReadFile(RouterEnvFile(paths)); err == nil {
+	url := firstNonEmpty(os.Getenv("ROUTER_URL"), os.Getenv("MODEL_ROUTER_URL"))
+	key := firstNonEmpty(os.Getenv("ROUTER_API_KEY"), os.Getenv("MODEL_ROUTER_API_KEY"))
+	data, err := os.ReadFile(RouterEnvFile(paths))
+	if err != nil {
+		data, err = os.ReadFile(filepath.Join(paths.ConfigHome, "ai", "model-router.env"))
+	}
+	if err == nil {
 		fileEnv := ParseEnvFile(string(data), func(name string) (string, bool) {
 			if v, ok := os.LookupEnv(name); ok {
 				return v, true
@@ -84,10 +78,10 @@ func RouterEnv(paths Paths) RouterSettings {
 			return "", false
 		})
 		if url == "" {
-			url = fileEnv["MODEL_ROUTER_URL"]
+			url = firstNonEmpty(fileEnv["ROUTER_URL"], fileEnv["MODEL_ROUTER_URL"])
 		}
 		if key == "" {
-			key = fileEnv["MODEL_ROUTER_API_KEY"]
+			key = firstNonEmpty(fileEnv["ROUTER_API_KEY"], fileEnv["MODEL_ROUTER_API_KEY"])
 		}
 	}
 	url = strings.TrimRight(strings.TrimSpace(url), "/")
@@ -103,7 +97,7 @@ func RouterEnv(paths Paths) RouterSettings {
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // ParseEnvFile parses the small export-file dialect used by
-// ai/model-router.env: optional `export `, NAME=VALUE, where VALUE is a
+// ai/router.env: optional `export `, NAME=VALUE, where VALUE is a
 // single-quoted literal, a double-quoted string with ${VAR} and
 // ${VAR:-default} expansion, or a bare unquoted token. Blank lines and
 // comments are skipped; anything else is ignored. lookup supplies values for
@@ -167,54 +161,6 @@ func expandSubstitutions(value string, lookup func(string) (string, bool)) strin
 		}
 		return ""
 	})
-}
-
-// NewRouterSession returns a fresh per-launch router session token of the
-// form router-session-<uuid4>, matching the affinity contract accepted by the router.
-func NewRouterSession() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		// crypto/rand failure is fatal in practice; fall back to a
-		// clearly-marked non-random session rather than failing launch.
-		return fmt.Sprintf("router-session-weak-%s", hex.EncodeToString(b[:]))
-	}
-	b[6] = (b[6] & 0x0f) | 0x40 // version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-	h := hex.EncodeToString(b[:])
-	return "router-session-" + h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
-}
-
-// DotfilesRoot returns the harness dotfiles checkout used for profile
-// seeding and config wiring: $HARNESS_DOTFILES when set, otherwise
-// <home>/dev/dots/harnesses. The bool reports whether the directory
-// exists.
-func DotfilesRoot(paths Paths) (string, bool) {
-	if root := os.Getenv("HARNESS_DOTFILES"); root != "" {
-		if st, err := os.Stat(root); err == nil && st.IsDir() {
-			return root, true
-		}
-		return root, false
-	}
-	root := filepath.Join(paths.Home, "dev", "dots", "harnesses")
-	if st, err := os.Stat(root); err == nil && st.IsDir() {
-		return root, true
-	}
-	return root, false
-}
-
-// LaunchSpec is the resolved launch instruction for one agent invocation.
-// The agents package merges agent defaults with the spec: spec Env wins
-// over agent defaults, PrependArgs run before caller args, and a non-empty
-// Binary replaces the agent's default executable.
-type LaunchSpec struct {
-	Agent       string
-	DisplayName string
-	Env         map[string]string
-	PrependArgs []string
-	Binary      string
-	HomePath    string
-	ShadowHome  string
-	NoRouter    bool
 }
 
 func firstNonEmpty(values ...string) string {

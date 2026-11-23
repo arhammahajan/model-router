@@ -1,6 +1,6 @@
 # Feature tracker
 
-Tracks shipped and planned work for `model-router`. Check the code for current behavior.
+Tracks shipped and planned work for `router`. Check the code for current behavior.
 
 | Status | Meaning |
 | --- | --- |

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arhammahajan/model-router/internal/endpoint"
+	"github.com/arhammahajan/router/internal/endpoint"
 )
 
 func reviewAliasCfg(t *testing.T, providerBlock string) string {

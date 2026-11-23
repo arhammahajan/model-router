@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // rgBridgeCfg builds a router with Responses ingress models routed to a

@@ -1,8 +1,8 @@
 package router
 
 import (
-	"github.com/arhammahajan/model-router/internal/capability"
-	"github.com/arhammahajan/model-router/internal/config"
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/config"
 )
 
 // CanonicalBase returns a caller-owned copy of the private per-route base

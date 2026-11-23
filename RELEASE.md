@@ -1,4 +1,4 @@
-# Install and roll back model-router-go
+# Install and roll back routerd
 
 These development archives contain a standalone Go executable, a dummy-key
 configuration example, this guide, and bundled upstream notices. Linux and macOS builds target amd64 and
@@ -15,8 +15,8 @@ Verify its SHA256 against `SHA256SUMS` from the same trusted release source.
 Extract the archive into a fresh directory. Then run:
 
 ```sh
-./model-router-go --version
-./model-router-go --config config.example.toml --validate-config --offline
+./routerd --version
+./routerd --config config.example.toml --validate-config --offline
 ```
 
 The example has dummy credentials and local placeholder upstreams. Replace the
@@ -44,9 +44,9 @@ either the readiness check or the listener. Keep the Python cache path in the
 original config so rollback can reuse it.
 
 ```sh
-./model-router-go --config ./router-go.toml --validate-config --offline
-./model-router-go --config ./router-go.toml --check-readiness
-./model-router-go --config ./router-go.toml --host 127.0.0.1 --port 18080
+./routerd --config ./router.toml --validate-config --offline
+./routerd --config ./router.toml --check-readiness
+./routerd --config ./router.toml --host 127.0.0.1 --port 18080
 ```
 
 Offline validation checks configuration without contacting upstreams. The
@@ -71,7 +71,7 @@ installed launchers against the staging listener.
 | Antigravity Gemini API-key or ACP gateway | For API-key mode, send the launch affinity token on Gemini generation. For ACP, verify top-level `sessionId` is consumed and its stable identity takes precedence over the launch token. |
 
 The fake-upstream suite covers these request shapes. Run it from the repository root with
-`python3 conformance/run.py --backend go --go-bin /path/to/model-router-go`.
+`python3 conformance/run.py --backend go --go-bin /path/to/routerd`.
 For live staging, run `python3 scripts/check_live_routes.py --origin
 http://127.0.0.1:18080 --route responses=YOUR_CHAT_MODEL --route
 chat=YOUR_RESPONSES_MODEL`. This sends one small JSON request and one stream

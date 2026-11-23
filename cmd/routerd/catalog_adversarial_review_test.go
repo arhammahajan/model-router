@@ -80,7 +80,7 @@ func TestReviewSignalDuringStartupCancelsFirstProbe(t *testing.T) {
 	defer close(release)
 
 	binDir := t.TempDir()
-	bin := filepath.Join(binDir, "model-router")
+	bin := filepath.Join(binDir, "router")
 	build := exec.Command("go", "build", "-o", bin, ".")
 	build.Dir = "."
 	build.Env = withHome(os.Environ(), realHome, realXDG)

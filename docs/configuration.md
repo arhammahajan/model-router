@@ -7,11 +7,11 @@ This reference documents the CLI flags, exit codes, configuration sections, disc
 Build and run the router binary from the repository root:
 
 ```bash
-go build -o model-router-go ./cmd/model-router
-./model-router-go --config router-dev.toml
-./model-router-go --validate-config --config router-dev.toml
-./model-router-go --check-readiness --config router-dev.toml
-./model-router-go --version
+go build -o routerd ./cmd/routerd
+./routerd --config router-dev.toml
+./routerd --validate-config --config router-dev.toml
+./routerd --check-readiness --config router-dev.toml
+./routerd --version
 ```
 
 Running the binary without a check flag starts the HTTP server. Do not point a quick test at a configuration file that holds real credentials. Use fixtures shaped like `config.example.toml` with dummy keys.
@@ -71,7 +71,7 @@ Configure the HTTP listener, ingress authentication, limits, and timeouts in `[s
 | `write_timeout` | Timeout for writing responses. |
 | `bearer_session_compat` | Enables keyless bearer session compatibility on Chat and Gemini generation ingress. Defaults to `false`. Setting this key to `true` requires zero effective ingress API keys. |
 
-`MODEL_ROUTER_API_KEY` and `MODEL_ROUTER_API_KEYS` supply environment variable fallback for ingress API keys. This fallback mirrors the Python router. When `auth_mode = "none"`, the router ignores those environment variables, while configured `api_keys` still conflict with `auth_mode = "none"`. When `auth_mode = "required"`, the router requires at least one effective ingress key.
+`ROUTER_API_KEY` and `ROUTER_API_KEYS` supply environment variable fallback for ingress API keys. The former `MODEL_ROUTER_API_KEY` and `MODEL_ROUTER_API_KEYS` names remain supported as legacy aliases. When `auth_mode = "none"`, the router ignores those environment variables, while configured `api_keys` still conflict with `auth_mode = "none"`. When `auth_mode = "required"`, the router requires at least one effective ingress key.
 
 ## Retry policy
 
@@ -141,7 +141,7 @@ On Gemini generation ingress, the router applies these rules:
 - Conflicting distinct tokens return HTTP 400 even when another identity would win.
 - The router emits only the selected identity upstream, under the provider's configured session header.
 
-On Gemini generation ingress only, `server.bearer_session_compat = true` also enables the `x-model-router-reasoning-effort` header:
+On Gemini generation ingress only, `server.bearer_session_compat = true` also enables the `x-model-router-reasoning-effort` compatibility header:
 
 - The literal value must appear in the canonical model's normalized, trusted `effort.values`. Raw `metadata.router` cannot admit it.
 - Native Gemini maps `none` to thinking budget zero and maps `minimal`, `low`, `medium`, and `high` to uppercase levels.

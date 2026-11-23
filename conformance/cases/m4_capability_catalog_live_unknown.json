@@ -10,7 +10,7 @@
         "data.0.id": "m-a",
         "data.0.metadata.router.reasoning.supported.value": null,
         "data.0.metadata.router.schema_version": 1,
-        "data.0.owned_by": "model-router",
+        "data.0.owned_by": "router",
         "data.1.id": "cat-1",
         "data.1.metadata.label": "c1",
         "data.1.metadata.n": 9007199254740993,
@@ -19,7 +19,7 @@
         "data.1.metadata.router.schema_version": 1,
         "data.1.metadata.router.tools.supported.kind": "unknown",
         "data.1.metadata.router.tools.supported.value": null,
-        "data.1.owned_by": "model-router"
+        "data.1.owned_by": "router"
       }
     },
     "status": 200,
