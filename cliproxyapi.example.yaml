@@ -1,8 +1,8 @@
-# Example CLIProxyAPI configuration for model-router development.
+# Example CLIProxyAPI configuration for routerd development.
 # Copy this file to config.yaml, install the opencode-go plugin binary, and
 # replace the placeholder secrets with environment references or local values.
 # Upstream AI/OAuth credentials live only here (and in env), never in
-# model-router's TOML. model-router points at this proxy via its
+# routerd's TOML. routerd points at this proxy via its
 # `[cliproxyapi]` section (`base_url`, `api_key`, optional `config_path`).
 #
 # Plugin binary installation (Go 1.26.7+, CGO enabled for c-shared builds):
@@ -24,7 +24,7 @@ server:
 oauth:
   auth-dir: "~/.config/router/cliproxyapi-auth"
 
-# Client authentication for the proxy API. model-router presents one of these
+# Client authentication for the proxy API. routerd presents one of these
 # keys as its `[cliproxyapi] api_key`. Replace this dummy value in both files.
 # CLIProxyAPI access keys are literal YAML strings. The OpenCode plugin below
 # supports environment references for its own upstream keys.

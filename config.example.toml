@@ -1,8 +1,8 @@
-# Development example: model-router fronts an external or embedded
-# CLIProxyAPI service. No `[providers.*]`, `[[models]]`, or `[catalog]`
-# sections are needed: model names are discovered from the proxy as opaque
-# `opencode-go/...` IDs, and the generated `cliproxyapi` provider speaks
-# OpenAI Chat while model-router keeps cross-dialect translation.
+# Development example: routerd fronts an external or embedded CLIProxyAPI
+# service. No `[providers.*]`, `[[models]]`, or `[catalog]` sections are
+# needed: model names are discovered from the proxy as opaque IDs (e.g.
+# `opencode-go/...`), and the generated `cliproxyapi` provider speaks OpenAI
+# Chat while routerd keeps cross-dialect translation.
 # Upstream AI/OAuth credentials live only in the CLIProxyAPI YAML/env, never here.
 [server]
 host = "127.0.0.1"
@@ -24,10 +24,10 @@ api_key = "replace-this-proxy-key"
 # config_path = "/path/to/cliproxyapi-config.yaml"
 
 # External mode (default): start CLIProxyAPI separately on port 8317, then
-# start model-router with this file. Request flow:
-# client -> model-router (port 4000) -> CLIProxyAPI (port 8317)
+# start routerd with this file. Request flow:
+# client -> routerd (port 4000) -> CLIProxyAPI (port 8317)
 #   -> opencode-go-cliproxyapi plugin -> OpenCode Go upstream.
-# Embedded mode: set `config_path` and model-router starts the SDK service
+# Embedded mode: set `config_path` and routerd starts the SDK service
 # itself; no separate proxy process is needed.
 # See cliproxyapi.example.yaml for the proxy-side access key and
 # `plugins.configs.opencode-go-cliproxyapi` setup (secrets from env).
