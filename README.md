@@ -24,6 +24,22 @@ Flags `--host` and `--port` override `server.host` and `server.port`. On `SIGINT
 
 ## Companion tools
 
+The `router` CLI in `cmd/router` manages and inspects the model-router daemon (systemd-first with direct-spawn fallback), lists/picks models, validates configs offline, streams logs, and summarizes accounting usage:
+
+```bash
+go build -o router ./cmd/router
+./router start [--config PATH] [--foreground] [--wait DURATION]
+./router stop
+./router restart [--wait DURATION]
+./router status [--json]
+./router models [--json] [--pick]
+./router validate [--config PATH]
+./router logs [--follow] [-n LINES]
+./router usage [--days N] [--by day|model] [--json] [PATH]
+```
+
+Run `router help` to print the full command list.
+
 The `harness` CLI in `cmd/harness` launches coding tools against the router, manages provider profiles in `internal/harness/profiles`, controls the router service, and provides the `spaces` helper commands used by [tmux-spaces](plugins/tmux-spaces/README.md).
 
 ```bash

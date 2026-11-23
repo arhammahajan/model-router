@@ -155,12 +155,12 @@ func (o Options) spawnFn() func(string, []string, string) (int, error) {
 // Detect builds Options from paths and router settings, resolving the
 // direct-mode binary and config with the contract search orders:
 //
-// RouterBin: $HARNESS_ROUTER_BIN, then the newest
-// $Home/.local/libexec/model-router/model-router-go*, then
+// RouterBin: $MODEL_ROUTER_BIN / $ROUTER_BIN / $HARNESS_ROUTER_BIN, then the
+// newest $Home/.local/libexec/model-router/model-router-go*, then
 // $Home/dev/model-router/model-router-go, then "model-router-go" from PATH.
 //
-// RouterConfig: $HARNESS_ROUTER_CONFIG, then
-// $ConfigHome/model-router/router-go.toml, then the literal "router.toml".
+// RouterConfig: $MODEL_ROUTER_CONFIG / $ROUTER_CONFIG / $HARNESS_ROUTER_CONFIG,
+// then $ConfigHome/model-router/router-go.toml, then the literal "router.toml".
 //
 // Log/Pid default to $StateHome/harness/router.log and router.pid;
 // HTTPTimeout defaults to DefaultHTTPTimeout.
@@ -187,7 +187,7 @@ func Detect(paths harnessenv.Paths, router harnessenv.RouterSettings) Options {
 	} else {
 		opts.Journalctl = "journalctl"
 	}
-	if bin := os.Getenv("HARNESS_ROUTER_BIN"); bin != "" {
+	if bin := firstEnv("MODEL_ROUTER_BIN", "ROUTER_BIN", "HARNESS_ROUTER_BIN"); bin != "" {
 		opts.RouterBin = bin
 	} else if newest, ok := newestLibexecBin(paths); ok {
 		opts.RouterBin = newest
@@ -198,7 +198,7 @@ func Detect(paths harnessenv.Paths, router harnessenv.RouterSettings) Options {
 	} else {
 		opts.RouterBin = "model-router-go"
 	}
-	if cfg := os.Getenv("HARNESS_ROUTER_CONFIG"); cfg != "" {
+	if cfg := firstEnv("MODEL_ROUTER_CONFIG", "ROUTER_CONFIG", "HARNESS_ROUTER_CONFIG"); cfg != "" {
 		opts.RouterConfig = cfg
 	} else if cand := filepath.Join(paths.ConfigHome, "model-router", "router-go.toml"); fileExists(cand) {
 		opts.RouterConfig = cand
@@ -206,6 +206,15 @@ func Detect(paths harnessenv.Paths, router harnessenv.RouterSettings) Options {
 		opts.RouterConfig = "router.toml"
 	}
 	return opts
+}
+
+func firstEnv(names ...string) string {
+	for _, name := range names {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func fileExists(path string) bool {

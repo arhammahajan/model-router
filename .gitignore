@@ -13,4 +13,5 @@
 __pycache__/
 .venv/
 /harness
+/router
 plugins/tmux-spaces/tmux-spaces
