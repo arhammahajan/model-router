@@ -131,6 +131,19 @@ func New(cfg *config.Config) *Snapshot {
 	for name, p := range cfg.Providers {
 		s.providers[name] = copyProvider(p)
 	}
+	// CLIProxyAPI mode: ensure the generated trusted provider is present even
+	// for programmatic configs that set CLIProxyAPI without pre-injecting it
+	// into Providers. Validated file configs already inject it during
+	// buildConfig, so this is a no-op there. Presence before any discovery
+	// publication keeps dynamic cliproxyapi/<opaque-id> routing (including
+	// slash-suffixed opaque IDs such as opencode-go/...) usable immediately.
+	if cfg.CLIProxyAPI != nil {
+		if _, ok := s.providers[config.CLIProxyAPIProviderName]; !ok {
+			if p := cfg.CLIProxyProvider(); p != nil {
+				s.providers[p.Name] = copyProvider(p)
+			}
+		}
+	}
 	for _, m := range cfg.Models {
 		cp := copyModel(m)
 		pos := len(s.models)

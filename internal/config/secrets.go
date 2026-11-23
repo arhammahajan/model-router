@@ -59,6 +59,10 @@ func ConfigSecrets(cfg *Config) []string {
 		collectMap(p.Headers, true)
 		collectMap(p.TranslatedHeaders, true)
 	}
+	if cfg.CLIProxyAPI != nil {
+		add(cfg.CLIProxyAPI.APIKey)
+		collectURL(cfg.CLIProxyAPI.BaseURL)
+	}
 	if cfg.Catalog != nil {
 		collectURL(cfg.Catalog.URL)
 		collectMap(cfg.Catalog.Headers, true)

@@ -148,16 +148,13 @@ model = "x"
 }
 
 func TestExampleConfigLoads(t *testing.T) {
-	// The shipped example must load with dummy credentials: it exercises
-	// the full supported surface (headers, timeouts, aliases, metadata).
-	t.Setenv("ANTHROPIC_API_KEY", "dummy")
-	t.Setenv("OPENAI_API_KEY", "dummy")
+	// The shipped example must load offline with dummy proxy credentials.
 	cfg, err := Load("../../config.example.toml")
 	if err != nil {
 		t.Fatalf("example config: %v", err)
 	}
-	if len(cfg.Providers) < 3 || len(cfg.Models) == 0 {
-		t.Fatalf("thin parse: %+v", cfg)
+	if cfg.CLIProxyAPI == nil || cfg.Catalog == nil || cfg.Providers[CLIProxyAPIProviderName] == nil {
+		t.Fatal("example must configure proxy routing and model discovery")
 	}
 }
 

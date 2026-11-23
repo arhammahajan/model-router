@@ -164,6 +164,10 @@ type Config struct {
 	Retry     Retry
 	Providers map[string]*Provider
 	Models    []Model
+	// CLIProxyAPI is nil when [cliproxyapi] is absent: no proxy discovery.
+	// When present, a single trusted provider named "cliproxyapi" (OpenAI
+	// Chat dialect) is generated; proxy /v1/models IDs route as opaque IDs.
+	CLIProxyAPI *CLIProxyAPIConfig
 	// Catalog is nil when [catalog] is absent: no worker, no overhead.
 	Catalog *Catalog
 	// Llama is nil when [llama_cpp] is absent: no worker, no overhead.
@@ -412,7 +416,7 @@ func isReservedSessionHeader(name, sessionHeader string) bool {
 // --- top-level build ---
 
 func buildConfig(doc map[string]any) (*Config, error) {
-	topKeys := map[string]bool{"server": true, "retry": true, "providers": true, "models": true, "catalog": true, "llama_cpp": true, "discovery_cache": true, "capabilities": true, "search": true, "accounting": true}
+	topKeys := map[string]bool{"server": true, "retry": true, "providers": true, "models": true, "cliproxyapi": true, "catalog": true, "llama_cpp": true, "discovery_cache": true, "capabilities": true, "search": true, "accounting": true}
 	for k := range doc {
 		if !topKeys[k] {
 			return nil, fmt.Errorf("unsupported table [%s] in this build (%s)", k, migrationHint(k))
@@ -478,6 +482,24 @@ func buildConfig(doc map[string]any) (*Config, error) {
 		}
 	}
 	// models
+	// cliproxyapi (before models: explicit routes may target the generated
+	// provider for protocol-translation overrides; the reserved name cannot
+	// collide with an explicit provider).
+	if raw, ok := doc["cliproxyapi"]; ok {
+		tab, ok := asTable(raw)
+		if !ok {
+			return nil, fmt.Errorf("cliproxyapi: must be a table")
+		}
+		if _, exists := cfg.Providers[CLIProxyAPIProviderName]; exists {
+			return nil, fmt.Errorf("cliproxyapi: provider name %q is already configured in [providers]; choose a different explicit name", CLIProxyAPIProviderName)
+		}
+		cli, err := fillCLIProxyAPI(tab)
+		if err != nil {
+			return nil, err
+		}
+		cfg.CLIProxyAPI = cli
+		cfg.Providers[CLIProxyAPIProviderName] = cli.Provider()
+	}
 	if raw, ok := doc["models"]; ok {
 		arr, ok := asArray(raw)
 		if !ok {
@@ -506,6 +528,16 @@ func buildConfig(doc map[string]any) (*Config, error) {
 			return nil, err
 		}
 		cfg.Catalog = cat
+	}
+	if cfg.CLIProxyAPI != nil && cfg.Catalog != nil {
+		return nil, fmt.Errorf("cliproxyapi and catalog cannot be combined in this build; use one discovery source")
+	}
+	if cfg.CLIProxyAPI != nil {
+		var err error
+		cfg.Catalog, err = cfg.CLIProxyAPI.catalog(cfg.Providers)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// llama (after providers: explicit server names must not collide)
 	if raw, ok := doc["llama_cpp"]; ok {
@@ -582,7 +614,7 @@ func buildConfig(doc map[string]any) (*Config, error) {
 }
 
 func migrationHint(table string) string {
-	return "supported: [server], [retry], [providers.<name>], [[models]]"
+	return "supported: [server], [retry], [providers.<name>], [[models]], [cliproxyapi]"
 }
 
 // --- [server] ---
