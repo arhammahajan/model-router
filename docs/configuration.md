@@ -29,7 +29,7 @@ YAML configuration files trigger an explicit migration error. Convert YAML files
 | Flag | Behavior |
 | --- | --- |
 | `--config`, `-c` | Sets the configuration file path. Both flags share last-value behavior. An explicit empty value exits with code 2. |
-| `--host` | Overrides `server.host`. The conformance runner uses this flag with `--port` for ephemeral ports. An explicit empty value exits with code 2. |
+| `--host` | Overrides `server.host`. An explicit empty value exits with code 2. |
 | `--port` | Overrides `server.port`. Zero or out-of-range ports exit with code 2. |
 | `--validate-config` | Validates configuration offline without discovery cache or network I/O, prints JSON on the final stdout line, and exits. |
 | `--check-readiness`, `--check` | Makes one bounded attempt per configured discovery source, prints JSON on the final stdout line, and exits with readiness status. |
@@ -125,7 +125,7 @@ Session affinity obeys these rules:
 
 ### Keyless bearer session compatibility
 
-Setting `server.bearer_session_compat = true` enables keyless bearer compatibility on Chat and Gemini generation ingress. This mode requires no effective ingress API keys and cannot be combined with `--api-key`. Provider credentials remain the only upstream credential. The conformance suite pins this behavior through its keyless bearer contracts.
+Setting `server.bearer_session_compat = true` enables keyless bearer compatibility on Chat and Gemini generation ingress. This mode requires no effective ingress API keys and cannot be combined with `--api-key`. Provider credentials remain the only upstream credential.
 
 On Chat generation ingress, the router applies these rules:
 
@@ -351,7 +351,7 @@ The translated path behaves according to these rules:
 - The terminal streaming event carries usage for both model rounds and annotations for verified sources.
 - The router refuses additional tools, search filters, and stateful requests.
 - Native Responses routes forward hosted search directly to the provider.
-- The conformance suite in `conformance/` and the `internal/server` regressions pin the accepted behavior.
+- The `internal/server` regressions pin the accepted behavior.
 
 ## Diagnostics and readiness
 

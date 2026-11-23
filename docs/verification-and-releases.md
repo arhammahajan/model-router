@@ -1,18 +1,16 @@
 # Verification and release archives
 
-This document covers local verification commands, conformance suite coverage, recorded divergences from the Python baseline, and development release archive builds.
+This document covers local verification commands and development release archive builds.
 
 ## Local checks
 
-Run these commands from the repository root to build the Go binary, run static checks, execute Go tests, and run the conformance suite:
+Run these commands from the repository root to build the Go binary, run static checks, and execute Go tests:
 
 ```bash
 go build -o /tmp/routerd ./cmd/routerd
 go vet ./... && gofmt -l internal cmd
 go test -count=1 ./...
 go test -race -count=1 ./...
-python3 conformance/run.py --backend go --go-bin /tmp/routerd
-python3 conformance/test_run.py
 ```
 
 Each command verifies a specific stage:
@@ -23,14 +21,7 @@ Each command verifies a specific stage:
 | `go vet ./... && gofmt -l internal cmd` | Runs static analysis and checks formatting. The `gofmt -l` output must be empty. |
 | `go test -count=1 ./...` | Runs unit tests and fake-upstream tests without test caching. |
 | `go test -race -count=1 ./...` | Runs concurrency checks under the Go race detector. |
-| `python3 conformance/run.py --backend go --go-bin /tmp/routerd` | Runs the external conformance suite against the built binary and reports case counts. |
-| `python3 conformance/test_run.py` | Runs the 78 conformance runner unit tests. |
-
-Conformance cases live in `conformance/cases/*.json` and assert both upstream wire requests and client-visible output. Run `python3 conformance/run.py --backend go --list` to list all cases. To compare the Go router against the Python baseline, place the legacy checkout next to this repository or set `MODEL_ROUTER_LEGACY_REPO` to its path.
-
-## Conformance coverage
-
-The conformance runner reports 616 passing external cases and remains the source of the case count. Those 616 cases include 41 keyless bearer-compatibility contracts. The repository also passes 78 runner unit tests, fresh Go race tests, build checks, `go vet`, and `gofmt` formatting checks.
+## Go verification
 
 Regression tests in the root package cover marked Chat request shapes and null boundaries, surrogate-preserving system-message merges, and streamed canonical session hashing. An independent compatibility runtime review found no reachable issues, and its regression tests pass under race detection.
 
@@ -48,17 +39,7 @@ The suite also verifies these translation and state rules:
 - Translated stateful requests retain `unsupported_responses_state`.
 - The suite checks exact tool-result content preservation across the reviewed bridges.
 
-## Recorded Python baseline divergences
-
-The conformance suite records divergences against the Python baseline where Go matches items 7 and 8 of [behavior changes compared to Python](transport-and-security.md#behavior-changes-compared-to-python):
-
-- In `chat_to_responses_text`, Python hoists the system message into top-level `instructions` and leaves only the user message in `input`. Go sends the system message as the first input item. Both are documented valid Responses input wire forms, and the easy input-message `type` field is optional. The conformance case asserts Go's ordered `system0` and `user1` form. The Python mismatch is an equivalent wire-form difference and not a product bug.
-- In both `*_sse_truncated` cases, Python fabricates `completed` or `[DONE]` after stream truncation. Go ends truncated streams without synthetic success markers.
-- In the three tightened pre-commit HTTP 502 cases, Python returns raw-exception HTTP 500 responses, and one case echoes a traceback with an upstream secret. Go returns sanitized HTTP 502 responses.
-
 Tool-result regression tests pin exact content preservation, which covers empty strings and Unicode strings. The tests reject duplicated tool-result content.
-
-Python remains the production baseline. The Go conformance set documents review fixes for large-integer preservation, header isolation, gzip handling, sanitized errors, retry exhaustion, and unaffordable `Retry-After` values. Baseline verification checked Python validation, translation, retry, and `count_tokens` behavior with `env -u MODEL_ROUTER_API_KEY -u MODEL_ROUTER_API_KEYS`. This documentation makes no claims about live-router credentials or logs.
 
 ## Development release archives
 

@@ -70,8 +70,7 @@ installed launchers against the staging listener.
 | Cline keyless Chat | Send the launch affinity token as `Authorization: Bearer …`. Verify the selected session and the provider credential on Chat generation. |
 | Antigravity Gemini API-key or ACP gateway | For API-key mode, send the launch affinity token on Gemini generation. For ACP, verify top-level `sessionId` is consumed and its stable identity takes precedence over the launch token. |
 
-The fake-upstream suite covers these request shapes. Run it from the repository root with
-`python3 conformance/run.py --backend go --go-bin /path/to/routerd`.
+Go tests cover router behavior with fake upstreams.
 For live staging, run `python3 scripts/check_live_routes.py --origin
 http://127.0.0.1:18080 --route responses=YOUR_CHAT_MODEL --route
 chat=YOUR_RESPONSES_MODEL`. This sends one small JSON request and one stream

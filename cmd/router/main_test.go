@@ -323,7 +323,7 @@ func TestStatusNotLiveReturnsExit1(t *testing.T) {
 func TestValidateAndUsage(t *testing.T) {
 	paths := isolateEnv(t)
 
-	cfgPath := filepath.Join(paths.ConfigHome, "router", "router.toml")
+	cfgPath := filepath.Join(paths.ConfigHome, ".router", "router.toml")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
 	}

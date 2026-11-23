@@ -85,7 +85,7 @@ This release covers only the ordinary text and function-tools scope and does not
 
 The router implements four native paths and the twelve-bridge matrix between Chat and Anthropic, Chat and Responses, Anthropic and Responses, Chat and Gemini, Responses and Gemini, and Anthropic and Gemini. These routes cover the claimed ordinary text and function-tools scope. The router also implements `count_tokens` passthrough and raw-listener admission.
 
-Milestones 4 through 6 remain deferred. These milestones cover operational parity, tool expansion, and production cutover. Python remains the production baseline.
+The Go daemon is the production router service. Remaining deferred work is limited to further discovery enrichment, reasoning variants, media and tool variants, broader search replacement beyond the opt-in Responses-to-Chat SearXNG binding, and the native coding-agent tool matrix.
 
 Bridges cover ordinary JSON-schema function tools. Chat custom tools use native freeform fields on Responses upstreams. On other supported upstreams, Chat and Responses custom tools use a single string-valued function. Strict mode rejects that single-string approximation before dispatch. Lossy mode reports the approximation and carries any grammar as instructions. The router restores Responses namespace names on returned tool calls.
 

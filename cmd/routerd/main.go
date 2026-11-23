@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -55,6 +56,18 @@ func findDefaultConfig() (string, bool) {
 		if st, err := os.Stat(name); err == nil && !st.IsDir() {
 			return name, true
 		}
+	}
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	if configHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil || home == "" {
+			return "", false
+		}
+		configHome = filepath.Join(home, ".config")
+	}
+	path := filepath.Join(configHome, ".router", "router.toml")
+	if st, err := os.Stat(path); err == nil && !st.IsDir() {
+		return path, true
 	}
 	return "", false
 }

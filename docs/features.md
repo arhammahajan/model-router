@@ -28,7 +28,7 @@ Tracks shipped and planned work for `router`. Check the code for current behavio
 - The router accepts and emits multiple API dialects. It supports versioned tool
   boundaries, optional Responses-to-Chat search replacement for streaming and
   non-streaming requests, keyless bearer compatibility, and metadata-only usage
-  accounting. The conformance suite and `internal/server` regression tests cover this
+  accounting. The `internal/server` regression tests cover this
   behavior.
 - The standalone `router` CLI (`cmd/router`) provides systemd-first daemon lifecycle
   control (`start`, `stop`, `restart`, `status`, `logs`), model listing/picking, offline

@@ -4,7 +4,7 @@
 
 The repository builds with Go 1.24 at the root module. It uses `github.com/pelletier/go-toml/v2 v2.2.4` for TOML configuration parsing and the Go standard library for everything else.
 
-The previous Python implementation lives in [model-router-legacy](https://github.com/arhammahajan/model-router-legacy) and remains the production baseline while milestones 4 through 6 are in progress.
+This Go router daemon supersedes the previous Python implementation and is the production service.
 
 ## Quick start
 
@@ -61,7 +61,7 @@ See [Endpoints and protocol translation](docs/endpoints-and-translation.md) for 
 - [Configuration and CLI](docs/configuration.md) documents CLI flags, exit codes, `[server]`, `[retry]`, `[providers.*]`, `[[models]]`, capability overrides, `[catalog]`, `[llama_cpp]`, `[discovery_cache]`, `[accounting]`, `[search]`, and diagnostics.
 - [Endpoints and protocol translation](docs/endpoints-and-translation.md) documents the shared IR architecture, HTTP endpoints, Gemini 4 extensions, reasoning translation, and all six bidirectional dialect pairs.
 - [Transport, security, and scope](docs/transport-and-security.md) documents client and upstream authentication, header isolation, retries, admission bounds, behavior changes compared to Python, known limits, and deferred milestones.
-- [Verification and release archives](docs/verification-and-releases.md) documents test commands, conformance coverage, recorded Python baseline divergences, and development release builds.
+- [Verification and release archives](docs/verification-and-releases.md) documents Go test commands and development release builds.
 - [Feature tracker](docs/features.md) tracks shipped and planned work for orchestration and the router.
 - [Install and roll back](RELEASE.md) documents archive verification, staged cutover from Python, and rollback.
 
@@ -72,8 +72,6 @@ go build -o /tmp/routerd ./cmd/routerd
 go vet ./... && gofmt -l internal cmd
 go test -count=1 ./...
 go test -race -count=1 ./...
-python3 conformance/run.py --backend go --go-bin /tmp/routerd
-python3 conformance/test_run.py
 ```
 
-See [Verification and release archives](docs/verification-and-releases.md) for conformance details, Python baseline comparisons, and release archive builds.
+See [Verification and release archives](docs/verification-and-releases.md) for local checks and release archive builds.
