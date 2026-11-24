@@ -6,7 +6,7 @@ import (
 )
 
 func catalogReviewProviders() map[string]*Provider {
-	return map[string]*Provider{"up": {Name: "up", Dialect: DialectOpenAIChat}}
+	return map[string]*Provider{"up": {Name: "up", DefaultDialect: DialectOpenAIChat}}
 }
 
 func TestCatalogReviewNullMetadataSourceIsAbsent(t *testing.T) {

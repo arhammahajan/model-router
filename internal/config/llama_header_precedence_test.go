@@ -6,7 +6,7 @@ import (
 )
 
 func TestLlamaHeadersServerWinsAcrossCasing(t *testing.T) {
-	cfg := loadLlama(t, `[llama_cpp]
+	cfg := loadLlama(t, `[providers.llama_cpp]
 headers = { "X-Shared" = "global" }
 servers = [{ url = "http://127.0.0.1:9931", name = "llama-test", headers = { "x-shared" = "server" } }]
 `)

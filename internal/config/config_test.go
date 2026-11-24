@@ -67,7 +67,7 @@ func TestLoadMinimal(t *testing.T) {
 		t.Fatalf("key not stripped: %q", cfg.Providers["up"].EffectiveKey())
 	}
 	m, p, ok := cfg.LookupModel("haiku")
-	if !ok || p.Dialect != DialectAnthropic || m.Upstream != "claude-haiku-4-5" {
+	if !ok || p.DefaultDialect != DialectAnthropic || m.Upstream != "claude-haiku-4-5" {
 		t.Fatalf("lookup failed: %+v %+v %v", m, p, ok)
 	}
 }
@@ -774,8 +774,8 @@ dialect = "gemini"
 	if got := m.EffectiveDialect(p); got != "gemini" {
 		t.Fatalf("effective dest = %q, want gemini", got)
 	}
-	if p.Dialect != "anthropic" {
-		t.Fatalf("provider identity must stay anthropic, got %q", p.Dialect)
+	if p.DefaultDialect != "anthropic" {
+		t.Fatalf("provider identity must stay anthropic, got %q", p.DefaultDialect)
 	}
 }
 
@@ -902,12 +902,16 @@ func TestUnknownTopTableHint(t *testing.T) {
 			t.Fatalf("expected migration hint for [%s]: %v", tbl, err)
 		}
 	}
-	// [llama_cpp] is the accepted llama discovery table: an empty one
-	// falls back to the conventional local default, never a hint. The
-	// controlled env below pins the fallback chain off the real env.
+	// [providers.llama_cpp] is the accepted llama discovery table: an empty one
+	// falls back to the conventional local default, never a hint. Top-level
+	// [llama_cpp] is rejected with a migration hint.
 	t.Setenv("LLAMA_SERVER_URL", "")
-	if _, err := Load(writeCfg(t, minimal+"\n[llama_cpp]\n")); err != nil {
-		t.Fatalf("empty [llama_cpp] must be accepted with the local default: %v", err)
+	if _, err := Load(writeCfg(t, minimal+"\n[providers.llama_cpp]\n")); err != nil {
+		t.Fatalf("empty [providers.llama_cpp] must be accepted with the local default: %v", err)
+	}
+	if _, err := Load(writeCfg(t, minimal+"\n[llama_cpp]\n")); err == nil ||
+		!strings.Contains(err.Error(), "providers.llama_cpp") {
+		t.Fatalf("top-level [llama_cpp] must fail with migration hint: %v", err)
 	}
 	// [catalog] is the accepted discovery table: an empty one fails
 	// validation (url required), never a milestone hint.

@@ -1,8 +1,11 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/arhammahajan/router/internal/provider"
 )
 
 func proxyMinimal(extra string) string {
@@ -16,9 +19,9 @@ max_attempts = 1
 }
 
 func TestCLIProxyAPIDefaults(t *testing.T) {
-	cfg, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\n")))
+	cfg, err := Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\n")))
 	if err != nil {
-		t.Fatalf("bare [cliproxyapi] must load with defaults: %v", err)
+		t.Fatalf("bare [providers.cliproxyapi] must load with defaults: %v", err)
 	}
 	if cfg.CLIProxyAPI == nil {
 		t.Fatal("CLIProxyAPI must be present")
@@ -27,24 +30,51 @@ func TestCLIProxyAPIDefaults(t *testing.T) {
 		t.Fatalf("default base_url = %q, want %q", cfg.CLIProxyAPI.BaseURL, DefaultCLIProxyAPIBaseURL)
 	}
 	p := cfg.CLIProxyProvider()
-	if p == nil || p.Name != CLIProxyAPIProviderName || p.Dialect != DialectOpenAIChat {
+	if p == nil || p.Name != CLIProxyAPIProviderName || p.Kind != provider.KindCLIProxyAPI || p.DefaultDialect != DialectOpenAIChat {
 		t.Fatalf("generated provider wrong: %+v", p)
 	}
-	if p.BaseURL != DefaultCLIProxyAPIBaseURL || p.LitellmProvider != "openai" || p.AuthHeader != "bearer" {
-		t.Fatalf("generated provider endpoint wrong: %+v", p)
+	if p.BaseURL != DefaultCLIProxyAPIBaseURL || p.LitellmProvider != "openai" || p.AuthHeader != "" {
+		t.Fatalf("generated provider endpoint/auth wrong: %+v", p)
 	}
-	if cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != DefaultCatalogRefresh {
-		t.Fatalf("default proxy catalog refresh = %v, want %v", cfg.Catalog, DefaultCatalogRefresh)
+	if want := []string{DialectOpenAIChat}; !reflect.DeepEqual(p.SupportedDialects, want) {
+		t.Fatalf("default SupportedDialects = %v, want %v", p.SupportedDialects, want)
 	}
-	// Generated provider is injected for explicit-route validation.
+	if cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != DefaultCLIProxyAPIRefreshSeconds {
+		t.Fatalf("default proxy catalog refresh = %+v, want %v", cfg.Catalog, DefaultCLIProxyAPIRefreshSeconds)
+	}
+	if cfg.Catalog.Timeout != DefaultCLIProxyAPIProbeTimeout {
+		t.Fatalf("default proxy catalog timeout = %v, want %v", cfg.Catalog.Timeout, DefaultCLIProxyAPIProbeTimeout)
+	}
 	if _, ok := cfg.Providers[CLIProxyAPIProviderName]; !ok {
-		t.Fatal("generated provider must be injected into Providers")
+		t.Fatal("generated provider must be present in Providers")
+	}
+}
+
+func TestCLIProxyAPIPassthroughAndAuthHeader(t *testing.T) {
+	body := proxyMinimal("[providers.cliproxyapi]\npassthrough = true\nprobe_timeout = 12\ntimeout = 120\n")
+	cfg, err := Load(writeCfg(t, body))
+	if err != nil {
+		t.Fatalf("passthrough config must load: %v", err)
+	}
+	p := cfg.Providers[CLIProxyAPIProviderName]
+	want := []string{DialectOpenAIChat, DialectOpenAIResponses, DialectAnthropic}
+	if !reflect.DeepEqual(p.SupportedDialects, want) {
+		t.Fatalf("SupportedDialects = %v, want %v", p.SupportedDialects, want)
+	}
+	if p.AuthHeader != "" {
+		t.Fatalf("AuthHeader must stay empty by default, got %q", p.AuthHeader)
+	}
+	if p.Timeout != 120 {
+		t.Fatalf("Timeout = %v, want 120", p.Timeout)
+	}
+	if cfg.Catalog.Timeout != 12 {
+		t.Fatalf("Catalog.Timeout = %v, want 12", cfg.Catalog.Timeout)
 	}
 }
 
 func TestCLIProxyAPIContract(t *testing.T) {
 	t.Setenv("CLIPROXYAPI_API_KEY", "proxy-secret")
-	body := proxyMinimal("[cliproxyapi]\nbase_url = \"http://127.0.0.1:8317/v1\"\napi_key = \"${CLIPROXYAPI_API_KEY}\"\n")
+	body := proxyMinimal("[providers.cliproxyapi]\nbase_url = \"http://127.0.0.1:8317/v1\"\napi_key = \"${CLIPROXYAPI_API_KEY}\"\n")
 	cfg, err := Load(writeCfg(t, body))
 	if err != nil {
 		t.Fatalf("contract load: %v", err)
@@ -61,7 +91,7 @@ func TestCLIProxyAPIContract(t *testing.T) {
 }
 
 func TestCLIProxyAPIExplicitRouteKeepsDialectOverride(t *testing.T) {
-	body := proxyMinimal("[cliproxyapi]\nbase_url = \"http://127.0.0.1:8317/v1\"\n[[models]]\nname = \"chat-route\"\nprovider = \"cliproxyapi\"\nmodel = \"opencode-go/glm-5.3\"\ndialect = \"anthropic\"\n")
+	body := proxyMinimal("[providers.cliproxyapi]\nbase_url = \"http://127.0.0.1:8317/v1\"\n[[models]]\nname = \"chat-route\"\nprovider = \"cliproxyapi\"\nmodel = \"opencode-go/glm-5.3\"\ndialect = \"anthropic\"\n")
 	cfg, err := Load(writeCfg(t, body))
 	if err != nil {
 		t.Fatalf("explicit route on generated provider must load: %v", err)
@@ -76,28 +106,35 @@ func TestCLIProxyAPIExplicitRouteKeepsDialectOverride(t *testing.T) {
 	if got := m.EffectiveDialect(p); got != DialectAnthropic {
 		t.Fatalf("translation override lost: %q", got)
 	}
-	if p.Dialect != DialectOpenAIChat {
-		t.Fatalf("provider dialect must stay openai-chat, got %q", p.Dialect)
+	if p.DefaultDialect != DialectOpenAIChat {
+		t.Fatalf("provider dialect must stay openai-chat, got %q", p.DefaultDialect)
 	}
 }
 
-func TestCLIProxyAPIRejectsNameCollision(t *testing.T) {
-	body := proxyMinimal("[providers.cliproxyapi]\ndialect = \"openai-chat\"\nbase_url = \"http://127.0.0.1:9\"\n[cliproxyapi]\n")
-	if _, err := Load(writeCfg(t, body)); err == nil {
-		t.Fatal("explicit [providers.cliproxyapi] must collide with generated name")
+func TestCLIProxyAPIRejectsTopLevelTable(t *testing.T) {
+	body := proxyMinimal("[cliproxyapi]\n")
+	err := func() error {
+		_, err := Load(writeCfg(t, body))
+		return err
+	}()
+	if err == nil {
+		t.Fatal("top-level [cliproxyapi] must be rejected")
+	}
+	if !strings.Contains(err.Error(), "providers.cliproxyapi") {
+		t.Fatalf("expected migration hint to [providers.cliproxyapi], got: %v", err)
 	}
 }
 
 func TestCLIProxyAPIRejectsCatalogCombination(t *testing.T) {
-	body := proxyMinimal("[cliproxyapi]\n[catalog]\nurl = \"http://127.0.0.1:9\"\nmodel_providers = { m = \"cliproxyapi\" }\n")
+	body := proxyMinimal("[providers.cliproxyapi]\n[catalog]\nurl = \"http://127.0.0.1:9\"\nmodel_providers = { m = \"cliproxyapi\" }\n")
 	if _, err := Load(writeCfg(t, body)); err == nil {
-		t.Fatal("[catalog] with [cliproxyapi] must fail (shared layer)")
+		t.Fatal("[catalog] with [providers.cliproxyapi] must fail (shared layer)")
 	}
 }
 
 func TestCLIProxyAPIRejectsBadBaseURL(t *testing.T) {
 	for _, u := range []string{"ftp://x/v1", "http://user:pass@h/v1", "http://h/v1?x=1", ""} {
-		body := proxyMinimal("[cliproxyapi]\nbase_url = \"" + u + "\"\n")
+		body := proxyMinimal("[providers.cliproxyapi]\nbase_url = \"" + u + "\"\n")
 		if _, err := Load(writeCfg(t, body)); err == nil {
 			t.Fatalf("bad base_url %q must fail", u)
 		} else if strings.Contains(err.Error(), "pass") {
@@ -107,14 +144,14 @@ func TestCLIProxyAPIRejectsBadBaseURL(t *testing.T) {
 }
 
 func TestCLIProxyAPIConfigPathOptional(t *testing.T) {
-	cfg, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nconfig_path = \"/tmp/sdk.yaml\"\n")))
+	cfg, err := Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\nconfig_path = \"/tmp/sdk.yaml\"\n")))
 	if err != nil {
 		t.Fatalf("config_path must be accepted: %v", err)
 	}
 	if cfg.CLIProxyAPI.ConfigPath != "/tmp/sdk.yaml" {
 		t.Fatalf("config_path lost: %q", cfg.CLIProxyAPI.ConfigPath)
 	}
-	cfg, err = Load(writeCfg(t, proxyMinimal("[cliproxyapi]\n")))
+	cfg, err = Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\n")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +161,7 @@ func TestCLIProxyAPIConfigPathOptional(t *testing.T) {
 }
 
 func TestCLIProxyAPICompatibility(t *testing.T) {
-	cfg, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"lossy\"\n")))
+	cfg, err := Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\ncompatibility = \"lossy\"\n")))
 	if err != nil {
 		t.Fatalf("compatibility=lossy must be accepted: %v", err)
 	}
@@ -132,20 +169,20 @@ func TestCLIProxyAPICompatibility(t *testing.T) {
 	if !p.Lossy || p.CompatibilityRaw != "lossy" {
 		t.Fatalf("provider lossy=%v raw=%q, want true/lossy", p.Lossy, p.CompatibilityRaw)
 	}
-	cfg, err = Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"strict\"\n")))
+	cfg, err = Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\ncompatibility = \"strict\"\n")))
 	if err != nil {
 		t.Fatalf("compatibility=strict must be accepted: %v", err)
 	}
 	if cfg.CLIProxyProvider().Lossy || cfg.CLIProxyProvider().CompatibilityRaw != "strict" {
 		t.Fatalf("strict must leave Lossy=false")
 	}
-	if _, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"invalid\"\n"))); err == nil {
+	if _, err := Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\ncompatibility = \"invalid\"\n"))); err == nil {
 		t.Fatal("invalid compatibility must fail")
 	}
 }
 
 func TestCLIProxyAPIRefreshSeconds(t *testing.T) {
-	cfg, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nrefresh_seconds = 60\n")))
+	cfg, err := Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\nrefresh_seconds = 60\n")))
 	if err != nil {
 		t.Fatalf("refresh_seconds=60 must load: %v", err)
 	}
@@ -153,7 +190,7 @@ func TestCLIProxyAPIRefreshSeconds(t *testing.T) {
 		t.Fatalf("refresh_seconds = %v / catalog=%+v, want 60", cfg.CLIProxyAPI.RefreshSeconds, cfg.Catalog)
 	}
 
-	cfg, err = Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nrefresh_seconds = 0\n")))
+	cfg, err = Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\nrefresh_seconds = 0\n")))
 	if err != nil {
 		t.Fatalf("refresh_seconds=0 must load: %v", err)
 	}
@@ -161,7 +198,7 @@ func TestCLIProxyAPIRefreshSeconds(t *testing.T) {
 		t.Fatalf("refresh_seconds = %v / catalog=%+v, want 0", cfg.CLIProxyAPI.RefreshSeconds, cfg.Catalog)
 	}
 
-	if _, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nrefresh_seconds = -1\n"))); err == nil {
+	if _, err := Load(writeCfg(t, proxyMinimal("[providers.cliproxyapi]\nrefresh_seconds = -1\n"))); err == nil {
 		t.Fatal("negative refresh_seconds must fail")
 	}
 }

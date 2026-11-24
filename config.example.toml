@@ -17,7 +17,7 @@ allow_dynamic_routes = false
 [retry]
 max_attempts = 1
 
-[cliproxyapi]
+[providers.cliproxyapi]
 compatibility = "lossy"
 # Forward Chat, Responses, and Anthropic Messages natively to CLIProxyAPI
 # (requires the proxy to support those protocols). Set to false or omit to

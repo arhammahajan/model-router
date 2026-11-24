@@ -62,6 +62,7 @@ func ConfigSecrets(cfg *Config) []string {
 	if cfg.CLIProxyAPI != nil {
 		add(cfg.CLIProxyAPI.APIKey)
 		collectURL(cfg.CLIProxyAPI.BaseURL)
+		collectMap(cfg.CLIProxyAPI.Headers, true)
 	}
 	if cfg.Catalog != nil {
 		collectURL(cfg.Catalog.URL)
@@ -72,6 +73,7 @@ func ConfigSecrets(cfg *Config) []string {
 		for _, s := range cfg.Llama.Servers {
 			add(s.APIKey)
 			collectURL(s.URL)
+			collectURL(s.BaseURL)
 			collectMap(s.Headers, true)
 		}
 	}

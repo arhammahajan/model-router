@@ -160,17 +160,25 @@ func TestLegacyTimeoutStrictShapes(t *testing.T) {
 		}
 	}
 	// NaN / +Inf / overflow via programmatic TOML values (TOML has no NaN
-	// literal, so exercise checkLegacyTimeout directly).
-	p := &Provider{Name: "up", Dialect: DialectAnthropic, BaseURL: "https://up.example", Timeout: 30}
-	for _, v := range []any{math.NaN(), math.Inf(1), math.Inf(-1), 1e20} {
-		if err := checkLegacyTimeout(p, v, "providers.up"); err == nil {
-			t.Fatalf("non-finite/overflow %v must be rejected", v)
+	// literal, so exercise buildConfig directly).
+	for _, v := range []any{math.NaN(), math.Inf(1), math.Inf(-1), 1e20, "30"} {
+		doc := map[string]any{
+			"providers": map[string]any{
+				"up": map[string]any{
+					"dialect":  DialectAnthropic,
+					"base_url": "https://up.example",
+					"timeout":  int64(30),
+					"litellm_kwargs": map[string]any{
+						"timeout": v,
+					},
+				},
+			},
+		}
+		if _, err := buildConfig(doc, ""); err == nil {
+			t.Fatalf("invalid timeout %v must be rejected", v)
 		} else if !strings.Contains(err.Error(), "providers.up.litellm_kwargs.timeout") {
 			t.Fatalf("must name keypath: %v", err)
 		}
-	}
-	if err := checkLegacyTimeout(p, "30", "providers.up"); err == nil {
-		t.Fatalf("string timeout must be rejected (no coercion)")
 	}
 }
 

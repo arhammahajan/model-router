@@ -185,7 +185,7 @@ func TestReviewAliasKeepsCountTokensExactRule(t *testing.T) {
 		t.Fatalf("non-anthropic count_tokens=true must stay rejected")
 	}
 	// First-party host still qualifies; lookalikes do not.
-	fp := &Provider{Name: "up", Dialect: DialectAnthropic, BaseURL: "https://api.anthropic.com"}
+	fp := &Provider{Name: "up", DefaultDialect: DialectAnthropic, BaseURL: "https://api.anthropic.com"}
 	if got := func() bool {
 		// CountTokensEnabled is in transport, but BaseURL preservation is the
 		// config-side contract: alias must leave the declared base intact.
