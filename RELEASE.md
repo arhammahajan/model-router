@@ -1,11 +1,9 @@
 # Install and roll back routerd
 
-These development archives contain a standalone Go executable, a dummy-key
-router and CLIProxyAPI configuration examples, this guide, and bundled upstream notices. Linux and macOS builds target amd64 and
-arm64 with CGO disabled. Windows is not declared supported: the discovery cache
-requires Unix file ownership and no-follow semantics. To load dynamic plugins
-in embedded mode, build model-router with CGO enabled. CGO-disabled archives
-connect to a separately running CLIProxyAPI instance for OpenCode plugin access.
+These development archives contain a standalone Go executable, dummy-key
+router and CLIProxyAPI configuration examples, this guide, and bundled upstream notices. Native Linux and macOS builds target amd64 and
+arm64 with CGO enabled by default so embedded CLIProxyAPI mode can load dynamic plugins in-process. Windows is not declared supported: the discovery cache
+requires Unix file ownership and no-follow semantics. Cross-compiled `--no-cgo` archives disable dynamic plugin loading in embedded mode and can connect to a separately running CLIProxyAPI instance instead.
 
 Cross-compilation proves a target builds; only an archive tested on its target
 platform has runtime smoke evidence. These artifacts do not establish complete

@@ -79,25 +79,42 @@ def main() -> None:
     parser.add_argument("--version", required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--target", choices=TARGETS, action="append")
+    parser.add_argument("--no-cgo", action="store_true",
+                        help="disable CGO (allows cross-compilation without a C toolchain, disables embedded CLIProxyAPI dynamic plugins)")
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+_-]{0,95}", args.version):
         parser.error("version must be a short filename-safe label")
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    targets = sorted(set(args.target or TARGETS))
-    expected_files = {"manifest.json", "SHA256SUMS"} | {
-        f"routerd-{args.version}-{target.replace('/', '-')}.tar.gz"
-        for target in targets
-    }
-    if any(path.name not in expected_files for path in out.iterdir()):
-        parser.error("output contains another release or target set; use an empty directory")
-    env = dict(os.environ, CGO_ENABLED="0", GOENV="off", GOFLAGS="",
+    cgo_enabled = not args.no_cgo
+    env = dict(os.environ, CGO_ENABLED="1" if cgo_enabled else "0", GOENV="off", GOFLAGS="",
                GOTOOLCHAIN="local", GOWORK="off", GOPROXY="off", GOSUMDB="off")
     # Never make a foreign-architecture go executable try to run on this host.
     env.pop("GOOS", None)
     env.pop("GOARCH", None)
     env.pop("GOARM", None)
     env.pop("GOAMD64", None)
+    host_target = f"{run([args.go, 'env', 'GOHOSTOS'], env)}/{run([args.go, 'env', 'GOHOSTARCH'], env)}"
+    if args.target:
+        targets = sorted(set(args.target))
+    elif cgo_enabled:
+        if host_target not in TARGETS:
+            parser.error(f"host target {host_target} is not in supported targets {TARGETS}; pass --no-cgo --target ...")
+        targets = [host_target]
+    else:
+        targets = sorted(TARGETS)
+    if cgo_enabled and not os.environ.get("CC"):
+        foreign = [t for t in targets if t != host_target]
+        if foreign:
+            parser.error(
+                f"cross-compiling {foreign} from {host_target} with CGO enabled requires CC to be set, or pass --no-cgo"
+            )
+    expected_files = {"manifest.json", "SHA256SUMS"} | {
+        f"routerd-{args.version}-{target.replace('/', '-')}.tar.gz"
+        for target in targets
+    }
+    if any(path.name not in expected_files for path in out.iterdir()):
+        parser.error("output contains another release or target set; use an empty directory")
     goroot = Path(run([args.go, "env", "GOROOT"], env))
     all_dependencies: dict[str, str] = {}
     manifest = {
@@ -105,6 +122,7 @@ def main() -> None:
         "source_revision": run(["git", "rev-parse", "HEAD"], env),
         "source_dirty": bool(run(["git", "status", "--porcelain", "--", "."], env)),
         "go_version": run([args.go, "version"], env),
+        "cgo_enabled": cgo_enabled,
         "dependencies": {},
         "artifacts": [],
     }
