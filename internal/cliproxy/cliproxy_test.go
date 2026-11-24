@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -316,5 +318,34 @@ func TestShutdownDuringBuildStopsService(t *testing.T) {
 	}
 	if fake.calls() != 1 {
 		t.Fatal("built service was not shut down")
+	}
+}
+
+func TestBuildSDKServiceWrapsLoadError(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.yaml")
+	_, err := buildSDKService(missing)
+	if err == nil {
+		t.Fatal("buildSDKService(missing) = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "could not load embedded configuration") {
+		t.Fatalf("error = %v, want load configuration context", err)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("error = %v, want wrapped os.ErrNotExist", err)
+	}
+
+	malformed := filepath.Join(t.TempDir(), "bad.yaml")
+	if writeErr := os.WriteFile(malformed, []byte(":\n\t- [\n"), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	_, err = buildSDKService(malformed)
+	if err == nil {
+		t.Fatal("buildSDKService(malformed) = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "could not load embedded configuration") {
+		t.Fatalf("error = %v, want load configuration context", err)
+	}
+	if errors.Unwrap(err) == nil {
+		t.Fatalf("error = %v, want wrapped underlying YAML error", err)
 	}
 }

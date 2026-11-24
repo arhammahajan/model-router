@@ -33,14 +33,14 @@ type buildFunc func(configPath string) (service, error)
 func buildSDKService(configPath string) (service, error) {
 	cfg, err := sdkconfig.LoadConfig(configPath)
 	if err != nil {
-		return nil, errors.New("cliproxy: could not load embedded configuration")
+		return nil, fmt.Errorf("cliproxy: could not load embedded configuration: %w", err)
 	}
 	svc, err := sdkcliproxy.NewBuilder().
 		WithConfig(cfg).
 		WithConfigPath(configPath).
 		Build()
 	if err != nil {
-		return nil, errors.New("cliproxy: could not build embedded service")
+		return nil, fmt.Errorf("cliproxy: could not build embedded service: %w", err)
 	}
 	return svc, nil
 }
