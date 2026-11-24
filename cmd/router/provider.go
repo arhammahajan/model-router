@@ -17,12 +17,11 @@ var (
 )
 
 func providerHelp() int {
-	fmt.Println(`router provider [list | status [NAME] | NAME] [options]
+	fmt.Println(`router provider [list | status [NAME]] [options]
 
 Commands:
-  list [--config PATH] [--json]           list all configured providers (default)
-  status [NAME] [--config PATH] [--json]  show per-provider status and shared fields
-  <NAME> [--config PATH] [--json]         show status and shared fields for one provider`)
+  list [--config PATH] [--json]           list available router providers (default)
+  status [NAME] [--config PATH] [--json]  show per-provider status, port, and shared fields`)
 	return 0
 }
 
@@ -48,8 +47,8 @@ func runProvider(args []string) int {
 	}
 
 	var (
-		configPath string
-		jsonOut    bool
+		configPath  string
+		jsonOut     bool
 		positionals []string
 	)
 	for i := 0; i < len(rest); i++ {
@@ -115,15 +114,10 @@ func runProvider(args []string) int {
 		return writeJSON(items)
 	}
 	if sub == "status" {
-		for i, item := range items {
-			if i > 0 {
-				fmt.Println()
-			}
-			printProviderDetail(item)
-		}
+		printProviderStatusTable(items)
 		return 0
 	}
-	printProviderTable(items)
+	printProviderListTable(items)
 	return 0
 }
 
@@ -137,31 +131,49 @@ func writeJSON(v any) int {
 	return 0
 }
 
-func printProviderTable(items []routerctl.ProviderInfo) {
-	if len(items) == 0 {
-		fmt.Println("no providers configured")
-		return
-	}
+func printProviderListTable(items []routerctl.ProviderInfo) {
 	tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tKIND\tSTATUS\tHOST:PORT\tDIALECTS\tCOMPAT\tTIMEOUT")
+	fmt.Fprintln(tw, "PROVIDER\tENABLED\tDIALECTS")
+	for _, it := range items {
+		enabled := "no"
+		if it.Enabled {
+			enabled = "yes"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", it.Name, enabled, strings.Join(it.SupportedDialects, ","))
+	}
+	_ = tw.Flush()
+}
+
+func printProviderStatusTable(items []routerctl.ProviderInfo) {
+	tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(tw, "PROVIDER\tSTATUS\tHOST:PORT\tDIALECTS\tCOMPAT\tTIMEOUT")
 	for _, it := range items {
 		hostPort := formatHostPort(it)
 		dialects := strings.Join(it.SupportedDialects, ",")
-		timeout := fmt.Sprintf("%.0fs", it.TimeoutSeconds)
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			it.Name, it.Kind, it.Status, hostPort, dialects, it.Compatibility, timeout)
+		compat := it.Compatibility
+		if compat == "" {
+			compat = "-"
+		}
+		timeout := "-"
+		if it.TimeoutSeconds > 0 {
+			timeout = fmt.Sprintf("%.0fs", it.TimeoutSeconds)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			it.Name, it.Status, hostPort, dialects, compat, timeout)
 	}
 	_ = tw.Flush()
 }
 
 func printProviderDetail(it routerctl.ProviderInfo) {
-	fmt.Printf("name:          %s\n", it.Name)
-	fmt.Printf("kind:          %s\n", it.Kind)
+	fmt.Printf("provider:      %s\n", it.Name)
+	fmt.Printf("enabled:       %t\n", it.Enabled)
 	fmt.Printf("status:        %s\n", it.Status)
 	if it.Mode != "" {
 		fmt.Printf("mode:          %s\n", it.Mode)
 	}
-	fmt.Printf("base_url:      %s\n", it.BaseURL)
+	if it.BaseURL != "" {
+		fmt.Printf("base_url:      %s\n", it.BaseURL)
+	}
 	if it.Host != "" {
 		fmt.Printf("host:          %s\n", it.Host)
 	}
@@ -170,19 +182,46 @@ func printProviderDetail(it routerctl.ProviderInfo) {
 	}
 	fmt.Printf("dialect:       %s\n", it.DefaultDialect)
 	fmt.Printf("dialects:      %s\n", strings.Join(it.SupportedDialects, ", "))
-	fmt.Printf("compatibility: %s\n", it.Compatibility)
-	fmt.Printf("auth_header:   %s\n", it.AuthHeader)
-	fmt.Printf("api_key:       %t\n", it.APIKeyConfigured)
-	fmt.Printf("timeout:       %.0fs\n", it.TimeoutSeconds)
+	if it.Compatibility != "" {
+		fmt.Printf("compatibility: %s\n", it.Compatibility)
+	}
+	if it.AuthHeader != "" {
+		fmt.Printf("auth_header:   %s\n", it.AuthHeader)
+	}
+	if it.Enabled {
+		fmt.Printf("api_key:       %t\n", it.APIKeyConfigured)
+	}
+	if it.TimeoutSeconds > 0 {
+		fmt.Printf("timeout:       %.0fs\n", it.TimeoutSeconds)
+	}
 	if it.ProbeTimeoutSeconds > 0 {
 		fmt.Printf("probe_timeout: %gs\n", it.ProbeTimeoutSeconds)
 	}
 	if it.Prefix != "" {
 		fmt.Printf("prefix:        %s\n", it.Prefix)
 	}
+	if len(it.Servers) > 1 {
+		fmt.Println("servers:")
+		for _, s := range it.Servers {
+			fmt.Printf("  - %s (%s:%d) [%s]\n", s.Name, s.Host, s.Port, s.Status)
+		}
+	}
 }
 
 func formatHostPort(it routerctl.ProviderInfo) string {
+	if len(it.Servers) > 1 {
+		parts := make([]string, 0, len(it.Servers))
+		for _, s := range it.Servers {
+			if s.Port > 0 {
+				parts = append(parts, fmt.Sprintf("%s:%d", s.Host, s.Port))
+			} else if s.Host != "" {
+				parts = append(parts, s.Host)
+			}
+		}
+		if len(parts) > 0 {
+			return strings.Join(parts, ",")
+		}
+	}
 	if it.Host == "" {
 		return "-"
 	}

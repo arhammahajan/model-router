@@ -58,6 +58,12 @@ const (
 	KindUnobserved  = "unobserved"
 )
 
+// BuiltinProviders returns the canonical list of built-in provider plugin
+// names exposed by the router substrate.
+func BuiltinProviders() []string {
+	return []string{KindCLIProxyAPI, KindLlamaCpp, KindStrata}
+}
+
 // Spec is the runtime provider configuration shared across config, router,
 // discovery, and transport layers.
 type Spec struct {

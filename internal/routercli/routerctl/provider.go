@@ -1,10 +1,8 @@
-// General, thin provider inspection for the router CLI.
+// General, thin built-in provider inspection for the router CLI.
 //
-// Reads the configured providers (generic [providers.*], [providers.cliproxyapi],
-// and expanded [providers.llama_cpp] / [providers.strata] local servers) and
-// enriches each with sanitized endpoint/port metadata and per-provider status
-// from router /diagnostics (or a bounded local probe when /diagnostics is
-// unavailable). Credentials and raw header values are never exposed.
+// Lists the built-in router providers (cliproxyapi, llama_cpp, strata) and
+// reports per-provider status, HTTP server host/port, and shared config fields.
+// Credentials and raw header values are never exposed.
 package routerctl
 
 import (
@@ -13,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -22,105 +19,212 @@ import (
 	"github.com/arhammahajan/router/internal/provider"
 )
 
-// ProviderInfo is a sanitized, uniform summary of one configured provider.
-type ProviderInfo struct {
-	Name                string   `json:"name"`
-	Kind                string   `json:"kind"`
-	Status              string   `json:"status"`
-	BaseURL             string   `json:"base_url"`
-	Scheme              string   `json:"scheme,omitempty"`
-	Host                string   `json:"host,omitempty"`
-	Port                int      `json:"port,omitempty"`
-	DefaultDialect      string   `json:"default_dialect"`
-	SupportedDialects   []string `json:"supported_dialects"`
-	Compatibility       string   `json:"compatibility"`
-	TimeoutSeconds      float64  `json:"timeout_seconds"`
-	ProbeTimeoutSeconds float64  `json:"probe_timeout_seconds,omitempty"`
-	AuthHeader          string   `json:"auth_header"`
-	APIKeyConfigured    bool     `json:"api_key_configured"`
-	Mode                string   `json:"mode,omitempty"`
-	Prefix              string   `json:"prefix,omitempty"`
+// ProviderEndpoint describes one HTTP server endpoint belonging to a provider.
+type ProviderEndpoint struct {
+	Name    string `json:"name"`
+	BaseURL string `json:"base_url"`
+	Scheme  string `json:"scheme,omitempty"`
+	Host    string `json:"host,omitempty"`
+	Port    int    `json:"port,omitempty"`
+	Status  string `json:"status,omitempty"`
 }
 
-// FetchProviders loads the router config from opts.RouterConfig, collects every
-// configured provider (static providers, cliproxyapi, and expanded local
-// llama_cpp/strata servers), and attaches per-provider status.
-func FetchProviders(ctx context.Context, opts Options) ([]ProviderInfo, error) {
-	if strings.TrimSpace(opts.RouterConfig) == "" {
-		return nil, fmt.Errorf("no router config found; pass --config PATH")
+// ProviderInfo is a sanitized, uniform summary of one built-in router provider.
+type ProviderInfo struct {
+	Name                string             `json:"name"`
+	Enabled             bool               `json:"enabled"`
+	Status              string             `json:"status"`
+	Mode                string             `json:"mode,omitempty"`
+	BaseURL             string             `json:"base_url,omitempty"`
+	Scheme              string             `json:"scheme,omitempty"`
+	Host                string             `json:"host,omitempty"`
+	Port                int                `json:"port,omitempty"`
+	DefaultDialect      string             `json:"default_dialect"`
+	SupportedDialects   []string           `json:"supported_dialects"`
+	Compatibility       string             `json:"compatibility,omitempty"`
+	TimeoutSeconds      float64            `json:"timeout_seconds,omitempty"`
+	ProbeTimeoutSeconds float64            `json:"probe_timeout_seconds,omitempty"`
+	AuthHeader          string             `json:"auth_header,omitempty"`
+	APIKeyConfigured    bool               `json:"api_key_configured"`
+	Prefix              string             `json:"prefix,omitempty"`
+	Servers             []ProviderEndpoint `json:"servers,omitempty"`
+}
+
+// NormalizeProviderName maps common user-facing aliases (cpa, llama.cpp, llama)
+// to canonical built-in provider names.
+func NormalizeProviderName(name string) string {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "cpa", "cliproxyapi":
+		return provider.KindCLIProxyAPI
+	case "llama.cpp", "llama_cpp", "llama":
+		return provider.KindLlamaCpp
+	case "strata":
+		return provider.KindStrata
+	default:
+		return strings.TrimSpace(name)
 	}
-	cfg, err := config.Load(opts.RouterConfig)
-	if err != nil {
-		return nil, err
+}
+
+// FetchProviders returns the built-in router providers (cliproxyapi, llama_cpp,
+// strata) with their enabled state, HTTP server endpoint/port, shared fields,
+// and live per-provider status.
+func FetchProviders(ctx context.Context, opts Options) ([]ProviderInfo, error) {
+	var cfg *config.Config
+	if strings.TrimSpace(opts.RouterConfig) != "" {
+		loaded, err := config.Load(opts.RouterConfig)
+		if err != nil {
+			return nil, err
+		}
+		cfg = loaded
 	}
 
 	diagStatus := fetchProviderDiagnostics(ctx, opts)
+	builtins := provider.BuiltinProviders()
+	items := make([]ProviderInfo, 0, len(builtins))
 
-	items := make([]ProviderInfo, 0, len(cfg.Providers))
-	for _, p := range cfg.Providers {
-		if p == nil {
-			continue
-		}
-		info := buildProviderInfo(p, 0, "", "")
-		if p.Kind == provider.KindCLIProxyAPI && cfg.CLIProxyAPI != nil {
-			info.ProbeTimeoutSeconds = cfg.CLIProxyAPI.ProbeTimeout
-			if strings.TrimSpace(cfg.CLIProxyAPI.ConfigPath) != "" {
-				info.Mode = "embedded"
-			} else {
-				info.Mode = "external"
-			}
-		}
-		items = append(items, info)
-	}
-
-	if cfg.Llama != nil {
-		serverByName := make(map[string]config.LlamaServer, len(cfg.Llama.Servers))
-		for _, s := range cfg.Llama.Servers {
-			serverByName[s.Name] = s
-		}
-		for _, p := range cfg.LlamaProviders() {
-			if p == nil {
-				continue
-			}
-			srv := serverByName[p.Name]
-			info := buildProviderInfo(p, srv.ProbeTimeout, "", srv.Prefix)
-			items = append(items, info)
+	for _, kind := range builtins {
+		switch kind {
+		case provider.KindCLIProxyAPI:
+			items = append(items, buildCLIProxyInfo(ctx, cfg, diagStatus))
+		case provider.KindLlamaCpp:
+			items = append(items, buildLocalFleetInfo(ctx, provider.KindLlamaCpp, cfg, diagStatus))
+		case provider.KindStrata:
+			items = append(items, buildLocalFleetInfo(ctx, provider.KindStrata, cfg, diagStatus))
 		}
 	}
-
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Name < items[j].Name
-	})
-
-	for i := range items {
-		if st, ok := diagStatus[items[i].Name]; ok && st != "" {
-			items[i].Status = st
-			continue
-		}
-		items[i].Status = probeProviderStatus(ctx, items[i])
-	}
-
 	return items, nil
 }
 
-// FetchProvider returns the sanitized ProviderInfo for a single named provider.
+// FetchProvider returns the sanitized ProviderInfo for a single built-in provider.
 func FetchProvider(ctx context.Context, opts Options, name string) (ProviderInfo, error) {
+	canon := NormalizeProviderName(name)
 	items, err := FetchProviders(ctx, opts)
 	if err != nil {
 		return ProviderInfo{}, err
 	}
 	for _, item := range items {
-		if item.Name == name {
+		if item.Name == canon {
 			return item, nil
 		}
 	}
-	return ProviderInfo{}, fmt.Errorf("provider %q not found in %s", name, opts.RouterConfig)
+	return ProviderInfo{}, fmt.Errorf("unknown provider %q (available: %s)", name, strings.Join(provider.BuiltinProviders(), ", "))
 }
 
-func buildProviderInfo(p *config.Provider, probeTimeout float64, mode, prefix string) ProviderInfo {
-	kind := p.Kind
-	if kind == "" {
-		kind = provider.KindGeneric
+func buildCLIProxyInfo(ctx context.Context, cfg *config.Config, diag map[string]string) ProviderInfo {
+	info := ProviderInfo{
+		Name:              provider.KindCLIProxyAPI,
+		Enabled:           false,
+		Status:            "disabled",
+		DefaultDialect:    provider.DialectOpenAIChat,
+		SupportedDialects: []string{provider.DialectOpenAIChat, provider.DialectOpenAIResponses, provider.DialectAnthropic},
+	}
+	if cfg == nil || cfg.CLIProxyAPI == nil {
+		return info
+	}
+	p := cfg.Providers[provider.CLIProxyAPIProviderName]
+	if p == nil {
+		p = cfg.CLIProxyAPI.Provider()
+	}
+	info.Enabled = true
+	if strings.TrimSpace(cfg.CLIProxyAPI.ConfigPath) != "" {
+		info.Mode = "embedded"
+	} else {
+		info.Mode = "external"
+	}
+	applyCommonSpec(&info, p, cfg.CLIProxyAPI.ProbeTimeout)
+	if st, ok := diag[p.Name]; ok && st != "" {
+		info.Status = st
+	} else {
+		info.Status = probeEndpointStatus(ctx, info.Host, info.Port, info.ProbeTimeoutSeconds)
+	}
+	return info
+}
+
+func buildLocalFleetInfo(ctx context.Context, kind string, cfg *config.Config, diag map[string]string) ProviderInfo {
+	info := ProviderInfo{
+		Name:              kind,
+		Enabled:           false,
+		Status:            "disabled",
+		DefaultDialect:    provider.DialectOpenAIChat,
+		SupportedDialects: []string{provider.DialectOpenAIChat, provider.DialectAnthropic},
+	}
+	if cfg == nil || cfg.Llama == nil {
+		return info
+	}
+
+	var matched []config.LlamaServer
+	for _, s := range cfg.Llama.Servers {
+		sKind := s.Kind
+		if sKind == "" {
+			sKind = provider.KindLlamaCpp
+		}
+		if sKind == kind {
+			matched = append(matched, s)
+		}
+	}
+	if len(matched) == 0 {
+		return info
+	}
+
+	info.Enabled = true
+	provs := cfg.LlamaProviders()
+	first := matched[0]
+	if p := provs[first.Name]; p != nil {
+		applyCommonSpec(&info, p, first.ProbeTimeout)
+	} else {
+		sanitized, scheme, host, port := parseProviderEndpoint(first.BaseURL)
+		info.BaseURL = sanitized
+		info.Scheme = scheme
+		info.Host = host
+		info.Port = port
+		info.TimeoutSeconds = first.Timeout
+		info.ProbeTimeoutSeconds = first.ProbeTimeout
+		info.APIKeyConfigured = strings.TrimSpace(first.APIKey) != ""
+	}
+	info.Prefix = first.Prefix
+
+	anyUp := false
+	allUp := true
+	endpoints := make([]ProviderEndpoint, 0, len(matched))
+	for _, s := range matched {
+		sanitized, scheme, host, port := parseProviderEndpoint(s.BaseURL)
+		st := ""
+		if d, ok := diag[s.Name]; ok && d != "" {
+			st = d
+		} else {
+			st = probeEndpointStatus(ctx, host, port, s.ProbeTimeout)
+		}
+		if st == "available" || st == "reachable" {
+			anyUp = true
+		} else {
+			allUp = false
+		}
+		endpoints = append(endpoints, ProviderEndpoint{
+			Name:    s.Name,
+			BaseURL: sanitized,
+			Scheme:  scheme,
+			Host:    host,
+			Port:    port,
+			Status:  st,
+		})
+	}
+	info.Servers = endpoints
+	switch {
+	case len(endpoints) == 1:
+		info.Status = endpoints[0].Status
+	case allUp:
+		info.Status = "reachable"
+	case anyUp:
+		info.Status = "degraded"
+	default:
+		info.Status = "unreachable"
+	}
+	return info
+}
+
+func applyCommonSpec(info *ProviderInfo, p *config.Provider, probeTimeout float64) {
+	if p == nil {
+		return
 	}
 	compat := "strict"
 	if p.IsLossy() {
@@ -137,23 +241,17 @@ func buildProviderInfo(p *config.Provider, probeTimeout float64, mode, prefix st
 		supported = []string{p.DefaultDialect}
 	}
 	sanitized, scheme, host, port := parseProviderEndpoint(p.BaseURL)
-	return ProviderInfo{
-		Name:                p.Name,
-		Kind:                kind,
-		BaseURL:             sanitized,
-		Scheme:              scheme,
-		Host:                host,
-		Port:                port,
-		DefaultDialect:      p.DefaultDialect,
-		SupportedDialects:   supported,
-		Compatibility:       compat,
-		TimeoutSeconds:      p.Timeout,
-		ProbeTimeoutSeconds: probeTimeout,
-		AuthHeader:          auth,
-		APIKeyConfigured:    strings.TrimSpace(p.APIKey) != "",
-		Mode:                mode,
-		Prefix:              prefix,
-	}
+	info.BaseURL = sanitized
+	info.Scheme = scheme
+	info.Host = host
+	info.Port = port
+	info.DefaultDialect = p.DefaultDialect
+	info.SupportedDialects = supported
+	info.Compatibility = compat
+	info.TimeoutSeconds = p.Timeout
+	info.ProbeTimeoutSeconds = probeTimeout
+	info.AuthHeader = auth
+	info.APIKeyConfigured = strings.TrimSpace(p.APIKey) != ""
 }
 
 func parseProviderEndpoint(raw string) (sanitized, scheme, host string, port int) {
@@ -213,16 +311,16 @@ func fetchProviderDiagnostics(ctx context.Context, opts Options) map[string]stri
 	return out
 }
 
-func probeProviderStatus(ctx context.Context, info ProviderInfo) string {
-	if !isLoopbackHost(info.Host) || info.Port <= 0 {
+func probeEndpointStatus(ctx context.Context, host string, port int, probeTimeoutSec float64) string {
+	if !isLoopbackHost(host) || port <= 0 {
 		return "configured"
 	}
 	timeout := time.Second
-	if info.ProbeTimeoutSeconds > 0 && info.ProbeTimeoutSeconds < 2.0 {
-		timeout = time.Duration(info.ProbeTimeoutSeconds * float64(time.Second))
+	if probeTimeoutSec > 0 && probeTimeoutSec < 2.0 {
+		timeout = time.Duration(probeTimeoutSec * float64(time.Second))
 	}
 	dialer := net.Dialer{Timeout: timeout}
-	addr := net.JoinHostPort(info.Host, strconv.Itoa(info.Port))
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return "unreachable"

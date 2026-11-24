@@ -26,8 +26,7 @@ func writeProviderTestConfig(t *testing.T, body string) string {
 	return path
 }
 
-func TestFetchProvidersAllKindsAndSanitization(t *testing.T) {
-	// Start a local TCP listener to simulate a reachable local llama_cpp server.
+func TestFetchProvidersShowsOnlyBuiltinsAndExcludesGeneric(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +34,6 @@ func TestFetchProvidersAllKindsAndSanitization(t *testing.T) {
 	defer ln.Close()
 	livePort := ln.Addr().(*net.TCPAddr).Port
 
-	// Pick a closed port to simulate an unreachable local strata server.
 	closedLn, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -47,12 +45,10 @@ func TestFetchProvidersAllKindsAndSanitization(t *testing.T) {
 [server]
 auth_mode = "none"
 
-[providers.remote-chat]
+[providers.opencode-chat]
 dialect = "openai-chat"
 base_url = "https://api.example.com/v1"
 api_key = "super-secret-remote-key"
-compatibility = "lossy"
-timeout = 120
 
 [providers.llama_cpp]
 ports = [%d]
@@ -74,43 +70,39 @@ probe_timeout = 0.2
 		t.Fatalf("FetchProviders: %v", err)
 	}
 	if len(items) != 3 {
-		t.Fatalf("expected 3 providers, got %d: %+v", len(items), items)
+		t.Fatalf("expected 3 built-in providers, got %d: %+v", len(items), items)
 	}
 
-	// Ensure no secret value leaks anywhere in the serialized JSON.
 	raw, err := json.Marshal(items)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "super-secret-remote-key") {
-		t.Fatalf("secret leaked in ProviderInfo JSON: %s", raw)
+	if strings.Contains(string(raw), "super-secret-remote-key") || strings.Contains(string(raw), "opencode-chat") {
+		t.Fatalf("generic provider or secret leaked: %s", raw)
 	}
 
-	byKind := map[string]ProviderInfo{}
+	byName := map[string]ProviderInfo{}
 	for _, it := range items {
-		byKind[it.Kind] = it
+		byName[it.Name] = it
 	}
 
-	remote := byKind["generic"]
-	if remote.Name != "remote-chat" || remote.Host != "api.example.com" || remote.Port != 443 || remote.Status != "configured" {
-		t.Fatalf("remote provider wrong: %+v", remote)
-	}
-	if remote.AuthHeader != "auto" || !remote.APIKeyConfigured || remote.Compatibility != "lossy" || remote.TimeoutSeconds != 120 {
-		t.Fatalf("remote shared fields wrong: %+v", remote)
+	cpa := byName["cliproxyapi"]
+	if cpa.Enabled || cpa.Status != "disabled" {
+		t.Fatalf("cliproxyapi should be disabled: %+v", cpa)
 	}
 
-	llama := byKind["llama_cpp"]
-	if llama.Port != livePort || llama.Host != "127.0.0.1" || llama.Status != "reachable" || llama.Prefix != "local/" || llama.ProbeTimeoutSeconds != 0.5 || llama.TimeoutSeconds != 300 {
-		t.Fatalf("llama provider wrong: %+v", llama)
+	llama := byName["llama_cpp"]
+	if !llama.Enabled || llama.Port != livePort || llama.Host != "127.0.0.1" || llama.Status != "reachable" || llama.Prefix != "local/" || llama.ProbeTimeoutSeconds != 0.5 || llama.TimeoutSeconds != 300 {
+		t.Fatalf("llama_cpp provider wrong: %+v", llama)
 	}
 
-	strata := byKind["strata"]
-	if strata.Port != closedPort || strata.Host != "127.0.0.1" || strata.Status != "unreachable" || strata.ProbeTimeoutSeconds != 0.2 {
+	strata := byName["strata"]
+	if !strata.Enabled || strata.Port != closedPort || strata.Host != "127.0.0.1" || strata.Status != "unreachable" || strata.ProbeTimeoutSeconds != 0.2 {
 		t.Fatalf("strata provider wrong: %+v", strata)
 	}
 }
 
-func TestFetchProvidersUsesDiagnosticsAndCLIProxyMode(t *testing.T) {
+func TestFetchProviderAliasesAndDiagnostics(t *testing.T) {
 	diagSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/diagnostics" {
 			w.Header().Set("Content-Type", "application/json")
@@ -141,18 +133,21 @@ passthrough = true
 		Router:       routerenv.RouterSettings{URL: diagSrv.URL},
 		RouterConfig: cfgPath,
 	}
-	info, err := FetchProvider(context.Background(), opts, "cliproxyapi")
+	info, err := FetchProvider(context.Background(), opts, "cpa")
 	if err != nil {
-		t.Fatalf("FetchProvider: %v", err)
+		t.Fatalf("FetchProvider(cpa): %v", err)
 	}
-	if info.Kind != "cliproxyapi" || info.Status != "available" || info.Port != cpaPort || info.Mode != "external" {
+	if info.Name != "cliproxyapi" || !info.Enabled || info.Status != "available" || info.Port != cpaPort || info.Mode != "external" {
 		t.Fatalf("cliproxyapi provider wrong: %+v", info)
 	}
 	if len(info.SupportedDialects) != 3 {
 		t.Fatalf("expected 3 supported dialects, got %+v", info.SupportedDialects)
 	}
 
-	if _, err := FetchProvider(context.Background(), opts, "missing"); err == nil {
-		t.Fatal("expected error for unknown provider")
+	if _, err := FetchProvider(context.Background(), opts, "llama.cpp"); err != nil {
+		t.Fatalf("FetchProvider(llama.cpp) alias failed: %v", err)
+	}
+	if _, err := FetchProvider(context.Background(), opts, "opencode"); err == nil {
+		t.Fatal("expected error for non-builtin provider")
 	}
 }
