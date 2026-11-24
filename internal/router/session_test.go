@@ -15,7 +15,7 @@ import (
 func testProvider() *config.Provider {
 	return &config.Provider{
 		Name:                 "up",
-		Dialect:              config.DialectAnthropic,
+		DefaultDialect:       config.DialectAnthropic,
 		BaseURL:              "http://127.0.0.1:9",
 		SessionHeader:        "x-session-out",
 		SessionSourceHeaders: []string{"session-id", "thread-id"},
@@ -191,7 +191,7 @@ func TestSessionBodyIgnoredWhenDisabled(t *testing.T) {
 }
 
 func TestSessionNoPolicyPassthrough(t *testing.T) {
-	p := &config.Provider{Name: "up", Dialect: config.DialectAnthropic, BaseURL: "http://127.0.0.1:9"}
+	p := &config.Provider{Name: "up", DefaultDialect: config.DialectAnthropic, BaseURL: "http://127.0.0.1:9"}
 	sess, eff := mustOK(t, p, hdr("Session-Id", "s1", "X-Session-Out", "x1"), `{"model":"m","prompt_cache_key":"k"}`, true)
 	if sess.Has {
 		t.Fatalf("no policy must select nothing: %+v", sess)

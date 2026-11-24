@@ -362,7 +362,7 @@ provider = "up"
 url = "http://127.0.0.1:9/models"
 headers = { X-Cat = "catalog-secret" }
 model_providers = { "m1" = "up" }
-[llama_cpp]
+[providers.llama_cpp]
 prefix = "pre-"
 servers = [{ url = "http://127.0.0.1:9931", api_key = "llama-secret", headers = { X-Srv = "server-secret" } }]
 [discovery_cache]

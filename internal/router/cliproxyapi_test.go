@@ -10,7 +10,7 @@ func proxyTestConfig() *config.Config {
 	return &config.Config{
 		Server: config.Server{AllowDynamicRoutes: true},
 		Providers: map[string]*config.Provider{
-			"up": {Name: "up", Dialect: config.DialectOpenAIChat, BaseURL: "http://127.0.0.1:9", Timeout: 600},
+			"up": {Name: "up", DefaultDialect: config.DialectOpenAIChat, BaseURL: "http://127.0.0.1:9", Timeout: 600},
 		},
 		CLIProxyAPI: &config.CLIProxyAPIConfig{BaseURL: "http://127.0.0.1:8317/v1"},
 	}
@@ -25,8 +25,8 @@ func TestSnapshotIncludesGeneratedProxyProvider(t *testing.T) {
 	if fault != Found || p.Name != "cliproxyapi" || m.Upstream != "anything-here" {
 		t.Fatalf("dynamic proxy route broken: %+v %+v %v", m, p, fault)
 	}
-	if p.Dialect != config.DialectOpenAIChat {
-		t.Fatalf("proxy dialect must be openai-chat, got %q", p.Dialect)
+	if p.DefaultDialect != config.DialectOpenAIChat {
+		t.Fatalf("proxy dialect must be openai-chat, got %q", p.DefaultDialect)
 	}
 }
 
@@ -69,8 +69,8 @@ func TestOpaqueCatalogIDsResolveBeforeDynamic(t *testing.T) {
 		if fault != Found || p.Name != "cliproxyapi" || m.Upstream != id {
 			t.Fatalf("%q: %+v %+v %v", id, m, p, fault)
 		}
-		if p.Dialect != config.DialectOpenAIChat {
-			t.Fatalf("%q dialect guessed: %q", id, p.Dialect)
+		if p.DefaultDialect != config.DialectOpenAIChat {
+			t.Fatalf("%q dialect guessed: %q", id, p.DefaultDialect)
 		}
 	}
 	// No hardcoded OpenCode provider exists in the new mode.

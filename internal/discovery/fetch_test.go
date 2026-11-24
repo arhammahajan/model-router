@@ -18,9 +18,9 @@ import (
 
 func testProviders() map[string]*config.Provider {
 	return map[string]*config.Provider{
-		"up": {Name: "up", Dialect: config.DialectAnthropic, BaseURL: "http://127.0.0.1:9", APIKey: "provider-secret",
+		"up": {Name: "up", DefaultDialect: config.DialectAnthropic, BaseURL: "http://127.0.0.1:9", APIKey: "provider-secret",
 			Headers: map[string]string{"Authorization": "Bearer provider-secret"}},
-		"chat": {Name: "chat", Dialect: config.DialectOpenAIChat, BaseURL: "http://127.0.0.1:9"},
+		"chat": {Name: "chat", DefaultDialect: config.DialectOpenAIChat, BaseURL: "http://127.0.0.1:9"},
 	}
 }
 

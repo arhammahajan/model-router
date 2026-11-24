@@ -37,8 +37,9 @@ provider = "up"
 [catalog]
 url = "http://127.0.0.1:9/models"
 model_providers = { "m1" = "up" }
-[llama_cpp]
+[providers.llama_cpp]
 prefix = "pre-"
+aliases = true
 servers = [{ url = "http://127.0.0.1:9931" }, { url = "http://127.0.0.1:9932" }]
 [discovery_cache]
 path = "` + filepath.Join(dir, "cache.json") + `"

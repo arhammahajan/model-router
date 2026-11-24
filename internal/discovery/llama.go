@@ -22,6 +22,7 @@ import (
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/catalog"
 	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 )
 
@@ -45,10 +46,34 @@ var llamaAuthScrubbed = map[string]bool{
 
 // llamaServer is the worker's private copy of one configured server.
 type llamaServer struct {
-	url     string
-	name    string
-	key     string
-	headers map[string]string
+	url           string
+	name          string
+	key           string
+	authHeader    string
+	headers       map[string]string
+	probeTimeout  float64
+	kind          string
+	prefix        string
+	exposeAliases bool
+}
+
+// serverPrefixExpose resolves the effective prefix and alias exposure for one
+// local server. Servers parsed from [providers.llama_cpp] / [providers.strata]
+// carry Kind and own their per-server Prefix/ExposeAliases directly; synthetic
+// configs without Kind fall back to fleet-level defaults.
+func serverPrefixExpose(cfg *config.LlamaConfig, s config.LlamaServer) (string, bool) {
+	if s.Kind != "" {
+		return s.Prefix, s.ExposeAliases
+	}
+	prefix := s.Prefix
+	if prefix == "" && cfg != nil {
+		prefix = cfg.Prefix
+	}
+	expose := s.ExposeAliases
+	if !expose && cfg != nil {
+		expose = cfg.ExposeAliases
+	}
+	return prefix, expose
 }
 
 // LlamaWorker refreshes one Registry from one [llama_cpp] table. Static
@@ -109,10 +134,14 @@ func NewLlamaWorker(cfg *config.LlamaConfig, reg *router.Registry) *LlamaWorker 
 	}
 	for _, s := range cfg.Servers {
 		// Trusted global+server headers seed both probe and generated
-		// headers; the server table wins on conflict.
+		// headers; the server table wins on conflict. Parsed fleets
+		// already merged fleet headers into s.Headers, so avoid leaking
+		// headers across coexisting fleets.
 		merged := http.Header{}
-		for k, v := range cfg.Headers {
-			merged.Set(k, v)
+		if s.Kind == "" {
+			for k, v := range cfg.Headers {
+				merged.Set(k, v)
+			}
 		}
 		for k, v := range s.Headers {
 			merged.Set(k, v)
@@ -121,11 +150,24 @@ func NewLlamaWorker(cfg *config.LlamaConfig, reg *router.Registry) *LlamaWorker 
 		for k := range merged {
 			headers[k] = merged.Get(k)
 		}
+		pt := s.ProbeTimeout
+		if pt <= 0 {
+			pt = cfg.ProbeTimeout
+		}
+		if pt <= 0 {
+			pt = config.DefaultLlamaProbeTimeout
+		}
+		prefix, expose := serverPrefixExpose(cfg, s)
 		w.servers = append(w.servers, llamaServer{
-			url:     s.URL,
-			name:    s.Name,
-			key:     s.APIKey,
-			headers: headers,
+			url:           provider.StripV1Suffix(s.URL),
+			name:          s.Name,
+			key:           s.APIKey,
+			authHeader:    s.AuthHeader,
+			headers:       headers,
+			probeTimeout:  pt,
+			kind:          s.Kind,
+			prefix:        prefix,
+			exposeAliases: expose,
 		})
 	}
 	return w
@@ -145,11 +187,20 @@ func LlamaFleetBound(cfg *config.LlamaConfig) time.Duration {
 	if n < 1 {
 		n = 1
 	}
+	maxProbe := cfg.ProbeTimeout
+	for _, s := range cfg.Servers {
+		if s.ProbeTimeout > maxProbe {
+			maxProbe = s.ProbeTimeout
+		}
+	}
+	if maxProbe <= 0 {
+		maxProbe = config.DefaultLlamaProbeTimeout
+	}
 	workers := min(8, n)
 	waves := 1 + (n-1)/workers
-	sec := cfg.ProbeTimeout * float64(waves)
+	sec := maxProbe * float64(waves)
 	if math.IsNaN(sec) || math.IsInf(sec, 0) || sec <= 0 {
-		sec = cfg.ProbeTimeout
+		sec = maxProbe
 	}
 	const maxBound = time.Duration(1<<63 - 1)
 	if sec >= float64(maxBound)/float64(time.Second)-1 {
@@ -406,13 +457,17 @@ func (w *LlamaWorker) signalWake() {
 // malformed props) defaults to LlamaCpp. Router/swap ignore global props
 // for observations but still use them as server engine identity.
 func (w *LlamaWorker) probeServer(parent context.Context, srv llamaServer) ([]router.LlamaEntry, string, capability.LocalRuntime, error) {
-	ctx, cancel := context.WithTimeout(parent, time.Duration(w.probeTimeout*float64(time.Second)))
+	pt := srv.probeTimeout
+	if pt <= 0 {
+		pt = w.probeTimeout
+	}
+	ctx, cancel := context.WithTimeout(parent, time.Duration(pt*float64(time.Second)))
 	defer cancel()
 	if ctx.Err() != nil {
 		return nil, "", capability.RuntimeUnobserved, ErrLlamaHTTP
 	}
 	headers := llamaProbeHeaders(srv)
-	base := strings.TrimRight(srv.url, "/")
+	base := strings.TrimRight(provider.StripV1Suffix(srv.url), "/")
 	health, err := llamaGet(ctx, w.client, base+"/health", headers)
 	if err != nil {
 		return nil, "", capability.RuntimeUnobserved, ErrLlamaHTTP
@@ -448,7 +503,10 @@ func (w *LlamaWorker) probeServer(parent context.Context, srv llamaServer) ([]ro
 	}
 	mode := llamaMode(props, rows)
 	runtime := capability.LocalEngine(props)
-	entries := w.mapRows(rows, props, mode)
+	if srv.kind == provider.KindStrata {
+		runtime = capability.RuntimeStrata
+	}
+	entries := w.mapRows(srv, rows, props, mode)
 	if ctx.Err() != nil {
 		return nil, "", capability.RuntimeUnobserved, ErrLlamaHTTP
 	}
@@ -518,7 +576,7 @@ func (w *LlamaWorker) fetchProps(ctx context.Context, base string, headers map[s
 // loaded/sleeping filter gates only the deferred optional per-model props
 // fan-out, never publication here. Unknown, blank or duplicate IDs are
 // skipped by the registry's first-wins build.
-func (w *LlamaWorker) mapRows(rows []any, props map[string]any, mode string) []router.LlamaEntry {
+func (w *LlamaWorker) mapRows(srv llamaServer, rows []any, props map[string]any, mode string) []router.LlamaEntry {
 	var out []router.LlamaEntry
 	for _, row := range rows {
 		m, ok := row.(map[string]any)
@@ -537,9 +595,9 @@ func (w *LlamaWorker) mapRows(rows []any, props map[string]any, mode string) []r
 		if id == "local" {
 			public = "local-llama"
 		}
-		public = w.prefix + public
+		public = srv.prefix + public
 		aliases := llamaRowAliases(m)
-		if !w.exposeAliases {
+		if !srv.exposeAliases {
 			aliases = nil
 		} else {
 			prefixed := make([]string, 0, len(aliases))
@@ -547,7 +605,7 @@ func (w *LlamaWorker) mapRows(rows []any, props map[string]any, mode string) []r
 				if a == "" {
 					continue
 				}
-				prefixed = append(prefixed, w.prefix+a)
+				prefixed = append(prefixed, srv.prefix+a)
 			}
 			aliases = prefixed
 		}
@@ -610,8 +668,23 @@ func llamaProbeHeaders(srv llamaServer) map[string]string {
 		out[k] = v
 	}
 	if key := strings.TrimSpace(srv.key); key != "" {
-		delete(out, "Authorization")
-		out["Authorization"] = "Bearer " + key
+		ah := strings.TrimSpace(srv.authHeader)
+		switch strings.ToLower(ah) {
+		case "", "bearer", "authorization":
+			delete(out, "Authorization")
+			out["Authorization"] = "Bearer " + key
+		case "x-api-key", "api-key", "x-goog-api-key":
+			h := strings.ToLower(ah)
+			delete(out, h)
+			out[h] = key
+		default:
+			for k := range out {
+				if strings.EqualFold(k, ah) {
+					delete(out, k)
+				}
+			}
+			out[ah] = key
+		}
 	}
 	return out
 }
@@ -686,6 +759,10 @@ func errLlamaBody(err error) error {
 func (w *LlamaWorker) seedRetained(inv router.DiscoveryInventory) {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
+	kindByName := make(map[string]string, len(w.servers))
+	for _, srv := range w.servers {
+		kindByName[srv.name] = srv.kind
+	}
 	for name, unit := range inv.Llama {
 		cp := make([]router.LlamaEntry, 0, len(unit.Entries))
 		for _, e := range unit.Entries {
@@ -700,9 +777,13 @@ func (w *LlamaWorker) seedRetained(inv router.DiscoveryInventory) {
 		}
 		w.active[name] = true
 		w.retained[name] = cp
-		// Restored entries carry no engine: the layer already pins
-		// Unobserved, and retention must match it until a live probe.
-		w.retainedRuntime[name] = capability.RuntimeUnobserved
+		// Restored entries carry no engine unless explicitly configured as
+		// [providers.strata]; llama_cpp stays Unobserved until a live probe.
+		if kindByName[name] == provider.KindStrata {
+			w.retainedRuntime[name] = capability.RuntimeStrata
+		} else {
+			w.retainedRuntime[name] = capability.RuntimeUnobserved
+		}
 	}
 }
 

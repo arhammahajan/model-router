@@ -17,8 +17,8 @@ import (
 
 func capRevProviders() map[string]*config.Provider {
 	return map[string]*config.Provider{
-		"up":   {Name: "up", Dialect: config.DialectOpenAIChat, BaseURL: "http://up.example"},
-		"chat": {Name: "chat", Dialect: config.DialectOpenAIChat, BaseURL: "http://chat.example"},
+		"up":   {Name: "up", DefaultDialect: config.DialectOpenAIChat, BaseURL: "http://up.example"},
+		"chat": {Name: "chat", DefaultDialect: config.DialectOpenAIChat, BaseURL: "http://chat.example"},
 	}
 }
 

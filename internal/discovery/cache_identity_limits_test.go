@@ -36,7 +36,7 @@ api_key = "secret-key-1"
 [[models]]
 name = "a"
 provider = "up"
-[llama_cpp]
+[providers.llama_cpp]
 prefix = "pre-"
 servers = [{ url = "http://127.0.0.1:9931" }, { url = "http://127.0.0.1:9932" }]
 ` + extra + `
@@ -60,7 +60,7 @@ func TestLimitsIdentityRotationAndDefault(t *testing.T) {
 	store := NewCacheStore(cfg, router.NewRegistry(cfg))
 	baseline := store.identity
 	// Empty outer and inner tables omit the same facts as absent policy.
-	for _, declaration := range []string{"[llama_cpp.limit_overrides]\n", "[llama_cpp.limit_overrides.m]\n"} {
+	for _, declaration := range []string{"[providers.llama_cpp.limit_overrides]\n", "[providers.llama_cpp.limit_overrides.m]\n"} {
 		emptyPath := limCacheCfg(t, t.TempDir(), declaration)
 		emptyCfg := mustLoadCfg(t, emptyPath)
 		emptyCfg.DiscoveryCache = cfg.DiscoveryCache
@@ -77,7 +77,7 @@ func TestLimitsIdentityRotationAndDefault(t *testing.T) {
 		t.Fatal("explicit fallback must rotate the identity")
 	}
 	dir3 := t.TempDir()
-	p3 := limCacheCfg(t, dir3, "[llama_cpp.limit_overrides.m]\ncontext_window = 10\n")
+	p3 := limCacheCfg(t, dir3, "[providers.llama_cpp.limit_overrides.m]\ncontext_window = 10\n")
 	cfg3 := mustLoadCfg(t, p3)
 	cfg3.DiscoveryCache = cfg.DiscoveryCache
 	if got := cacheIdentity(cfg3); got == baseline {
@@ -91,7 +91,7 @@ func TestLimitsRouteOnlyEncoding(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	t.Setenv("MODEL_ROUTER_API_KEYS", "")
 	t.Setenv("MODEL_ROUTER_API_KEY", "")
-	path := limCacheCfg(t, dir, "[llama_cpp.limit_overrides.m1]\ncontext_window = 99\n")
+	path := limCacheCfg(t, dir, "[providers.llama_cpp.limit_overrides.m1]\ncontext_window = 99\n")
 	cfg := mustLoadCfg(t, path)
 	reg := router.NewRegistry(cfg)
 	names := []string{}

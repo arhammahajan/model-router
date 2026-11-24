@@ -44,7 +44,7 @@ func (s *CacheStore) buildRestore(inv CachedInventory, nowWall float64) (router.
 				continue
 			}
 			srv := s.cfg.Llama.Servers[idx]
-			entries, ok := s.resolveLlama(unit.Routes, srv.Name)
+			entries, ok := s.resolveLlama(unit.Routes, srv)
 			if !ok {
 				return router.DiscoveryInventory{}, CacheStatus{Load: CacheInvalid}, expired
 			}
@@ -98,12 +98,11 @@ func (s *CacheStore) resolveCatalog(routes []CachedRoute) ([]router.CatalogEntry
 	return out, true
 }
 
-func (s *CacheStore) resolveLlama(routes []CachedRoute, provider string) ([]router.LlamaEntry, bool) {
+func (s *CacheStore) resolveLlama(routes []CachedRoute, srv config.LlamaServer) ([]router.LlamaEntry, bool) {
 	if s.cfg.Llama == nil {
 		return nil, false
 	}
-	prefix := s.cfg.Llama.Prefix
-	expose := s.cfg.Llama.ExposeAliases
+	prefix, expose := serverPrefixExpose(s.cfg.Llama, srv)
 	seenCanon := map[string]bool{}
 	seenAlias := map[string]bool{}
 	var out []router.LlamaEntry
@@ -149,7 +148,6 @@ func (s *CacheStore) resolveLlama(routes []CachedRoute, provider string) ([]rout
 		}
 		out = append(out, router.LlamaEntry{Name: name, Upstream: r.ID, Aliases: aliases})
 	}
-	_ = provider
 	return out, true
 }
 
@@ -205,7 +203,7 @@ func (s *CacheStore) encode(inv router.DiscoveryInventory) ([]byte, bool) {
 				continue
 			}
 			var models []any
-			for _, row := range s.normalizedLlamaRows(unit.Entries) {
+			for _, row := range s.normalizedLlamaRows(unit.Entries, srv) {
 				models = append(models, map[string]any{"id": row.ID, "aliases": row.Aliases})
 			}
 			if models == nil {
@@ -376,15 +374,15 @@ func validateEncoded(raw []byte, maxAge, nowWall float64, san *cacheSanitizer, c
 	if !ok {
 		return CachedInventory{}, CacheStatus{Load: CacheInvalid}, fmt.Errorf("llama")
 	}
-	expose := false
-	prefix := ""
-	if cfg.Llama != nil {
-		expose, prefix = cfg.Llama.ExposeAliases, cfg.Llama.Prefix
-	}
 	for key, unitRaw := range llamaRaw {
-		if _, ok := parseServerIndex(key); !ok {
+		idx, ok := parseServerIndex(key)
+		if !ok {
 			return CachedInventory{}, CacheStatus{Load: CacheInvalid}, fmt.Errorf("index")
 		}
+		if cfg.Llama == nil || idx < 0 || idx >= len(cfg.Llama.Servers) {
+			return CachedInventory{}, CacheStatus{Load: CacheInvalid}, fmt.Errorf("index")
+		}
+		prefix, expose := serverPrefixExpose(cfg.Llama, cfg.Llama.Servers[idx])
 		u, _, err := decodeUnit(unitRaw, false)
 		if err != nil || u == nil {
 			return CachedInventory{}, CacheStatus{Load: CacheInvalid}, fmt.Errorf("unit")

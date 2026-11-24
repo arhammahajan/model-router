@@ -19,7 +19,7 @@ import (
 func workerCfg(t *testing.T, url string) (*config.Config, map[string]*config.Provider) {
 	t.Helper()
 	providers := map[string]*config.Provider{
-		"up": {Name: "up", Dialect: config.DialectAnthropic, BaseURL: "http://127.0.0.1:9"},
+		"up": {Name: "up", DefaultDialect: config.DialectAnthropic, BaseURL: "http://127.0.0.1:9"},
 	}
 	cfg := &config.Config{
 		Server:    config.Server{AllowDynamicRoutes: false},

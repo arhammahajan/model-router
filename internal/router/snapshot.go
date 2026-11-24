@@ -99,6 +99,9 @@ type Snapshot struct {
 	// atomically with routes, wall times and runtimes; later config
 	// mutation cannot reach pinned snapshots.
 	llamaPolicy *capability.LlamaLimitPolicy
+	// llamaPolicies holds per-server limit policies keyed by server name
+	// when coexisting local fleets configure distinct policies.
+	llamaPolicies map[string]*capability.LlamaLimitPolicy
 }
 
 // New builds an immutable snapshot from validated config. It deep-copies
@@ -124,9 +127,26 @@ func New(cfg *config.Config) *Snapshot {
 		catalogCaps:         map[string]capability.Contract{},
 		llamaCaps:           map[string]capability.Contract{},
 		llamaRuntime:        map[string]capability.LocalRuntime{},
+		llamaPolicies:       map[string]*capability.LlamaLimitPolicy{},
 	}
 	if cfg.Llama != nil {
 		s.llamaPolicy = capability.NewLlamaLimitPolicy(cfg.Llama.ContextFallback, cfg.Llama.LimitOverrides)
+		hasPerServerLimits := false
+		for _, srv := range cfg.Llama.Servers {
+			if srv.ContextFallback != nil || len(srv.LimitOverrides) > 0 {
+				hasPerServerLimits = true
+				break
+			}
+		}
+		if hasPerServerLimits {
+			for _, srv := range cfg.Llama.Servers {
+				if srv.ContextFallback != nil || len(srv.LimitOverrides) > 0 {
+					s.llamaPolicies[srv.Name] = capability.NewLlamaLimitPolicy(srv.ContextFallback, srv.LimitOverrides)
+				} else {
+					s.llamaPolicies[srv.Name] = nil
+				}
+			}
+		}
 	}
 	for name, p := range cfg.Providers {
 		s.providers[name] = copyProvider(p)
@@ -188,6 +208,9 @@ func copyProvider(p *config.Provider) *config.Provider {
 		for k, v := range p.TranslatedHeaders {
 			out.TranslatedHeaders[k] = v
 		}
+	}
+	if p.SupportedDialects != nil {
+		out.SupportedDialects = append([]string(nil), p.SupportedDialects...)
 	}
 	if p.SessionSourceHeaders != nil {
 		out.SessionSourceHeaders = append([]string{}, p.SessionSourceHeaders...)
@@ -276,13 +299,25 @@ func (s *Snapshot) ProviderCount() int {
 	return len(s.providers)
 }
 
-// ProviderDialects returns provider name to dialect.
+// ProviderDialects returns provider name to default dialect.
 func (s *Snapshot) ProviderDialects() map[string]string {
 	out := make(map[string]string, len(s.providers))
 	for name, p := range s.providers {
-		out[name] = p.Dialect
+		out[name] = p.DefaultDialect
 	}
 	return out
+}
+
+// llamaPolicyFor returns the limit policy for a local server provider,
+// falling back to the fleet-level policy when no per-server policies exist.
+func (s *Snapshot) llamaPolicyFor(providerName string) *capability.LlamaLimitPolicy {
+	if s == nil {
+		return nil
+	}
+	if p, ok := s.llamaPolicies[providerName]; ok {
+		return p
+	}
+	return s.llamaPolicy
 }
 
 // ProviderNames returns sorted provider names.

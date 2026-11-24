@@ -3,7 +3,10 @@
 // in registry.go; all three swap one complete snapshot per call.
 package router
 
-import "github.com/arhammahajan/router/internal/capability"
+import (
+	"github.com/arhammahajan/router/internal/capability"
+	"github.com/arhammahajan/router/internal/provider"
+)
 
 type CatalogInventory struct {
 	Entries     []CatalogEntry
@@ -137,8 +140,12 @@ func (r *Registry) restoreLocked(inv DiscoveryInventory, load string, expired *i
 				}
 				cp = append(cp, ec)
 			}
+			rt := capability.RuntimeUnobserved
+			if r.trustedLlama[name].Kind == provider.KindStrata {
+				rt = capability.RuntimeStrata
+			}
 			staged.Servers[name] = LlamaServerSnapshot{State: LlamaUnreachableStale,
-				Runtime: capability.RuntimeUnobserved, Entries: cp}
+				Runtime: rt, Entries: cp}
 			nextAt[name] = unit.SucceededAt
 		}
 	}

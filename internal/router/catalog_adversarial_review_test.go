@@ -26,7 +26,7 @@ func TestReviewDynamicWhitespaceMatchesPythonOracle(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.Server{AllowDynamicRoutes: true},
 		Providers: map[string]*config.Provider{
-			"up": {Name: "up", Dialect: config.DialectOpenAIChat},
+			"up": {Name: "up", DefaultDialect: config.DialectOpenAIChat},
 		},
 	}
 	s := New(cfg)

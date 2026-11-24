@@ -19,8 +19,8 @@ func revGemStaticCfg() *config.Config {
 	return &config.Config{
 		Server: config.Server{},
 		Providers: map[string]*config.Provider{
-			"chat": {Name: "chat", Dialect: "openai-chat", BaseURL: "http://127.0.0.1:9"},
-			"resp": {Name: "resp", Dialect: "openai-responses", BaseURL: "http://127.0.0.1:9"},
+			"chat": {Name: "chat", DefaultDialect: "openai-chat", BaseURL: "http://127.0.0.1:9"},
+			"resp": {Name: "resp", DefaultDialect: "openai-responses", BaseURL: "http://127.0.0.1:9"},
 		},
 		Models: []config.Model{
 			{Name: "static-chat", Provider: "chat", Upstream: "u-chat"},

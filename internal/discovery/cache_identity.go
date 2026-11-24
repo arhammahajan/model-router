@@ -44,6 +44,13 @@ func cacheSecrets(cfg *config.Config) []string {
 		}
 		addURLSecrets(&out, p.BaseURL)
 	}
+	if cfg.CLIProxyAPI != nil {
+		add(cfg.CLIProxyAPI.APIKey)
+		for _, v := range cfg.CLIProxyAPI.Headers {
+			add(v)
+		}
+		addURLSecrets(&out, cfg.CLIProxyAPI.BaseURL)
+	}
 	if cfg.Catalog != nil {
 		for _, v := range cfg.Catalog.Headers {
 			add(v)
@@ -60,6 +67,7 @@ func cacheSecrets(cfg *config.Config) []string {
 				add(v)
 			}
 			addURLSecrets(&out, s.URL)
+			addURLSecrets(&out, s.BaseURL)
 		}
 	}
 	return out
@@ -132,9 +140,12 @@ func (c *cacheSanitizer) safeID(s string) bool {
 
 func cacheIdentity(cfg *config.Config) string {
 	type providerView struct {
-		Dialect           string            `json:"dialect"`
+		Kind              string            `json:"kind,omitempty"`
+		DefaultDialect    string            `json:"default_dialect"`
+		SupportedDialects []string          `json:"supported_dialects,omitempty"`
 		BaseURL           string            `json:"base_url"`
 		APIKey            string            `json:"api_key"`
+		CountTokens       *bool             `json:"count_tokens,omitempty"`
 		Headers           map[string]string `json:"headers"`
 		Timeout           float64           `json:"timeout"`
 		Lossy             bool              `json:"lossy"`
@@ -161,8 +172,15 @@ func cacheIdentity(cfg *config.Config) string {
 	sort.Strings(names)
 	for _, n := range names {
 		p := cfg.Providers[n]
+		var countTokens *bool
+		if p.CountTokens != nil {
+			b := *p.CountTokens
+			countTokens = &b
+		}
 		providers[n] = providerView{
-			Dialect: p.Dialect, BaseURL: p.BaseURL, APIKey: p.APIKey,
+			Kind: p.Kind, DefaultDialect: p.DefaultDialect,
+			SupportedDialects: append([]string(nil), p.SupportedDialects...),
+			BaseURL:           p.BaseURL, APIKey: p.APIKey, CountTokens: countTokens,
 			Headers: copyStrMap(p.Headers), Timeout: p.Timeout, Lossy: p.Lossy,
 			AuthHeader: p.AuthHeader, LitellmProvider: p.LitellmProvider,
 			TranslatedHeaders: copyStrMap(p.TranslatedHeaders),
@@ -191,10 +209,18 @@ func cacheIdentity(cfg *config.Config) string {
 		cat = &catalogView{URL: cfg.Catalog.URL, Headers: copyStrMap(cfg.Catalog.Headers), ModelProviders: copyStrMap(cfg.Catalog.ModelProviders), Rules: rules, MetadataSource: cfg.Catalog.MetadataSource}
 	}
 	type llamaServerView struct {
-		URL     string            `json:"url"`
-		Name    string            `json:"name"`
-		APIKey  string            `json:"api_key"`
-		Headers map[string]string `json:"headers"`
+		URL           string                       `json:"url"`
+		Name          string                       `json:"name"`
+		Kind          string                       `json:"kind,omitempty"`
+		APIKey        string                       `json:"api_key"`
+		AuthHeader    string                       `json:"auth_header,omitempty"`
+		Headers       map[string]string            `json:"headers"`
+		Timeout       float64                      `json:"timeout,omitempty"`
+		ProbeTimeout  float64                      `json:"probe_timeout,omitempty"`
+		Prefix        string                       `json:"prefix,omitempty"`
+		ExposeAliases bool                         `json:"expose_aliases,omitempty"`
+		Fallback      *int64                       `json:"context_fallback,omitempty"`
+		Overrides     map[string]map[string]*int64 `json:"limit_overrides,omitempty"`
 	}
 	type llamaView struct {
 		Servers []llamaServerView `json:"servers"`
@@ -210,32 +236,47 @@ func cacheIdentity(cfg *config.Config) string {
 		// (explicit withdraw). Sorted at marshal time by encoding/json.
 		Overrides map[string]map[string]*int64 `json:"limit_overrides,omitempty"`
 	}
+	copyOverrides := func(in map[string]map[string]*int64) map[string]map[string]*int64 {
+		if len(in) == 0 {
+			return nil
+		}
+		cp := make(map[string]map[string]*int64, len(in))
+		for model, fields := range in {
+			inner := make(map[string]*int64, len(fields))
+			for k, v := range fields {
+				if v == nil {
+					inner[k] = nil
+				} else {
+					nv := *v
+					inner[k] = &nv
+				}
+			}
+			cp[model] = inner
+		}
+		return cp
+	}
 	var llama *llamaView
 	if cfg.Llama != nil {
 		lv := &llamaView{Headers: copyStrMap(cfg.Llama.Headers), Prefix: cfg.Llama.Prefix, Expose: cfg.Llama.ExposeAliases, Compat: cfg.Llama.Compatibility}
 		for _, s := range cfg.Llama.Servers {
-			lv.Servers = append(lv.Servers, llamaServerView{URL: s.URL, Name: s.Name, APIKey: s.APIKey, Headers: copyStrMap(s.Headers)})
+			var sfb *int64
+			if s.ContextFallback != nil {
+				v := *s.ContextFallback
+				sfb = &v
+			}
+			lv.Servers = append(lv.Servers, llamaServerView{
+				URL: s.URL, Name: s.Name, Kind: s.Kind, APIKey: s.APIKey,
+				AuthHeader: s.AuthHeader, Headers: copyStrMap(s.Headers),
+				Timeout: s.Timeout, ProbeTimeout: s.ProbeTimeout,
+				Prefix: s.Prefix, ExposeAliases: s.ExposeAliases,
+				Fallback: sfb, Overrides: copyOverrides(s.LimitOverrides),
+			})
 		}
 		if cfg.Llama.ContextFallback != nil {
 			v := *cfg.Llama.ContextFallback
 			lv.Fallback = &v
 		}
-		if len(cfg.Llama.LimitOverrides) > 0 {
-			cp := make(map[string]map[string]*int64, len(cfg.Llama.LimitOverrides))
-			for model, fields := range cfg.Llama.LimitOverrides {
-				inner := make(map[string]*int64, len(fields))
-				for k, v := range fields {
-					if v == nil {
-						inner[k] = nil
-					} else {
-						nv := *v
-						inner[k] = &nv
-					}
-				}
-				cp[model] = inner
-			}
-			lv.Overrides = cp
-		}
+		lv.Overrides = copyOverrides(cfg.Llama.LimitOverrides)
 		llama = lv
 	}
 	doc := map[string]any{"providers": providers, "models": models, "catalog": cat, "llama": llama}

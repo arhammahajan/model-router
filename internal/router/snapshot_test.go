@@ -15,7 +15,7 @@ func testConfig() *config.Config {
 		Providers: map[string]*config.Provider{
 			"up": {
 				Name:                 "up",
-				Dialect:              config.DialectAnthropic,
+				DefaultDialect:       config.DialectAnthropic,
 				BaseURL:              "https://up.example",
 				APIKey:               "k",
 				Headers:              map[string]string{"X-Custom": "v"},

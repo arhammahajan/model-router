@@ -12,8 +12,8 @@ func rdReviewSnapshotConfig() *config.Config {
 	return &config.Config{
 		Server: config.Server{AllowDynamicRoutes: true},
 		Providers: map[string]*config.Provider{
-			"chatup": {Name: "chatup", Dialect: config.DialectOpenAIChat, BaseURL: "https://up.example", APIKey: "k"},
-			"anthup": {Name: "anthup", Dialect: config.DialectAnthropic, BaseURL: "https://up.example", APIKey: "k"},
+			"chatup": {Name: "chatup", DefaultDialect: config.DialectOpenAIChat, BaseURL: "https://up.example", APIKey: "k"},
+			"anthup": {Name: "anthup", DefaultDialect: config.DialectAnthropic, BaseURL: "https://up.example", APIKey: "k"},
 		},
 		Models: []config.Model{
 			{Name: "chat-to-anthropic", Provider: "chatup", Upstream: "claude", Dialect: config.DialectAnthropic, Aliases: []string{"cta-alias"}},
@@ -40,8 +40,8 @@ func TestRdReviewDynamicUsesProviderDefault(t *testing.T) {
 		if got := m.EffectiveDialect(p); got != tc.dest {
 			t.Fatalf("dynamic %s dest=%q want %q", tc.name, got, tc.dest)
 		}
-		if p.Dialect != tc.dest {
-			t.Fatalf("dynamic %s provider=%q", tc.name, p.Dialect)
+		if p.DefaultDialect != tc.dest {
+			t.Fatalf("dynamic %s provider=%q", tc.name, p.DefaultDialect)
 		}
 	}
 }
@@ -55,8 +55,8 @@ func TestRdReviewAliasInheritsDisabledReserved(t *testing.T) {
 	if got := m.EffectiveDialect(p); got != config.DialectAnthropic {
 		t.Fatalf("alias dest=%q", got)
 	}
-	if p.Dialect != config.DialectOpenAIChat {
-		t.Fatalf("alias must not mutate provider identity: %q", p.Dialect)
+	if p.DefaultDialect != config.DialectOpenAIChat {
+		t.Fatalf("alias must not mutate provider identity: %q", p.DefaultDialect)
 	}
 	for _, name := range []string{"chatup/shadowed", "dis-alias"} {
 		if _, _, fault := snap.Resolve(name); fault != DisabledReserved {
@@ -78,7 +78,7 @@ func TestRdReviewResolveCopiesIsolateDest(t *testing.T) {
 	}
 	m.Dialect = config.DialectGemini
 	m.Upstream = "mutated"
-	p.Dialect = "mutated"
+	p.DefaultDialect = "mutated"
 	m2, p2, fault := snap.Resolve("chat-to-anthropic")
 	if fault != Found {
 		t.Fatalf("fault=%v", fault)
@@ -86,7 +86,7 @@ func TestRdReviewResolveCopiesIsolateDest(t *testing.T) {
 	if got := m2.EffectiveDialect(p2); got != config.DialectAnthropic {
 		t.Fatalf("snapshot dest mutated: %q", got)
 	}
-	if p2.Dialect != config.DialectOpenAIChat || m2.Upstream != "claude" {
+	if p2.DefaultDialect != config.DialectOpenAIChat || m2.Upstream != "claude" {
 		t.Fatalf("snapshot state mutated: %+v %+v", m2, p2)
 	}
 	// Listing copies carry the destination and isolate too.

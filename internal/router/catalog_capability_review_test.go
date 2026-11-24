@@ -21,7 +21,7 @@ func capRevCfg(t *testing.T) *config.Config {
 	cfg := testConfig()
 	chat := *cfg.Providers["up"]
 	chat.Name = "chat"
-	chat.Dialect = config.DialectOpenAIChat
+	chat.DefaultDialect = config.DialectOpenAIChat
 	chat.BaseURL = "https://chat.example"
 	cfg.Providers["chat"] = &chat
 	asset, err := capability.LoadReviewAsset(capability.EmbeddedReviewBytes())
