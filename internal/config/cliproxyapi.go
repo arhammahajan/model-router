@@ -31,6 +31,7 @@ type CLIProxyAPIConfig struct {
 	Lossy            bool
 	Passthrough      bool
 	CompatibilityRaw string
+	RefreshSeconds   float64
 }
 
 // Provider builds the trusted generated provider from config only: no I/O,
@@ -67,13 +68,13 @@ func (c *Config) CLIProxyProvider() *Provider {
 var cliproxyAPIKeys = map[string]bool{
 	"base_url": true, "api_key": true, "api_key_env": true,
 	"api_key_file": true, "config_path": true, "compatibility": true,
-	"passthrough": true,
+	"passthrough": true, "refresh_seconds": true,
 }
 
 func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 	const where = "cliproxyapi"
 	if err := rejectUnknown(tab, cliproxyAPIKeys, where,
-		" (supported: base_url, api_key/api_key_env/api_key_file, config_path, compatibility, passthrough)"); err != nil {
+		" (supported: base_url, api_key/api_key_env/api_key_file, config_path, compatibility, passthrough, refresh_seconds)"); err != nil {
 		return nil, err
 	}
 	base := DefaultCLIProxyAPIBaseURL
@@ -118,6 +119,14 @@ func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 		}
 		passthrough = b
 	}
+	refreshSeconds := DefaultCatalogRefresh
+	if v, ok := tab["refresh_seconds"]; ok {
+		n, err := finiteNonNegative(v, where, "refresh_seconds")
+		if err != nil {
+			return nil, err
+		}
+		refreshSeconds = n
+	}
 	return &CLIProxyAPIConfig{
 		BaseURL:          base,
 		APIKey:           key,
@@ -125,6 +134,7 @@ func fillCLIProxyAPI(tab map[string]any) (*CLIProxyAPIConfig, error) {
 		Lossy:            lossy,
 		Passthrough:      passthrough,
 		CompatibilityRaw: compatRaw,
+		RefreshSeconds:   refreshSeconds,
 	}, nil
 }
 
@@ -136,7 +146,7 @@ func (c *CLIProxyAPIConfig) catalog(providers map[string]*Provider) (*Catalog, e
 	}
 	return fillCatalog(map[string]any{
 		"url":             c.BaseURL + "/models",
-		"refresh_seconds": 5.0,
+		"refresh_seconds": c.RefreshSeconds,
 		"headers":         headers,
 		"rules":           []any{map[string]any{"match": "^", "provider": CLIProxyAPIProviderName}},
 	}, providers)

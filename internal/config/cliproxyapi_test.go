@@ -33,8 +33,8 @@ func TestCLIProxyAPIDefaults(t *testing.T) {
 	if p.BaseURL != DefaultCLIProxyAPIBaseURL || p.LitellmProvider != "openai" {
 		t.Fatalf("generated provider endpoint wrong: %+v", p)
 	}
-	if cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != 5 {
-		t.Fatal("proxy models must refresh every five seconds")
+	if cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != DefaultCatalogRefresh {
+		t.Fatalf("default proxy catalog refresh = %v, want %v", cfg.Catalog, DefaultCatalogRefresh)
 	}
 	// Generated provider is injected for explicit-route validation.
 	if _, ok := cfg.Providers[CLIProxyAPIProviderName]; !ok {
@@ -141,5 +141,27 @@ func TestCLIProxyAPICompatibility(t *testing.T) {
 	}
 	if _, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\ncompatibility = \"invalid\"\n"))); err == nil {
 		t.Fatal("invalid compatibility must fail")
+	}
+}
+
+func TestCLIProxyAPIRefreshSeconds(t *testing.T) {
+	cfg, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nrefresh_seconds = 60\n")))
+	if err != nil {
+		t.Fatalf("refresh_seconds=60 must load: %v", err)
+	}
+	if cfg.CLIProxyAPI.RefreshSeconds != 60 || cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != 60 {
+		t.Fatalf("refresh_seconds = %v / catalog=%+v, want 60", cfg.CLIProxyAPI.RefreshSeconds, cfg.Catalog)
+	}
+
+	cfg, err = Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nrefresh_seconds = 0\n")))
+	if err != nil {
+		t.Fatalf("refresh_seconds=0 must load: %v", err)
+	}
+	if cfg.CLIProxyAPI.RefreshSeconds != 0 || cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != 0 {
+		t.Fatalf("refresh_seconds = %v / catalog=%+v, want 0", cfg.CLIProxyAPI.RefreshSeconds, cfg.Catalog)
+	}
+
+	if _, err := Load(writeCfg(t, proxyMinimal("[cliproxyapi]\nrefresh_seconds = -1\n"))); err == nil {
+		t.Fatal("negative refresh_seconds must fail")
 	}
 }
