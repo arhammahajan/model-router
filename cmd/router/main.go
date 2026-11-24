@@ -7,6 +7,7 @@
 //	router restart [--wait DURATION]
 //	router status [--json]
 //	router models [--json] [--pick]
+//	router provider [list | status [NAME] | NAME] [--config PATH] [--json]
 //	router validate [--config PATH]
 //	router logs [--follow] [-n LINES]
 //	router usage [--days N] [--by day|model] [--json] [PATH]
@@ -65,6 +66,7 @@ Commands:
   restart [--wait DURATION]                                restart the router daemon
   status [--json]                                          show daemon and endpoint status
   models [--json] [--pick]                                 list or interactively pick models
+  provider [list | status [NAME]] [--config PATH] [--json] list providers and per-provider status
   validate [--config PATH]                                 validate router configuration offline
   logs [--follow] [-n LINES]                               show router logs
   usage [--days N] [--by day|model] [--json] [PATH]        summarize accounting log usage
@@ -112,6 +114,8 @@ func run(args []string) int {
 		return runStatus(args[1:])
 	case "models":
 		return runModels(args[1:])
+	case "provider":
+		return runProvider(args[1:])
 	case "validate":
 		return runValidate(args[1:])
 	case "logs":
@@ -135,6 +139,8 @@ func topicHelp(topic string) int {
 		fmt.Println("router status [--json]")
 	case "models":
 		fmt.Println("router models [--json] [--pick]")
+	case "provider":
+		return providerHelp()
 	case "validate":
 		fmt.Println("router validate [--config PATH]")
 	case "logs":

@@ -89,7 +89,7 @@ func TestHelpAndVersion(t *testing.T) {
 		}
 	}
 
-	for _, topic := range []string{"start", "stop", "restart", "status", "models", "validate", "logs", "usage"} {
+	for _, topic := range []string{"start", "stop", "restart", "status", "models", "provider", "validate", "logs", "usage"} {
 		code, stdout, _ := captureBoth(t, func() int { return run([]string{"help", topic}) })
 		if code != 0 || !strings.Contains(stdout, "router "+topic) {
 			t.Fatalf("help %s = (%d, %q)", topic, code, stdout)
