@@ -10,7 +10,6 @@
 //	router validate [--config PATH]
 //	router logs [--follow] [-n LINES]
 //	router usage [--days N] [--by day|model] [--json] [PATH]
-//	router proxy <command> [--json]
 //	router version | help [topic]
 //
 // Exit codes: 0 success, 1 runtime failure, 2 usage error.
@@ -69,7 +68,6 @@ Commands:
   validate [--config PATH]                                 validate router configuration offline
   logs [--follow] [-n LINES]                               show router logs
   usage [--days N] [--by day|model] [--json] [PATH]        summarize accounting log usage
-  proxy <command> [--json]                                 inspect the CLIProxyAPI proxy
   version                                                  print version and exit
   help [topic]                                             show help for a command
 
@@ -78,9 +76,6 @@ Environment:
   ROUTER_API_KEY         router bearer token (MODEL_ROUTER_API_KEY is a legacy alias)
   ROUTER_BIN             routerd binary path override (MODEL_ROUTER_BIN and HARNESS_ROUTER_BIN are legacy aliases)
   ROUTER_CONFIG          router config path override (MODEL_ROUTER_CONFIG and HARNESS_ROUTER_CONFIG are legacy aliases)
-  CLIPROXYAPI_MANAGEMENT_KEY
-                         proxy management key for router proxy plugins/plugin/accounts
-                         (separate from the proxy inference key; no fallback)
 `)
 }
 
@@ -123,8 +118,6 @@ func run(args []string) int {
 		return runLogs(args[1:])
 	case "usage":
 		return runUsage(args[1:])
-	case "proxy":
-		return runProxy(args[1:])
 	default:
 		return failUsage("unknown command: %s", args[0])
 	}
@@ -148,8 +141,6 @@ func topicHelp(topic string) int {
 		fmt.Println("router logs [--follow] [-n LINES]")
 	case "usage":
 		fmt.Println("router usage [--days N] [--by day|model] [--json] [PATH]")
-	case "proxy":
-		return proxyHelp()
 	default:
 		return failUsage("unknown help topic: %s", topic)
 	}
