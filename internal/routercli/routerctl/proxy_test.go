@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -458,5 +459,46 @@ func TestSanitizedClientError(t *testing.T) {
 	}
 	if got := sanitizedClientError(otherErr); got != "http://127.0.0.1:8317/v1/models: Get failed" {
 		t.Fatalf("generic error = %q", got)
+	}
+}
+
+func TestProxyStatusModelIDsTruncated(t *testing.T) {
+	t.Setenv(ProxyManagementKeyEnv, "")
+	type item struct {
+		ID string `json:"id"`
+	}
+	items := make([]item, maxStatusModelIDs+5)
+	for i := range items {
+		items[i] = item{ID: fmt.Sprintf("model-%03d", i)}
+	}
+	payload, err := json.Marshal(map[string]any{"data": items})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(payload)
+	}))
+	defer proxy.Close()
+
+	cfg := writeProxyTestConfig(t, "[cliproxyapi]\nbase_url = \""+proxy.URL+"/v1\"\n")
+	st, err := FetchProxyStatus(context.Background(), proxyTestOpts(cfg))
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st.Models != maxStatusModelIDs+5 {
+		t.Fatalf("Models = %d, want %d", st.Models, maxStatusModelIDs+5)
+	}
+	if len(st.ModelIDs) != maxStatusModelIDs {
+		t.Fatalf("len(ModelIDs) = %d, want %d", len(st.ModelIDs), maxStatusModelIDs)
+	}
+	if !st.ModelIDsTruncated {
+		t.Fatal("ModelIDsTruncated = false, want true")
+	}
+	raw, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"model_ids_truncated":true`) {
+		t.Fatalf("JSON missing model_ids_truncated: %s", raw)
 	}
 }

@@ -50,6 +50,7 @@ const ProxyManagementKeyEnv = "CLIPROXYAPI_MANAGEMENT_KEY"
 // exists only on the v0 surface, so v0 is used throughout for consistency.
 const (
 	proxyManagementPath = "/v0/management"
+	maxStatusModelIDs   = 200
 )
 
 // ProxyModeName reports the configured proxy lifecycle for display and
@@ -317,6 +318,7 @@ type ProxyStatus struct {
 	Reachable          bool     `json:"reachable"`
 	Models             int      `json:"models"`
 	ModelIDs           []string `json:"model_ids,omitempty"`
+	ModelIDsTruncated  bool     `json:"model_ids_truncated,omitempty"`
 	Management         string   `json:"management"`
 	Note               string   `json:"note,omitempty"`
 }
@@ -357,8 +359,9 @@ func FetchProxyStatus(ctx context.Context, opts Options) (ProxyStatus, error) {
 					ids = append(ids, m.ID)
 				}
 				sort.Strings(ids)
-				if len(ids) > 200 {
-					ids = ids[:200]
+				if len(ids) > maxStatusModelIDs {
+					ids = ids[:maxStatusModelIDs]
+					st.ModelIDsTruncated = true
 				}
 				st.ModelIDs = ids
 			}
