@@ -112,7 +112,7 @@ func runProxyStatus(args []string) int {
 	} else {
 		printProxyStatus(status)
 	}
-	if !status.Reachable {
+	if !status.Reachable && status.Mode != "disabled" {
 		return 1
 	}
 	return 0

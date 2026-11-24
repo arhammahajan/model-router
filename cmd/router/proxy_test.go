@@ -129,6 +129,18 @@ func TestProxyStatusSeam(t *testing.T) {
 	if code != 1 || !strings.Contains(stdout, `"reachable": false`) {
 		t.Fatalf("unreachable JSON status = (%d, %q), want exit 1", code, stdout)
 	}
+
+	routerFetchProxyStatus = func(_ context.Context, _ routerctl.Options) (routerctl.ProxyStatus, error) {
+		return routerctl.ProxyStatus{Mode: "disabled", Reachable: false, Management: "disabled", Note: "no [cliproxyapi] in the router config"}, nil
+	}
+	code, stdout, _ = captureBoth(t, func() int { return run([]string{"proxy", "status"}) })
+	if code != 0 || !strings.Contains(stdout, "proxy:      disabled") {
+		t.Fatalf("disabled status = (%d, %q), want exit 0", code, stdout)
+	}
+	code, stdout, _ = captureBoth(t, func() int { return run([]string{"proxy", "status", "--json"}) })
+	if code != 0 || !strings.Contains(stdout, `"mode": "disabled"`) {
+		t.Fatalf("disabled JSON status = (%d, %q), want exit 0", code, stdout)
+	}
 }
 
 func TestProxyPluginControlSeam(t *testing.T) {
