@@ -57,8 +57,8 @@ func (s *Server) serveChatToResponses(w http.ResponseWriter, r *http.Request, p 
 		s.writeChatError(w, *rerr)
 		return rerr.Status
 	}
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	dest := p.ResolveDialect(config.DialectOpenAIChat, model.Dialect)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeChatError(w, *rerr)
 		return rerr.Status

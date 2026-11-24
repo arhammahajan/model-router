@@ -11,6 +11,7 @@ import (
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/searxng"
 	"github.com/arhammahajan/router/internal/transport"
@@ -40,19 +41,16 @@ func (s *Server) maybeServeResponsesSearch(w http.ResponseWriter, r *http.Reques
 		s.writeIngressError(w, config.DialectOpenAIResponses, *rerr)
 		return true, rerr.Status
 	}
-	if gen.Reasoning.IsPresent() && snap.HasLlamaProvider(p.Name) &&
-		snap.LlamaRuntime(p.Name) == capability.RuntimeUnobserved {
+	if gen.Reasoning.IsPresent() && provider.ForKind(p.Kind).RefusesUnobservedReasoning() {
 		s.writeIngressError(w, config.DialectOpenAIResponses, protocol.RouterError{Status: 400,
 			Code: protocol.CodeInvalidGeneration,
 			Msg:  "Responses reasoning requires a same-protocol route"})
 		return true, 400
 	}
+	dest := p.ResolveDialect(config.DialectOpenAIResponses, model.Dialect)
 	contract := snap.RequestCapability(model, p)
 	caps := capability.ReasoningFor(contract)
-	scope := protocol.OrdinaryRoute()
-	if snap.HasLlamaProvider(p.Name) {
-		scope = protocol.LocalRoute(snap.LlamaRuntime(p.Name))
-	}
+	scope := provider.ForKind(p.Kind).EffortScope(dest)
 	planned, planLosses := protocol.PlanEffort(gen.Reasoning, caps, scope)
 	losses = append(losses, planLosses...)
 	kept, rerr := protocol.EnforcePolicy(losses, p.IsLossy())
@@ -61,8 +59,7 @@ func (s *Server) maybeServeResponsesSearch(w http.ResponseWriter, r *http.Reques
 		return true, rerr.Status
 	}
 	lossHeader := protocol.EncodeLosses(kept)
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectOpenAIResponses, *rerr)
 		return true, rerr.Status

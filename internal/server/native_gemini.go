@@ -12,6 +12,7 @@ import (
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	prov "github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/transport"
 )
@@ -222,7 +223,7 @@ func (s *Server) handleGemini(w http.ResponseWriter, r *http.Request) {
 			Msg: "models/" + call.name + " is not found for API version v1beta. Call ListModels to see the list of available models."})
 		return
 	}
-	dest := model.EffectiveDialect(provider)
+	dest := provider.ResolveDialect(config.DialectGemini, model.Dialect)
 	mode, derr := dispatchNativeOrTranslated(config.DialectGemini, dest)
 	if derr != nil {
 		fail(derr.Status, *derr)
@@ -307,6 +308,7 @@ func (s *Server) handleGemini(w http.ResponseWriter, r *http.Request) {
 	wantStream := call.method == "streamGenerateContent"
 	// Gemini streams (SSE or JSON array) preserve the upstream content
 	// type: never force text/event-stream.
+	body, _ = prov.ForKind(provider.Kind).PrepareNativeBody(dest, body)
 	r = r.WithContext(ctx)
 	status = s.serveNativeForward(w, r, provider, body, wantStream, false, u, config.DialectGemini, dest, sess)
 }

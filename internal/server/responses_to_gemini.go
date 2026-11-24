@@ -70,7 +70,7 @@ func (s *Server) serveResponsesToGemini(w http.ResponseWriter, r *http.Request, 
 		method = "streamGenerateContent"
 		alt = "sse"
 	}
-	dest := model.EffectiveDialect(p)
+	dest := p.ResolveDialect(config.DialectOpenAIResponses, model.Dialect)
 	url, rerr := transport.GeminiURL(p.BaseURL, model.Upstream, method, alt)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectOpenAIResponses, *rerr)

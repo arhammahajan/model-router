@@ -7,6 +7,7 @@ import (
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/transport"
 )
@@ -56,12 +57,10 @@ func (s *Server) serveGeminiToResponses(w http.ResponseWriter, r *http.Request, 
 	// Same pinned snapshot as the Chat bridge: plan the closed intent
 	// for the Responses destination through the shared planner. Explicit
 	// budgets drop as diagnosed losses here, never as encoder misuse.
+	dest := p.ResolveDialect(config.DialectGemini, model.Dialect)
 	contract := snap.RequestCapability(model, p)
 	caps := capability.ReasoningFor(contract)
-	scope := protocol.OrdinaryResponsesRoute()
-	if snap.HasLlamaProvider(p.Name) {
-		scope = protocol.LocalResponsesRoute(snap.LlamaRuntime(p.Name))
-	}
+	scope := provider.ForKind(p.Kind).EffortScope(dest)
 	planned, planLosses := protocol.PlanEffort(intent, caps, scope)
 	losses = append(losses, planLosses...)
 	kept, rerr := protocol.EnforcePolicy(losses, p.IsLossy())
@@ -74,8 +73,7 @@ func (s *Server) serveGeminiToResponses(w http.ResponseWriter, r *http.Request, 
 		s.writeIngressError(w, config.DialectGemini, *rerr)
 		return rerr.Status
 	}
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectGemini, *rerr)
 		return rerr.Status

@@ -27,9 +27,9 @@ func diagnosticsCfg(catURL, llamaURL string, keys ...string) *config.Config {
 		},
 		Providers: map[string]*config.Provider{
 			"up": {
-				Name:    "up",
-				Dialect: config.DialectAnthropic,
-				BaseURL: "http://127.0.0.1:9",
+				Name:           "up",
+				DefaultDialect: config.DialectAnthropic,
+				BaseURL:        "http://127.0.0.1:9",
 				APIKey:  "sk-testproviderkey1",
 				Headers: map[string]string{"X-Custom": "header-secret-value"},
 				Timeout: 5,

@@ -50,9 +50,9 @@ allow_dynamic_routes = false
 max_generations = 8
 [retry]
 max_attempts = 1
-[llama_cpp]
+[providers.llama_cpp]
 ` + comp + `
-[[llama_cpp.servers]]
+[[providers.llama_cpp.servers]]
 name = "llama-test"
 url = "` + serverURL + `"
 `
@@ -89,6 +89,7 @@ func revGemServe(t *testing.T, cfg *config.Config, rt capability.LocalRuntime, s
 		_ = s
 	}
 	cfg.Llama.Servers[0].URL = h.upstream.URL
+	cfg.Llama.Servers[0].BaseURL = h.upstream.URL + "/v1"
 	reg := router.NewRegistry(cfg)
 	layer := router.LlamaLayer{Servers: map[string]router.LlamaServerSnapshot{
 		"llama-test": {

@@ -62,7 +62,7 @@ func TestCLIProxyAPIDiscoveryAndTranslation(t *testing.T) {
 	raw := fmt.Sprintf(`[server]
 api_keys = ["client-key"]
 allow_dynamic_routes = false
-[cliproxyapi]
+[providers.cliproxyapi]
 base_url = %q
 api_key = "proxy-key"
 `, proxy.URL+"/v1")
@@ -122,11 +122,20 @@ func TestCLIProxyAPIPassthrough(t *testing.T) {
 	const proxyKey = "proxy-secret"
 	var seenPaths []string
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer "+proxyKey {
-			t.Errorf("%s: Authorization = %q, want %q", r.URL.Path, got, "Bearer "+proxyKey)
-		}
-		if got := r.Header.Get("x-api-key"); got != "" {
-			t.Errorf("%s: unexpected x-api-key = %q", r.URL.Path, got)
+		if r.URL.Path == "/v1/messages" {
+			if got := r.Header.Get("x-api-key"); got != proxyKey {
+				t.Errorf("%s: x-api-key = %q, want %q", r.URL.Path, got, proxyKey)
+			}
+			if got := r.Header.Get("Authorization"); got != "" {
+				t.Errorf("%s: unexpected Authorization = %q", r.URL.Path, got)
+			}
+		} else {
+			if got := r.Header.Get("Authorization"); got != "Bearer "+proxyKey {
+				t.Errorf("%s: Authorization = %q, want %q", r.URL.Path, got, "Bearer "+proxyKey)
+			}
+			if got := r.Header.Get("x-api-key"); got != "" {
+				t.Errorf("%s: unexpected x-api-key = %q", r.URL.Path, got)
+			}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -148,7 +157,7 @@ func TestCLIProxyAPIPassthrough(t *testing.T) {
 	}))
 	defer proxy.Close()
 	path := filepath.Join(t.TempDir(), "router.toml")
-	raw := fmt.Sprintf("[server]\nallow_dynamic_routes = false\n[cliproxyapi]\nbase_url = %q\napi_key = %q\npassthrough = true\n", proxy.URL+"/v1", proxyKey)
+	raw := fmt.Sprintf("[server]\nallow_dynamic_routes = false\n[providers.cliproxyapi]\nbase_url = %q\napi_key = %q\npassthrough = true\n", proxy.URL+"/v1", proxyKey)
 	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -183,5 +192,61 @@ func TestCLIProxyAPIPassthrough(t *testing.T) {
 	want := "/v1/chat/completions,/v1/responses,/v1/messages"
 	if got != want {
 		t.Fatalf("proxy paths = %q, want %q", got, want)
+	}
+}
+
+func TestCLIProxyAPIPassthroughExplicitBearerAuth(t *testing.T) {
+	const model = "gpt-6-luna"
+	const proxyKey = "proxy-secret"
+	var seenMessages bool
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+proxyKey {
+			t.Errorf("%s: Authorization = %q, want %q", r.URL.Path, got, "Bearer "+proxyKey)
+		}
+		if got := r.Header.Get("x-api-key"); got != "" {
+			t.Errorf("%s: unexpected x-api-key = %q", r.URL.Path, got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/models":
+			fmt.Fprintf(w, `{"object":"list","data":[{"id":%q,"object":"model"}]}`, model)
+		case "/v1/messages":
+			seenMessages = true
+			fmt.Fprintf(w, `{"id":"msg_1","type":"message","role":"assistant","model":%q,"content":[{"type":"text","text":"anth-bearer-ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`, model)
+		default:
+			t.Errorf("unexpected proxy path %q", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer proxy.Close()
+	path := filepath.Join(t.TempDir(), "router.toml")
+	raw := fmt.Sprintf("[server]\nallow_dynamic_routes = false\n[providers.cliproxyapi]\nbase_url = %q\napi_key = %q\npassthrough = true\nauth_header = \"bearer\"\n", proxy.URL+"/v1", proxyKey)
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadWithOptions(path, config.LoadOptions{NoDefaultEnv: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := server.New(cfg)
+	defer app.CloseIdleConnections()
+	worker := discovery.NewCatalogWorker(cfg.Catalog, cfg.Providers, app.Registry())
+	defer worker.CloseIdleConnections()
+	worker.RefreshOnce(context.Background())
+	rt := httptest.NewServer(app.Handler())
+	defer rt.Close()
+
+	resp, err := rt.Client().Post(rt.URL+"/v1/messages", "application/json",
+		strings.NewReader(`{"model":"gpt-6-luna","max_tokens":16,"messages":[{"role":"user","content":"Hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(b), "anth-bearer-ok") {
+		t.Fatalf("/v1/messages: status=%d body=%s", resp.StatusCode, b)
+	}
+	if !seenMessages {
+		t.Fatal("expected /v1/messages to reach proxy")
 	}
 }

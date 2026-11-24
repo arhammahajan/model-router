@@ -254,7 +254,7 @@ func TestRvrSrvLlamaRefusalIncludingNone(t *testing.T) {
 		defer up.Close()
 		dir := t.TempDir()
 		p := filepath.Join(dir, "router.toml")
-		body := "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nmax_generations = 8\n[retry]\nmax_attempts = 1\n[llama_cpp]\n[[llama_cpp.servers]]\nname = \"llama-test\"\nurl = \"" + up.URL + "\"\n"
+		body := "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\nmax_generations = 8\n[retry]\nmax_attempts = 1\n[providers.llama_cpp]\n[[providers.llama_cpp.servers]]\nname = \"llama-test\"\nurl = \"" + up.URL + "\"\n"
 		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}

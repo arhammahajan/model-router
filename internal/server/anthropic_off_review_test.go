@@ -347,14 +347,25 @@ func TestOffRevOutputConfigCoexist(t *testing.T) {
 }
 
 func TestOffRevStrataAndUnobserved(t *testing.T) {
+	// Confirmed Strata supports native Anthropic (/v1/messages), so the
+	// Anthropic thinking payload passes through untouched without Chat
+	// translation.
 	up, rsrv, _ := llamaVerticalServer(t, capability.RuntimeStrata, "")
-	status, _, _ := postBridge(t, rsrv.URL+"/v1/messages",
+	status, hdr, _ := postBridge(t, rsrv.URL+"/v1/messages",
 		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"disabled"}}`, nil)
 	if status != 200 {
-		t.Fatalf("strata exact: %d", status)
+		t.Fatalf("strata native anthropic: %d", status)
 	}
-	if got := up.last(t); got["reasoning_effort"] != "none" {
-		t.Fatalf("strata named none: %v", got)
+	if hdr.Get("X-Model-Router-Loss") != "" {
+		t.Fatalf("strata native anthropic must emit no loss: %q", hdr.Get("X-Model-Router-Loss"))
+	}
+	got := up.last(t)
+	thinking, ok := got["thinking"].(map[string]any)
+	if !ok || thinking["type"] != "disabled" {
+		t.Fatalf("strata native anthropic must preserve thinking untouched: %v", got)
+	}
+	if _, has := got["reasoning_effort"]; has {
+		t.Fatalf("strata native anthropic must not synthesize reasoning_effort: %v", got)
 	}
 	up2, rsrv2, _ := llamaVerticalServer(t, capability.RuntimeUnobserved, "")
 	status, _, data := postBridge(t, rsrv2.URL+"/v1/messages",
@@ -366,26 +377,30 @@ func TestOffRevStrataAndUnobserved(t *testing.T) {
 		t.Fatalf("unobserved strict 0 I/O: %d", n)
 	}
 	up3, rsrv3, _ := llamaVerticalServer(t, capability.RuntimeUnobserved, "compatibility = \"lossy\"\n")
-	status, hdr, _ := postBridge(t, rsrv3.URL+"/v1/messages",
+	status, hdr, _ = postBridge(t, rsrv3.URL+"/v1/messages",
 		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"disabled"}}`, nil)
 	if status != 200 || !strings.Contains(hdr.Get("X-Model-Router-Loss"), "thinking") {
 		t.Fatalf("unobserved lossy header: %d %q", status, hdr.Get("X-Model-Router-Loss"))
 	}
 	_ = up3
-	_ = up
 }
 
 func TestOffRevLlamaExactNoHeader(t *testing.T) {
+	// Confirmed llama_cpp supports native Anthropic (/v1/messages), so the
+	// Anthropic thinking payload passes through untouched with no loss header.
 	up, rsrv, _ := llamaVerticalServer(t, capability.RuntimeLlamaCpp, "")
-	status, _, _ := postBridge(t, rsrv.URL+"/v1/messages",
+	status, hdr, _ := postBridge(t, rsrv.URL+"/v1/messages",
 		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"disabled"}}`, nil)
 	if status != 200 {
-		t.Fatalf("llama off: %d", status)
+		t.Fatalf("llama native anthropic off: %d", status)
+	}
+	if hdr.Get("X-Model-Router-Loss") != "" {
+		t.Fatalf("llama native anthropic must emit no loss: %q", hdr.Get("X-Model-Router-Loss"))
 	}
 	got := up.last(t)
-	kwargs, ok := got["chat_template_kwargs"].(map[string]any)
-	if !ok || kwargs["enable_thinking"] != false {
-		t.Fatalf("llama kwargs toggle: %v", got)
+	thinking, ok := got["thinking"].(map[string]any)
+	if !ok || thinking["type"] != "disabled" {
+		t.Fatalf("llama native anthropic must preserve thinking untouched: %v", got)
 	}
 	if _, has := got["reasoning_effort"]; has {
 		t.Fatalf("llama no effort: %v", got)
