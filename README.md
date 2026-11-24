@@ -33,7 +33,7 @@ go build -o router ./cmd/router
 ./router restart [--wait DURATION]
 ./router status [--json]
 ./router models [--json] [--pick]
-./router provider [list | status [NAME]] [--config PATH] [--json]
+./router providers [--config PATH] [--json]
 ./router validate [--config PATH]
 ./router logs [--follow] [-n LINES]
 ./router usage [--days N] [--by day|model] [--json] [PATH]
