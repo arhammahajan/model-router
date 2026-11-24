@@ -3,8 +3,11 @@ package routerctl
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -213,6 +216,9 @@ func TestProxyStatusUnreachableAndDisabled(t *testing.T) {
 	}
 	if st.Note == "" || strings.Contains(st.Note, proxyTestInferKey) {
 		t.Fatalf("note missing or leaks key: %q", st.Note)
+	}
+	if !strings.Contains(st.Note, "connection refused or unreachable") {
+		t.Fatalf("unreachable note = %q, want connection refused or unreachable", st.Note)
 	}
 
 	disabled := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n")
@@ -423,5 +429,34 @@ func TestProxyEndpointJSONOmitsCredentials(t *testing.T) {
 	}
 	if strings.Contains(string(body), proxyTestInferKey) || strings.Contains(string(body), proxyTestMgmtKey) {
 		t.Fatal("serialized proxy endpoint contains credentials")
+	}
+}
+
+func TestSanitizedClientError(t *testing.T) {
+	dialErr := &url.Error{
+		Op:  "Get",
+		URL: "http://user:secret@127.0.0.1:8317/v1/models",
+		Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")},
+	}
+	if got := sanitizedClientError(dialErr); got != "http://127.0.0.1:8317/v1/models: connection refused or unreachable" {
+		t.Fatalf("dial error = %q", got)
+	}
+
+	dialTimeout := &url.Error{
+		Op:  "Get",
+		URL: "http://127.0.0.1:8317/v1/models",
+		Err: &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded},
+	}
+	if got := sanitizedClientError(dialTimeout); got != "http://127.0.0.1:8317/v1/models: timed out" {
+		t.Fatalf("dial timeout = %q", got)
+	}
+
+	otherErr := &url.Error{
+		Op:  "Get",
+		URL: "http://127.0.0.1:8317/v1/models",
+		Err: errors.New("unexpected EOF"),
+	}
+	if got := sanitizedClientError(otherErr); got != "http://127.0.0.1:8317/v1/models: Get failed" {
+		t.Fatalf("generic error = %q", got)
 	}
 }

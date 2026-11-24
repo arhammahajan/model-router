@@ -26,8 +26,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -215,21 +217,30 @@ func proxyDo(ctx context.Context, client *http.Client, method, url, key string, 
 // sanitizedClientError flattens *url.Error chains to the operation and
 // sanitized address without internal detail that could echo secrets.
 func sanitizedClientError(err error) string {
-	if uerr, ok := err.(*url.Error); ok {
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
 		sanitized := sanitizeProxyURL(strings.TrimSpace(uerr.URL))
 		if sanitized == "" {
 			sanitized = "proxy endpoint"
 		}
-		op := strings.ToLower(string(uerr.Op))
-		if strings.Contains(op, "dial") || strings.Contains(op, "connect") {
-			return fmt.Sprintf("%s: connection refused or unreachable", sanitized)
-		}
 		if osIsTimeout(uerr) {
 			return fmt.Sprintf("%s: timed out", sanitized)
+		}
+		if isDialError(uerr.Err) {
+			return fmt.Sprintf("%s: connection refused or unreachable", sanitized)
 		}
 		return fmt.Sprintf("%s: %s failed", sanitized, uerr.Op)
 	}
 	return strings.TrimSpace(err.Error())
+}
+
+func isDialError(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		op := strings.ToLower(opErr.Op)
+		return op == "dial" || op == "connect"
+	}
+	return false
 }
 
 // ProxyModel is one proxy model entry: the opaque upstream ID plus the
