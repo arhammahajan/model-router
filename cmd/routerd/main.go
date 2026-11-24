@@ -327,9 +327,13 @@ func run(args []string) int {
 	}
 	code := serve(ln, srv, catWorker, llamaWorker, store, drainTimeout, ch)
 	select {
-	case <-proxyExit:
+	case err := <-proxyExit:
 		if sigCtx.Err() == nil {
-			fmt.Fprintln(os.Stderr, "routerd: embedded proxy stopped unexpectedly")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "routerd: embedded proxy stopped unexpectedly: %v\n", sanitizeErr(cfg, err))
+			} else {
+				fmt.Fprintln(os.Stderr, "routerd: embedded proxy stopped unexpectedly")
+			}
 			return 1
 		}
 	default:
