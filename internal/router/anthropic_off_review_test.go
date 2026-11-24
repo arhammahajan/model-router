@@ -16,8 +16,8 @@ func offRevStaticCfg() *config.Config {
 	return &config.Config{
 		Server: config.Server{},
 		Providers: map[string]*config.Provider{
-			"chat": {Name: "chat", Dialect: "openai-chat", BaseURL: "http://127.0.0.1:9", APIKey: "chat-secret"},
-			"resp": {Name: "resp", Dialect: "openai-responses", BaseURL: "http://127.0.0.1:9", APIKey: "resp-secret"},
+			"chat": {Name: "chat", DefaultDialect: "openai-chat", BaseURL: "http://127.0.0.1:9", APIKey: "chat-secret"},
+			"resp": {Name: "resp", DefaultDialect: "openai-responses", BaseURL: "http://127.0.0.1:9", APIKey: "resp-secret"},
 		},
 		Models: []config.Model{
 			{Name: "static-chat", Provider: "chat", Upstream: "u-chat"},
@@ -187,7 +187,7 @@ func TestOffRevDestVsIdentity(t *testing.T) {
 	if got := mo.EffectiveDialect(po); got != "openai-responses" {
 		t.Fatalf("route dest: %q", got)
 	}
-	if po.Dialect != "openai-chat" || po.Name != "chat" || po.APIKey != "chat-secret" {
+	if po.DefaultDialect != "openai-chat" || po.Name != "chat" || po.APIKey != "chat-secret" {
 		t.Fatalf("provider identity unchanged: %+v", po)
 	}
 }

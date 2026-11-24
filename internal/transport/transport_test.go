@@ -21,12 +21,12 @@ func TestMain(m *testing.M) {
 
 func testProvider(dialect, base string) *config.Provider {
 	return &config.Provider{
-		Name:    "up",
-		Dialect: dialect,
-		BaseURL: base,
-		APIKey:  "upstream-secret",
-		Headers: map[string]string{},
-		Timeout: 5,
+		Name:           "up",
+		DefaultDialect: dialect,
+		BaseURL:        base,
+		APIKey:         "upstream-secret",
+		Headers:        map[string]string{},
+		Timeout:        5,
 	}
 }
 

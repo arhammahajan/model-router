@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/arhammahajan/router/internal/accounting"
-	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/transport"
 )
@@ -556,7 +556,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		s.writeChatError(w, *resolveErr)
 		return
 	}
-	dest := model.EffectiveDialect(provider)
+	dest := provider.ResolveDialect(config.DialectOpenAIChat, model.Dialect)
 	translated := dest != config.DialectOpenAIChat
 	// Usage accounting hook: wraps the downstream writer only when the
 	// [accounting] section is present, so the disabled path is untouched.
@@ -671,14 +671,11 @@ func (s *Server) serveNative(w http.ResponseWriter, r *http.Request, p *config.P
 	// exact thinking controls. Never a validation, capability gate, loss
 	// header or error; Strata/Unobserved/ordinary stay byte-identical.
 	// The same pinned snapshot supplies runtime, route and provider.
-	if snap.HasLlamaProvider(p.Name) &&
-		snap.LlamaRuntime(p.Name) == capability.RuntimeLlamaCpp {
-		upstreamBody, _ = protocol.ApplyLlamaNative(upstreamBody)
-	}
+	dest := p.ResolveDialect(config.DialectOpenAIChat, model.Dialect)
+	upstreamBody, _ = provider.ForKind(p.Kind).PrepareNativeBody(dest, upstreamBody)
 	var wantStream bool
 	_ = json.Unmarshal(probe["stream"], &wantStream)
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeChatError(w, *rerr)
 		return rerr.Status
@@ -833,8 +830,8 @@ func (s *Server) serveTranslated(w http.ResponseWriter, r *http.Request, p *conf
 		s.writeChatError(w, *rerr)
 		return rerr.Status
 	}
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	dest := p.ResolveDialect(config.DialectOpenAIChat, model.Dialect)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeChatError(w, *rerr)
 		return rerr.Status

@@ -10,10 +10,10 @@ import (
 
 func reviewProvider() *config.Provider {
 	return &config.Provider{
-		Name:    "up",
-		Dialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
+		Name:           "up",
+		DefaultDialect: config.DialectAnthropic,
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
 		Headers: map[string]string{
 			"Anthropic-Beta": "prov",
 			"X-Shared":       "prov",
@@ -132,7 +132,7 @@ func TestReviewClientIsolationWithLegacy(t *testing.T) {
 		t.Fatalf("provider must win the opt-in chain: %v", out)
 	}
 	p2 := &config.Provider{
-		Name: "up", Dialect: config.DialectAnthropic,
+		Name: "up", DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://x", APIKey: "k", Timeout: 5,
 		TranslatedHeaders: map[string]string{"X-Legacy": "v"},
 	}
@@ -148,10 +148,10 @@ func TestReviewClientIsolationWithLegacy(t *testing.T) {
 // case-insensitively, while non-credential legacy survives.
 func TestReviewAuthScrubAllLayers(t *testing.T) {
 	p := &config.Provider{
-		Name:    "up",
-		Dialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
+		Name:           "up",
+		DefaultDialect: config.DialectAnthropic,
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
 		Headers: map[string]string{
 			"AUTHORIZATION": "Bearer prov-stale",
 			"X-Prov":        "prov",
@@ -186,10 +186,10 @@ func TestReviewAuthScrubAllLayers(t *testing.T) {
 // serialized JSON body's Content-Type or the identity Accept-Encoding.
 func TestReviewFramingEnforcedOverLegacy(t *testing.T) {
 	p := &config.Provider{
-		Name:    "up",
-		Dialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
+		Name:           "up",
+		DefaultDialect: config.DialectAnthropic,
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
 		Headers: map[string]string{
 			"Content-Type":    "text/evil",
 			"Accept-Encoding": "gzip",

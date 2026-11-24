@@ -66,7 +66,7 @@ func (s *Server) handleCountTokens(w http.ResponseWriter, r *http.Request) {
 		s.writeIngressError(w, config.DialectAnthropic, *merr)
 		return
 	}
-	dest := model.EffectiveDialect(provider)
+	dest := provider.ResolveDialect(config.DialectAnthropic, model.Dialect)
 	if dest != config.DialectAnthropic || !transport.CountTokensEnabled(provider) {
 		status = 400
 		s.writeIngressError(w, config.DialectAnthropic, protocol.RouterError{Status: 400,

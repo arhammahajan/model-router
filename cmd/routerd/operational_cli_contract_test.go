@@ -376,7 +376,7 @@ func TestOpsLlamaOneBoundedAttemptPerServer(t *testing.T) {
 	var hits atomic.Int64
 	srv := opsLlamaFake(t, &hits)
 	defer srv.Close()
-	cfg := opsWriteLlamaCfg(t, fmt.Sprintf("[llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL))
+	cfg := opsWriteLlamaCfg(t, fmt.Sprintf("[providers.llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL))
 	code, out := opsCapture(t, []string{"--config", cfg, "--check-readiness"})
 	if code != 0 {
 		t.Fatalf("llama-ready must exit 0, got %d stdout=%q", code, out)

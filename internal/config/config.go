@@ -20,29 +20,27 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"math"
-	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/endpoint"
+	"github.com/arhammahajan/router/internal/provider"
 )
 
 // Dialects spoken by upstreams and ingress endpoints.
 const (
-	DialectOpenAIChat      = "openai-chat"
-	DialectOpenAIResponses = "openai-responses"
-	DialectAnthropic       = "anthropic"
-	DialectGemini          = "gemini"
+	DialectOpenAIChat      = provider.DialectOpenAIChat
+	DialectOpenAIResponses = provider.DialectOpenAIResponses
+	DialectAnthropic       = provider.DialectAnthropic
+	DialectGemini          = provider.DialectGemini
 )
 
 // UnauthenticatedUpstreamKey is sent when a provider config has no key,
 // using a placeholder to avoid sending an empty credential.
-const UnauthenticatedUpstreamKey = "router-no-auth"
+const UnauthenticatedUpstreamKey = provider.UnauthenticatedUpstreamKey
 
 // Defaults mirror config.example.toml / Python defaults.
 const (
@@ -54,7 +52,7 @@ const (
 	DefaultHeaderReadTimeout = 10.0
 	DefaultBodyReadTimeout   = 30.0
 	DefaultWriteTimeout      = 30.0
-	DefaultProviderTimeout   = 600.0
+	DefaultProviderTimeout   = provider.DefaultProviderTimeout
 	DefaultMaxAttempts       = 1
 	DefaultBackoffBase       = 0.5
 	DefaultBackoffMax        = 8.0
@@ -64,7 +62,7 @@ const (
 // maxTimeoutSeconds mirrors Python's threading.TIMEOUT_MAX bound applied to
 // every duration/number setting: finite, positive and representable in a Go
 // time.Duration (9223372036s * 1e9ns fits in an int64).
-const maxTimeoutSeconds = 9223372036.0
+const maxTimeoutSeconds = provider.MaxTimeoutSeconds
 
 // maxMetadataBytes bounds one retained [[models]] metadata table once
 // rendered as canonical JSON.
@@ -96,33 +94,8 @@ type Retry struct {
 	Deadline      float64
 }
 
-// Provider holds one [providers.<name>] table.
-type Provider struct {
-	Name            string
-	Dialect         string
-	BaseURL         string
-	APIKey          string // resolved, stripped; "" means unauthenticated
-	Headers         map[string]string
-	Timeout         float64
-	Lossy           bool // compatibility = "lossy" (or legacy drop_params = true)
-	AuthHeader      string
-	CountTokens     *bool
-	LitellmProvider string // validated default adapter spelling (openai/anthropic/gemini)
-	// TranslatedHeaders is the merged legacy litellm_kwargs.headers <
-	// extra_headers subset, applied to translated traffic only. Nil when
-	// unconfigured; programmatic literals keep nil and prior behavior.
-	TranslatedHeaders map[string]string
-	SessionHeader     string // dedicated upstream identity header ("": affinity off)
-	// Session affinity routing: SessionHeader plus an ordered subset of the
-	// reviewed native source headers, an optional prompt_cache_key fallback
-	// and omit|reject missing policy. Nil SessionSourceHeaders with a header
-	// set means the baseline default order (all seven reviewed natives);
-	// an explicit [] disables native selection (validation still applies).
-	SessionSourceHeaders  []string
-	SessionPromptCacheKey bool
-	SessionMissing        string
-	CompatibilityRaw      string
-}
+// Provider is an alias for provider.Spec, the unified runtime provider struct.
+type Provider = provider.Spec
 
 // Model holds one [[models]] entry.
 type Model struct {
@@ -153,7 +126,7 @@ func (m *Model) EffectiveDialect(p *Provider) string {
 		return m.Dialect
 	}
 	if p != nil {
-		return p.Dialect
+		return p.DefaultDialect
 	}
 	return ""
 }
@@ -164,6 +137,10 @@ type Config struct {
 	Retry     Retry
 	Providers map[string]*Provider
 	Models    []Model
+	// CLIProxyAPI is nil when [cliproxyapi] is absent: no proxy discovery.
+	// When present, a single trusted provider named "cliproxyapi" (OpenAI
+	// Chat dialect) is generated; proxy /v1/models IDs route as opaque IDs.
+	CLIProxyAPI *CLIProxyAPIConfig
 	// Catalog is nil when [catalog] is absent: no worker, no overhead.
 	Catalog *Catalog
 	// Llama is nil when [llama_cpp] is absent: no worker, no overhead.
@@ -197,17 +174,6 @@ func (c *Config) LookupModel(name string) (*Model, *Provider, bool) {
 	}
 	return m, p, true
 }
-
-// EffectiveKey returns the stripped key or the unauthenticated placeholder.
-func (p *Provider) EffectiveKey() string {
-	if strings.TrimSpace(p.APIKey) == "" {
-		return UnauthenticatedUpstreamKey
-	}
-	return strings.TrimSpace(p.APIKey)
-}
-
-// IsLossy reports whether the provider opts into diagnosed approximation.
-func (p *Provider) IsLossy() bool { return p.Lossy }
 
 var envPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
@@ -276,143 +242,43 @@ func expandString(s, where string) (string, error) {
 	return out, nil
 }
 
-// --- strict decoding helpers over the decoded document ---
-//
-// go-toml decodes integers as int64, floats as float64, booleans as bool,
-// strings as string, arrays as []any and tables as map[string]any. The
-// helpers below keep those types strict: a float never satisfies an integer
-// field and a bool never satisfies a numeric field.
+// --- strict decoding helpers (delegated to internal/provider) ---
 
-func asString(v any) (string, bool) {
-	s, ok := v.(string)
-	return s, ok
-}
+func asString(v any) (string, bool)        { return provider.AsString(v) }
+func asBool(v any) (bool, bool)            { return provider.AsBool(v) }
+func asInt(v any) (int64, bool)            { return provider.AsInt(v) }
+func asNum(v any) (float64, bool)          { return provider.AsNum(v) }
+func asTable(v any) (map[string]any, bool) { return provider.AsTable(v) }
+func asArray(v any) ([]any, bool)          { return provider.AsArray(v) }
 
-func asBool(v any) (bool, bool) {
-	b, ok := v.(bool)
-	return b, ok
-}
-
-func asInt(v any) (int64, bool) {
-	n, ok := v.(int64)
-	return n, ok
-}
-
-func asNum(v any) (float64, bool) {
-	switch n := v.(type) {
-	case int64:
-		return float64(n), true
-	case float64:
-		return n, true
-	}
-	return 0, false
-}
-
-func asTable(v any) (map[string]any, bool) {
-	m, ok := v.(map[string]any)
-	return m, ok
-}
-
-func asArray(v any) ([]any, bool) {
-	a, ok := v.([]any)
-	return a, ok
-}
-
-// finitePositive mirrors Python's _config_number: finite, > 0 and
-// <= threading.TIMEOUT_MAX (9223372036.0), representable in time.Duration.
 func finitePositive(v any, where, field string) (float64, error) {
-	n, ok := asNum(v)
-	if !ok || math.IsNaN(n) || math.IsInf(n, 0) {
-		return 0, fmt.Errorf("%s: '%s' must be a finite number", where, field)
-	}
-	if n <= 0 || n > maxTimeoutSeconds {
-		return 0, fmt.Errorf("%s: '%s' must be a positive number <= %v", where, field, maxTimeoutSeconds)
-	}
-	return n, nil
+	return provider.FinitePositive(v, where, field)
 }
 
 func positiveInt(v any, where, field string) (int64, error) {
-	n, ok := asInt(v)
-	if !ok || n <= 0 {
-		return 0, fmt.Errorf("%s: '%s' must be a positive integer", where, field)
-	}
-	return n, nil
+	return provider.PositiveInt(v, where, field)
 }
 
-// rejectUnknown fails on keys outside the supported schema. tableName is a
-// static path (never a value), so messages stay value-free.
 func rejectUnknown(table map[string]any, allowed map[string]bool, where, hint string) error {
-	keys := make([]string, 0, len(table))
-	for k := range table {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if !allowed[k] {
-			if sub, ok := table[k].(map[string]any); ok && len(sub) > 0 {
-				_ = sub
-				return fmt.Errorf("%s.%s: nested tables are not supported in this build%s", where, k, hint)
-			}
-			return fmt.Errorf("%s.%s: unsupported setting in this build%s", where, k, hint)
-		}
-	}
-	return nil
+	return provider.RejectUnknown(table, allowed, where, hint)
 }
 
-var httpToken = regexp.MustCompile(`^[!#$%&'*+.^_` + "`" + `|~0-9A-Za-z-]+$`)
-
-// checkHeaders enforces HTTP token names and printable-ASCII values, plus
-// the Python baseline's ban on static session headers.
 func checkHeaders(v any, where string, sessionHeader string) (map[string]string, error) {
-	tab, ok := asTable(v)
-	if !ok {
-		return nil, fmt.Errorf("%s: 'headers' must be a table", where)
-	}
-	out := map[string]string{}
-	names := make([]string, 0, len(tab))
-	for k := range tab {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	for _, k := range names {
-		s, ok := asString(tab[k])
-		if !ok || !httpToken.MatchString(k) || !printableASCII(s) {
-			return nil, fmt.Errorf("%s: 'headers' must contain HTTP header names and string values", where)
-		}
-		if isReservedSessionHeader(k, sessionHeader) {
-			return nil, fmt.Errorf("%s: static session headers are forbidden; supply a conversation identity on each request", where)
-		}
-		out[k] = s
-	}
-	return out, nil
+	return provider.CheckHeaders(v, where, sessionHeader)
 }
 
-func printableASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < 32 || s[i] > 126 {
-			return false
-		}
-	}
-	return true
-}
-
-// nativeSessionHeaders mirrors Python's _NATIVE_SESSION_HEADERS plus the
-// router-owned session token: static configured headers may never carry
-// conversation identity.
-func isReservedSessionHeader(name, sessionHeader string) bool {
-	lower := strings.ToLower(name)
-	switch lower {
-	case "x-claude-code-session-id", "session-id", "session_id", "thread-id",
-		"conversation_id", "x-session-id", "x-mavis-session-id", "x-opencode-session":
-		return true
-	}
-	return sessionHeader != "" && lower == strings.ToLower(sessionHeader)
+func mergeLegacyHeaders(kh, keh map[string]string) map[string]string {
+	return provider.MergeLegacyHeaders(kh, keh)
 }
 
 // --- top-level build ---
 
-func buildConfig(doc map[string]any) (*Config, error) {
-	topKeys := map[string]bool{"server": true, "retry": true, "providers": true, "models": true, "catalog": true, "llama_cpp": true, "discovery_cache": true, "capabilities": true, "search": true, "accounting": true}
+func buildConfig(doc map[string]any, configDir string) (*Config, error) {
+	topKeys := map[string]bool{
+		"server": true, "retry": true, "providers": true, "models": true,
+		"catalog": true, "discovery_cache": true, "capabilities": true,
+		"search": true, "accounting": true,
+	}
 	for k := range doc {
 		if !topKeys[k] {
 			return nil, fmt.Errorf("unsupported table [%s] in this build (%s)", k, migrationHint(k))
@@ -451,7 +317,8 @@ func buildConfig(doc map[string]any) (*Config, error) {
 		}
 	}
 	cfg.Retry = r
-	// providers
+	// providers (common parse + plugin dispatch for generic, cliproxyapi, llama_cpp, strata)
+	var localFleets []localFleetParse
 	if raw, ok := doc["providers"]; ok {
 		tab, ok := asTable(raw)
 		if !ok {
@@ -470,12 +337,32 @@ func buildConfig(doc map[string]any) (*Config, error) {
 			if !ok {
 				return nil, fmt.Errorf("providers.%s: must be a table", name)
 			}
-			prov, err := fillProvider(name, sub)
+			common, err := provider.ParseCommonConfig(name, sub, os.LookupEnv)
 			if err != nil {
 				return nil, err
 			}
-			cfg.Providers[name] = prov
+			res, err := provider.ForConfigName(name).ParseConfig(common, sub, configDir, os.LookupEnv)
+			if err != nil {
+				return nil, err
+			}
+			if res.Provider != nil {
+				cfg.Providers[name] = res.Provider
+			}
+			if res.CLIProxy != nil {
+				cfg.CLIProxyAPI = res.CLIProxy
+			}
+			if len(res.LocalServers) > 0 {
+				localFleets = append(localFleets, localFleetParse{tableName: name, result: res})
+			}
 		}
+	}
+	// merge local discovery fleets (llama_cpp / strata) after all static providers are known
+	if len(localFleets) > 0 {
+		llama, err := mergeLocalFleets(localFleets, cfg.Providers)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Llama = llama
 	}
 	// models
 	if raw, ok := doc["models"]; ok {
@@ -507,17 +394,15 @@ func buildConfig(doc map[string]any) (*Config, error) {
 		}
 		cfg.Catalog = cat
 	}
-	// llama (after providers: explicit server names must not collide)
-	if raw, ok := doc["llama_cpp"]; ok {
-		tab, ok := asTable(raw)
-		if !ok {
-			return nil, fmt.Errorf("llama_cpp: must be a table")
-		}
-		llama, err := fillLlama(tab, cfg.Providers)
+	if cfg.CLIProxyAPI != nil && cfg.Catalog != nil {
+		return nil, fmt.Errorf("providers.cliproxyapi and [catalog] cannot be combined in this build; use one discovery source")
+	}
+	if cfg.CLIProxyAPI != nil {
+		var err error
+		cfg.Catalog, err = cliProxyCatalog(cfg.CLIProxyAPI, cfg.Providers)
 		if err != nil {
 			return nil, err
 		}
-		cfg.Llama = llama
 	}
 	// discovery_cache (optional; absent means disabled).
 	if raw, ok := doc["discovery_cache"]; ok {
@@ -582,7 +467,14 @@ func buildConfig(doc map[string]any) (*Config, error) {
 }
 
 func migrationHint(table string) string {
-	return "supported: [server], [retry], [providers.<name>], [[models]]"
+	switch table {
+	case "cliproxyapi":
+		return "move [cliproxyapi] to [providers.cliproxyapi]"
+	case "llama_cpp":
+		return "move [llama_cpp] to [providers.llama_cpp]"
+	default:
+		return "supported: [server], [retry], [providers.<name>], [[models]], [catalog]"
+	}
 }
 
 // --- [server] ---
@@ -806,264 +698,14 @@ func fillRetry(r *Retry, t map[string]any) error {
 	return nil
 }
 
-// --- [providers.*] ---
-
-var providerKeys = map[string]bool{
-	"dialect": true, "base_url": true, "api_key": true, "api_key_env": true,
-	"api_key_file": true, "headers": true, "timeout": true, "compatibility": true,
-	"drop_params": true, "auth_header": true, "count_tokens": true,
-	"litellm_provider": true, "litellm_kwargs": true,
-	"session_header": true, "session_source_headers": true,
-	"session_prompt_cache_key": true, "session_missing": true,
-}
-
-var nativeSessionSources = map[string]bool{
-	"x-claude-code-session-id": true, "session-id": true, "session_id": true,
-	"thread-id": true, "conversation_id": true, "x-session-id": true,
-	"x-mavis-session-id": true,
-}
-
-func fillProvider(name string, t map[string]any) (*Provider, error) {
-	where := "providers." + name
-	if err := rejectUnknown(t, providerKeys, where,
-		" (Supported litellm_kwargs are headers/extra_headers and equivalent api_base/timeout aliases; "+
-			"use compatibility/timeout/headers/auth_header for other supported controls. "+
-			"Discovery tables beyond [catalog] are later milestones)"); err != nil {
-		return nil, err
-	}
-	p := &Provider{Name: name, Headers: map[string]string{}, Timeout: DefaultProviderTimeout}
-	v, ok := t["dialect"]
-	if !ok {
-		return nil, fmt.Errorf("%s.dialect is required", where)
-	}
-	s, ok := asString(v)
-	if !ok {
-		return nil, fmt.Errorf("%s: 'dialect' must be one of openai-chat, openai-responses, anthropic, gemini", where)
-	}
-	switch s {
-	case DialectOpenAIChat, DialectOpenAIResponses, DialectAnthropic, DialectGemini:
-		p.Dialect = s
-	default:
-		return nil, fmt.Errorf("%s: 'dialect' must be one of openai-chat, openai-responses, anthropic, gemini", where)
-	}
-	v, ok = t["base_url"]
-	if !ok {
-		return nil, fmt.Errorf("%s.base_url is required", where)
-	}
-	base, ok := asString(v)
-	if !ok || strings.TrimSpace(base) == "" {
-		return nil, fmt.Errorf("%s: 'base_url' must be a non-empty string", where)
-	}
-	normalized, err := normalizeBaseURL(strings.TrimSpace(base))
-	if err != nil {
-		return nil, fmt.Errorf("%s: %v", where, err)
-	}
-	p.BaseURL = normalized
-	key, err := resolveCredential(where, t)
-	if err != nil {
-		return nil, err
-	}
-	p.APIKey = key
-	if v, ok := t["headers"]; ok {
-		hdrs, err := checkHeaders(v, where, "")
-		if err != nil {
-			return nil, err
-		}
-		p.Headers = hdrs
-	}
-	if v, ok := t["timeout"]; ok {
-		n, err := finitePositive(v, where, "timeout")
-		if err != nil {
-			return nil, err
-		}
-		p.Timeout = n
-	}
-	dropPresent := false
-	var drop bool
-	if v, ok := t["drop_params"]; ok {
-		b, ok := asBool(v)
-		if !ok {
-			return nil, fmt.Errorf("%s: 'drop_params' must be boolean", where)
-		}
-		dropPresent, drop = true, b
-	}
-	if v, ok := t["compatibility"]; ok {
-		s, ok := asString(v)
-		if !ok || (s != "strict" && s != "lossy") {
-			return nil, fmt.Errorf("%s: 'compatibility' must be \"strict\" or \"lossy\"", where)
-		}
-		if dropPresent && drop != (s == "lossy") {
-			return nil, fmt.Errorf("%s: 'drop_params' must be boolean and agree with 'compatibility'", where)
-		}
-		p.CompatibilityRaw = s
-		p.Lossy = s == "lossy"
-	} else if drop {
-		// Legacy LiteLLM-era spelling selects the diagnosed lossy policy.
-		p.CompatibilityRaw = "lossy"
-		p.Lossy = true
-	}
-	if v, ok := t["auth_header"]; ok {
-		s, ok := asString(v)
-		if !ok {
-			return nil, fmt.Errorf("%s: 'auth_header' must be a string", where)
-		}
-		s = strings.ToLower(strings.TrimSpace(s))
-		if s != "" && s != "bearer" && s != "x-api-key" && s != "api-key" {
-			return nil, fmt.Errorf("%s: 'auth_header' must be \"bearer\", \"x-api-key\", \"api-key\" or empty", where)
-		}
-		p.AuthHeader = s
-	}
-	if v, ok := t["count_tokens"]; ok {
-		b, ok := asBool(v)
-		if !ok {
-			return nil, fmt.Errorf("%s: 'count_tokens' must be boolean", where)
-		}
-		if b && p.Dialect != DialectAnthropic {
-			return nil, fmt.Errorf("%s: 'count_tokens' can only be enabled for the anthropic dialect", where)
-		}
-		p.CountTokens = &b
-	}
-	if err := fillLitellmProvider(p, t, where); err != nil {
-		return nil, err
-	}
-	if err := fillLitellmKwargs(p, t, where); err != nil {
-		return nil, err
-	}
-	if err := fillSessionPolicy(p, t, where); err != nil {
-		return nil, err
-	}
-	return p, nil
-}
-
-// defaultLitellmProvider mirrors the Python baseline dialect defaults
-// (config.py default_litellm_provider): openai-chat/openai-responses ->
-// "openai", anthropic -> "anthropic", gemini -> "gemini".
-func defaultLitellmProvider(dialect string) string {
-	switch dialect {
-	case DialectAnthropic:
-		return "anthropic"
-	case DialectGemini:
-		return "gemini"
-	default:
-		return "openai"
-	}
-}
-
-func fillLitellmProvider(p *Provider, t map[string]any, where string) error {
-	want := defaultLitellmProvider(p.Dialect)
-	v, ok := t["litellm_provider"]
-	if !ok {
-		p.LitellmProvider = want
-		return nil
-	}
-	s, ok := asString(v)
-	if !ok || s != want {
-		return fmt.Errorf("%s.litellm_provider: unsupported in this build; use a native route instead", where)
-	}
-	p.LitellmProvider = s
-	return nil
-}
-
-var litellmKwargsAllowed = map[string]bool{"headers": true, "extra_headers": true, "api_base": true, "timeout": true}
-
-func litellmKwargsHint(where, key string) string {
-	path := where + ".litellm_kwargs." + key
-	switch key {
-	case "api_key", "api_key_env", "api_key_file":
-		return fmt.Sprintf("%s: unsupported in this build; use api_key/api_key_env/api_key_file instead", path)
-	case "custom_llm_provider":
-		return fmt.Sprintf("%s: unsupported in this build; use a native route instead", path)
-	case "num_retries", "max_retries", "retry_policy", "fallbacks", "context_window_fallback_dict":
-		return fmt.Sprintf("%s: unsupported in this build; use [retry] instead", path)
-	case "additional_drop_params", "drop_params":
-		return fmt.Sprintf("%s: unsupported in this build; use compatibility instead", path)
-	case "_skip_mcp_handler":
-		return fmt.Sprintf("%s: unsupported in this build; router never executes tools", path)
-	default:
-		return fmt.Sprintf("%s: unsupported in this build (supported: headers, extra_headers, equivalent api_base/timeout aliases)", path)
-	}
-}
-
-func fillLitellmKwargs(p *Provider, t map[string]any, where string) error {
-	v, ok := t["litellm_kwargs"]
-	if !ok || v == nil {
-		return nil
-	}
-	tab, ok := asTable(v)
-	if !ok {
-		return fmt.Errorf("%s.litellm_kwargs: must be a table", where)
-	}
-	keys := make([]string, 0, len(tab))
-	for k := range tab {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if !litellmKwargsAllowed[k] {
-			return fmt.Errorf("%s", litellmKwargsHint(where, k))
-		}
-	}
-	if raw, ok := tab["api_base"]; ok {
-		if err := checkLegacyAPIBase(p, raw, where); err != nil {
-			return err
-		}
-	}
-	if raw, ok := tab["timeout"]; ok {
-		if err := checkLegacyTimeout(p, raw, where); err != nil {
-			return err
-		}
-	}
-	var kh, keh map[string]string
-	if raw, ok := tab["headers"]; ok {
-		m, err := checkHeaders(raw, where+".litellm_kwargs.headers", "")
-		if err != nil {
-			return err
-		}
-		kh = m
-	}
-	if raw, ok := tab["extra_headers"]; ok {
-		m, err := checkHeaders(raw, where+".litellm_kwargs.extra_headers", "")
-		if err != nil {
-			return err
-		}
-		keh = m
-	}
-	merged := mergeLegacyHeaders(kh, keh)
-	if len(merged) > 0 {
-		p.TranslatedHeaders = merged
-	}
-	return nil
-}
-
-// checkLegacyAPIBase admits litellm_kwargs.api_base only as a redundant alias:
-// it must validate like base_url (http/https, no userinfo/query/fragment) and
-// its suffix-expanded generation endpoint must equal the provider base's
-// endpoint. No second endpoint is stored; the declared BaseURL is unchanged.
-func checkLegacyAPIBase(p *Provider, raw any, where string) error {
-	keyPath := where + ".litellm_kwargs.api_base"
-	s, ok := asString(raw)
-	if !ok || strings.TrimSpace(s) == "" {
-		return fmt.Errorf("%s: must be a non-empty string; use base_url instead", keyPath)
-	}
-	normalized, err := normalizeBaseURL(strings.TrimSpace(s))
-	if err != nil {
-		return fmt.Errorf("%s: must be a bare http(s) origin/path without userinfo, query or fragment; use base_url instead", keyPath)
-	}
-	want, err1 := endpoint.GenerationEndpoint(p.BaseURL, p.Dialect)
-	got, err2 := endpoint.GenerationEndpoint(normalized, p.Dialect)
-	if err1 != nil || err2 != nil || want != got {
-		return fmt.Errorf("%s: unsupported in this build; use base_url instead", keyPath)
-	}
-	return nil
-}
+// --- route dialect alias validation ---
 
 // validateRouteDialectAliases extends the redundant-alias rule to overrides:
 // a full alias base that is default-equivalent but NOT equivalent for some
 // effective configured route destination is a startup error. It validates the
-// provider default plus every effective configured route dialect (including
-// disabled routes) using temporary raw validation inputs; no second runtime
-// endpoint is stored. The primary base_url itself always follows the exact
-// existing suffix rules, even when it contains another dialect's endpoint.
+// provider default, any supported dialects, plus every effective configured
+// route dialect (including disabled routes) using temporary raw validation
+// inputs; no second runtime endpoint is stored.
 func validateRouteDialectAliases(doc map[string]any, cfg *Config) error {
 	rawProviders, ok := doc["providers"]
 	if !ok {
@@ -1096,13 +738,18 @@ func validateRouteDialectAliases(doc map[string]any, cfg *Config) error {
 		}
 		s, ok := asString(rawAlias)
 		if !ok || strings.TrimSpace(s) == "" {
-			continue // already rejected in fillProvider
+			continue // already rejected during provider parsing
 		}
-		aliasNormalized, err := normalizeBaseURL(strings.TrimSpace(s))
+		aliasNormalized, err := provider.NormalizeBaseURL(strings.TrimSpace(s))
 		if err != nil {
-			continue // already rejected in fillProvider
+			continue // already rejected during provider parsing
 		}
-		dests := map[string]bool{p.Dialect: true}
+		dests := map[string]bool{p.DefaultDialect: true}
+		for _, d := range p.SupportedDialects {
+			if d != "" {
+				dests[d] = true
+			}
+		}
 		for i := range cfg.Models {
 			m := &cfg.Models[i]
 			if m.Provider != name {
@@ -1122,228 +769,9 @@ func validateRouteDialectAliases(doc map[string]any, cfg *Config) error {
 	return nil
 }
 
-// checkLegacyTimeout admits litellm_kwargs.timeout only as a redundant alias:
-// it must be a finite positive strict number equal to the effective provider
-// timeout (including the default). No second timeout is stored and retry
-// behavior is unchanged.
-func checkLegacyTimeout(p *Provider, raw any, where string) error {
-	keyPath := where + ".litellm_kwargs.timeout"
-	n, ok := asNum(raw)
-	if !ok || math.IsNaN(n) || math.IsInf(n, 0) {
-		return fmt.Errorf("%s: must be a finite number; use timeout instead", keyPath)
-	}
-	if n <= 0 || n > maxTimeoutSeconds {
-		return fmt.Errorf("%s: must be a positive number <= %v; use timeout instead", keyPath, maxTimeoutSeconds)
-	}
-	if n != p.Timeout {
-		return fmt.Errorf("%s: unsupported in this build; use timeout instead", keyPath)
-	}
-	return nil
-}
-
-// mergeLegacyHeaders merges kwargs.headers < kwargs.extra_headers
-// case-insensitively (last-wins), preserving the winner's original
-// spelling. Sorted keys make the merge deterministic.
-func mergeLegacyHeaders(kh, keh map[string]string) map[string]string {
-	if len(kh) == 0 && len(keh) == 0 {
-		return nil
-	}
-	lowerToKey := map[string]string{}
-	out := map[string]string{}
-	apply := func(m map[string]string) {
-		names := make([]string, 0, len(m))
-		for k := range m {
-			names = append(names, k)
-		}
-		sort.Strings(names)
-		for _, k := range names {
-			lower := strings.ToLower(k)
-			if prev, exists := lowerToKey[lower]; exists {
-				delete(out, prev)
-			}
-			lowerToKey[lower] = k
-			out[k] = m[k]
-		}
-	}
-	apply(kh)
-	apply(keh)
-	return out
-}
-
-// normalizeBaseURL enforces an http(s) URL with no userinfo, query or
-// fragment, mirroring the credential-isolation policy: credentials travel in
-// configured headers, never in URLs.
-func normalizeBaseURL(s string) (string, error) {
-	u, err := url.Parse(s)
-	if err != nil {
-		return "", fmt.Errorf("'base_url' must start with http:// or https://")
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", fmt.Errorf("'base_url' must start with http:// or https://")
-	}
-	if u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.ForceQuery {
-		return "", fmt.Errorf("'base_url' must be a bare http(s) origin/path without userinfo, query or fragment")
-	}
-	return strings.TrimRight(s, "/"), nil
-}
-
-func fillSessionPolicy(p *Provider, t map[string]any, where string) error {
-	var sessionHeader string
-	if v, ok := t["session_header"]; ok {
-		s, ok := asString(v)
-		if !ok {
-			return fmt.Errorf("%s: 'session_header' must be a string", where)
-		}
-		sessionHeader = strings.ToLower(s)
-		if sessionHeader != "" && (!httpToken.MatchString(sessionHeader) || isDropHeader(sessionHeader)) {
-			return fmt.Errorf("%s: 'session_header' must be a dedicated identity header, "+
-				"separate from credentials, protocol and transport headers", where)
-		}
-		// Static headers must not carry conversation identity, even when a
-		// session header is configured. Covers provider headers and the
-		// merged legacy translation headers (union of all configured
-		// legacy names; token/ASCII/hardcoded checks already ran per
-		// source in checkHeaders).
-		for name := range p.Headers {
-			if isReservedSessionHeader(name, sessionHeader) {
-				return fmt.Errorf("%s: static session headers are forbidden; supply a conversation identity on each request", where)
-			}
-		}
-		for name := range p.TranslatedHeaders {
-			if isReservedSessionHeader(name, sessionHeader) {
-				return fmt.Errorf("%s: static session headers are forbidden; supply a conversation identity on each request", where)
-			}
-		}
-	}
-	if v, ok := t["session_source_headers"]; ok {
-		arr, ok := asArray(v)
-		if !ok {
-			return fmt.Errorf("%s: 'session_source_headers' must be an array of reviewed header names", where)
-		}
-		// Non-nil even when empty: explicit [] disables native selection
-		// while absent (nil) defaults to all seven reviewed natives.
-		p.SessionSourceHeaders = []string{}
-		seen := map[string]bool{}
-		for _, e := range arr {
-			s, ok := asString(e)
-			if !ok || !nativeSessionSources[strings.ToLower(s)] {
-				return fmt.Errorf("%s: 'session_source_headers' must be an array of reviewed header names", where)
-			}
-			lower := strings.ToLower(s)
-			if seen[lower] {
-				return fmt.Errorf("%s: 'session_source_headers' contains duplicate headers", where)
-			}
-			seen[lower] = true
-			p.SessionSourceHeaders = append(p.SessionSourceHeaders, lower)
-		}
-	}
-	if v, ok := t["session_prompt_cache_key"]; ok {
-		b, ok := asBool(v)
-		if !ok {
-			return fmt.Errorf("%s: 'session_prompt_cache_key' must be boolean", where)
-		}
-		p.SessionPromptCacheKey = b
-	}
-	if v, ok := t["session_missing"]; ok {
-		s, ok := asString(v)
-		if !ok || (s != "omit" && s != "reject") {
-			return fmt.Errorf("%s: 'session_missing' must be \"omit\" or \"reject\"", where)
-		}
-		p.SessionMissing = s
-	} else {
-		p.SessionMissing = "omit"
-	}
-	p.SessionHeader = sessionHeader
-	_, hasSources := t["session_source_headers"]
-	_, hasCacheKey := t["session_prompt_cache_key"]
-	_, hasMissing := t["session_missing"]
-	if sessionHeader == "" && (hasSources || hasCacheKey || hasMissing) {
-		return fmt.Errorf("%s: session policy requires 'session_header'", where)
-	}
-	if sessionHeader != "" && !hasSources {
-		// Absent sources default to all seven reviewed native headers in
-		// baseline order; explicit [] disables native selection.
-		p.SessionSourceHeaders = append(p.SessionSourceHeaders,
-			"x-claude-code-session-id", "session-id", "session_id", "thread-id",
-			"conversation_id", "x-session-id", "x-mavis-session-id")
-	}
-	return nil
-}
-
-// dropHeaders mirrors the Python baseline's reserved set: credential,
-// hop-by-hop, representation and attribution headers that a session identity
-// header must stay separate from.
-func isDropHeader(lower string) bool {
-	switch lower {
-	case "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-		"te", "trailer", "transfer-encoding", "upgrade",
-		"host", "content-length", "authorization", "x-api-key", "api-key",
-		"x-goog-api-key", "x-model-router-reasoning-effort",
-		"x-goog-user-project", "x-goog-quota-user", "cookie", "user-agent",
-		"content-type", "content-encoding", "content-md5", "content-digest",
-		"repr-digest", "digest", "content-range", "content-location",
-		"content-language", "etag", "last-modified", "signature", "signature-input",
-		"accept", "accept-encoding", "anthropic-beta", "anthropic-version", "openai-beta":
-		return true
-	}
-	return false
-}
-
-// resolveCredential applies the exact precedence from the baseline: a present
-// api_key always wins (stripped at use); else api_key_env is read from the
-// environment; else api_key_file is read and stripped; else "". Env/file
-// sources must be non-empty strings and resolve to non-empty values.
-// Literal os.environ/NAME values are rejected — use api_key_env.
+// resolveCredential delegates to provider.ResolveCredential using os.LookupEnv.
 func resolveCredential(where string, keys map[string]any) (string, error) {
-	for _, field := range []string{"api_key_env", "api_key_file"} {
-		if v, ok := keys[field]; ok {
-			s, ok := asString(v)
-			if !ok || strings.TrimSpace(s) == "" {
-				return "", fmt.Errorf("%s: '%s' must be a non-empty string", where, field)
-			}
-		}
-	}
-	if v, ok := keys["api_key"]; ok {
-		if v == nil {
-			return "", fmt.Errorf("%s: 'api_key' cannot be null; omit it for an unauthenticated upstream", where)
-		}
-		s, ok := asString(v)
-		if !ok {
-			return "", fmt.Errorf("%s: 'api_key' must be a string (omit it for an unauthenticated upstream)", where)
-		}
-		if strings.HasPrefix(s, "os.environ/") {
-			return "", fmt.Errorf("%s: use api_key_env for environment references", where)
-		}
-		return s, nil
-	}
-	if v, ok := keys["api_key_env"]; ok {
-		name, _ := asString(v)
-		val, present := os.LookupEnv(name)
-		if !present || strings.TrimSpace(val) == "" {
-			return "", fmt.Errorf("%s: environment variable %q is missing or empty", where, name)
-		}
-		return val, nil
-	}
-	if v, ok := keys["api_key_file"]; ok {
-		path, _ := asString(v)
-		if strings.HasPrefix(path, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("%s: cannot resolve api_key_file", where)
-			}
-			path = filepath.Join(home, path[2:])
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", fmt.Errorf("%s: cannot read api_key_file", where)
-		}
-		if strings.TrimSpace(string(data)) == "" {
-			return "", fmt.Errorf("%s: api_key_file is empty", where)
-		}
-		return strings.TrimSpace(string(data)), nil
-	}
-	// Omitted key: unauthenticated upstream placeholder at send time.
-	return "", nil
+	return provider.ResolveCredential(where, keys, os.LookupEnv)
 }
 
 // --- [[models]] ---
@@ -1409,7 +837,7 @@ func fillModel(i int, m map[string]any, providers map[string]*Provider) (*Model,
 		if s == "" {
 			return nil, fmt.Errorf("models[%d].dialect: 'dialect' must be one of openai-chat, openai-responses, anthropic, gemini", i)
 		}
-		if s != providers[provider].Dialect {
+		if s != providers[provider].DefaultDialect {
 			switch s {
 			case DialectOpenAIChat, DialectOpenAIResponses, DialectAnthropic, DialectGemini:
 				model.Dialect = s

@@ -9,6 +9,7 @@ import (
 
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/transport"
 )
@@ -33,7 +34,7 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	defer p.cancel()
 	r = r.WithContext(p.ctx)
 
-	dest := p.model.EffectiveDialect(p.provider)
+	dest := p.provider.ResolveDialect(config.DialectAnthropic, p.model.Dialect)
 	mode, rerr := dispatchNativeOrTranslated(config.DialectAnthropic, dest)
 	if rerr != nil {
 		status = rerr.Status
@@ -83,11 +84,12 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 		s.writeIngressError(w, config.DialectAnthropic, *rerr)
 		return
 	}
+	upstreamBody, _ = provider.ForKind(p.provider.Kind).PrepareNativeBody(dest, upstreamBody)
 	var probe map[string]json.RawMessage
 	_ = json.Unmarshal(effBody, &probe)
 	var wantStream bool
 	_ = json.Unmarshal(probe["stream"], &wantStream)
-	url, rerr := transport.UpstreamURL(p.provider.BaseURL, dest)
+	url, rerr := transport.GenerationEndpoint(p.provider, dest)
 	if rerr != nil {
 		status = rerr.Status
 		s.writeIngressError(w, config.DialectAnthropic, *rerr)

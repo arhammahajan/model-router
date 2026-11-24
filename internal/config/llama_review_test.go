@@ -17,21 +17,21 @@ func TestLlamaReviewDuplicateFieldsValidated(t *testing.T) {
 	base := llamaBase
 	// Bad headers on the collapsed repeat reject.
 	if err := rejectLlama(t, base+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931", { url = "http://127.0.0.1:9931", headers = { "Bad Name!" = "v" } }]
 `); err == nil {
 		t.Fatal("duplicate with bad headers must reject")
 	}
 	// Bad credential reference on the repeat rejects without echoing values.
 	if err := rejectLlama(t, base+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931", { url = "http://127.0.0.1:9931", api_key_env = "LLAMA_MISSING_KEY_XYZ" }]
 `); err == nil {
 		t.Fatal("duplicate with bad credential must reject")
 	}
 	// Unknown server keys on the repeat reject.
 	if err := rejectLlama(t, base+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931", { url = "http://127.0.0.1:9931", bogus = 1 }]
 `); err == nil {
 		t.Fatal("duplicate with unknown key must reject")
@@ -40,7 +40,7 @@ servers = ["http://127.0.0.1:9931", { url = "http://127.0.0.1:9931", bogus = 1 }
 	// (loadLlama pins TEST_LLAMA_KEY=secret-key; the point is the first
 	// duplicate's env-selected key wins over the repeat's literal key.)
 	cfg := loadLlama(t, base+`
-[llama_cpp]
+[providers.llama_cpp]
 api_key = "global-key"
 headers = { X-G = "g" }
 servers = [
@@ -66,7 +66,7 @@ func TestLlamaReviewCredentialFileAndHeaderOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 headers = { X-Dup = "global", Authorization = "static-bogus" }
 servers = [{ url = "http://127.0.0.1:9931", name = "s", api_key_file = "`+keyFile+`", headers = { X-Dup = "server" } }]
 `)
@@ -90,21 +90,21 @@ servers = [{ url = "http://127.0.0.1:9931", name = "s", api_key_file = "`+keyFil
 // reject, unknown server keys reject.
 func TestLlamaReviewNumericBounds(t *testing.T) {
 	for _, body := range []string{
-		llamaBase + "[llama_cpp]\ntimeout = 1e400\n",
-		llamaBase + "[llama_cpp]\nrefresh_seconds = 1e400\n",
+		llamaBase + "[providers.llama_cpp]\ntimeout = 1e400\n",
+		llamaBase + "[providers.llama_cpp]\nrefresh_seconds = 1e400\n",
 	} {
 		if err := rejectLlama(t, body); err == nil {
 			t.Fatalf("non-finite bound must reject:\n%s", body)
 		}
 	}
-	cfg := loadLlama(t, llamaBase+"[llama_cpp]\nports = 8080\n")
+	cfg := loadLlama(t, llamaBase+"[providers.llama_cpp]\nports = 8080\n")
 	if len(cfg.Llama.Servers) != 1 || cfg.Llama.Servers[0].URL != "http://127.0.0.1:8080" {
 		t.Fatalf("scalar port must map to loopback: %+v", cfg.Llama.Servers)
 	}
-	if err := rejectLlama(t, llamaBase+"[llama_cpp]\nports = 8.5\n"); err == nil {
+	if err := rejectLlama(t, llamaBase+"[providers.llama_cpp]\nports = 8.5\n"); err == nil {
 		t.Fatal("float scalar port must reject")
 	}
-	if err := rejectLlama(t, llamaBase+"[llama_cpp]\nservers = [{ url = \"http://127.0.0.1:9931\", limit_overrides = {} }]\n"); err == nil {
+	if err := rejectLlama(t, llamaBase+"[providers.llama_cpp]\nservers = [{ url = \"http://127.0.0.1:9931\", limit_overrides = {} }]\n"); err == nil {
 		t.Fatal("unknown per-server key must reject")
 	}
 	if !strings.HasPrefix(cfg.Llama.Servers[0].Name, "llama-") {

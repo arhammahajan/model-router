@@ -21,7 +21,7 @@ func writeJSONCfg(t *testing.T, body string) string {
 
 func TestLlamaLimitsFallbackAdmits(t *testing.T) {
 	llamaEnv(t)
-	cfg, err := Load(writeCfg(t, llamaBase+"[llama_cpp]\ncontext_fallback = 64000\n"))
+	cfg, err := Load(writeCfg(t, llamaBase+"[providers.llama_cpp]\ncontext_fallback = 64000\n"))
 	if err != nil {
 		t.Fatalf("fallback must admit: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestLlamaLimitsFallbackAdmits(t *testing.T) {
 		t.Fatalf("fallback not stored: %+v", cfg.Llama)
 	}
 	// Absent stays nil (unknown, never the Python implicit default).
-	cfg = loadLlama(t, llamaBase+"[llama_cpp]\n")
+	cfg = loadLlama(t, llamaBase+"[providers.llama_cpp]\n")
 	if cfg.Llama.ContextFallback != nil {
 		t.Fatalf("absent fallback must stay nil, got %v", *cfg.Llama.ContextFallback)
 	}
@@ -37,11 +37,11 @@ func TestLlamaLimitsFallbackAdmits(t *testing.T) {
 
 func TestLlamaLimitsFallbackRejects(t *testing.T) {
 	for _, body := range []string{
-		llamaBase + "[llama_cpp]\ncontext_fallback = 0\n",
-		llamaBase + "[llama_cpp]\ncontext_fallback = -5\n",
-		llamaBase + "[llama_cpp]\ncontext_fallback = 1.5\n",
-		llamaBase + "[llama_cpp]\ncontext_fallback = true\n",
-		llamaBase + "[llama_cpp]\ncontext_fallback = \"big\"\n",
+		llamaBase + "[providers.llama_cpp]\ncontext_fallback = 0\n",
+		llamaBase + "[providers.llama_cpp]\ncontext_fallback = -5\n",
+		llamaBase + "[providers.llama_cpp]\ncontext_fallback = 1.5\n",
+		llamaBase + "[providers.llama_cpp]\ncontext_fallback = true\n",
+		llamaBase + "[providers.llama_cpp]\ncontext_fallback = \"big\"\n",
 	} {
 		if err := rejectLlama(t, body); err == nil {
 			t.Fatalf("fallback must reject:\n%s", body)
@@ -51,8 +51,8 @@ func TestLlamaLimitsFallbackRejects(t *testing.T) {
 
 func TestLlamaLimitsOverridesAdmit(t *testing.T) {
 	llamaEnv(t)
-	cfg, err := Load(writeCfg(t, llamaBase+`[llama_cpp]
-[llama_cpp.limit_overrides.m1]
+	cfg, err := Load(writeCfg(t, llamaBase+`[providers.llama_cpp]
+[providers.llama_cpp.limit_overrides.m1]
 context_window = 4096
 default_output_tokens = 0
 `))
@@ -70,19 +70,19 @@ default_output_tokens = 0
 func TestLlamaLimitsOverridesReject(t *testing.T) {
 	bads := []string{
 		// unknown limit key
-		llamaBase + "[llama_cpp.limit_overrides.m]\nnope = 1\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.m]\nnope = 1\n",
 		// zero non-default
-		llamaBase + "[llama_cpp.limit_overrides.m]\ncontext_window = 0\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.m]\ncontext_window = 0\n",
 		// negative default
-		llamaBase + "[llama_cpp.limit_overrides.m]\ndefault_output_tokens = -1\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.m]\ndefault_output_tokens = -1\n",
 		// bool/float/string coercion
-		llamaBase + "[llama_cpp.limit_overrides.m]\ncontext_window = true\n",
-		llamaBase + "[llama_cpp.limit_overrides.m]\ncontext_window = 1.5\n",
-		llamaBase + "[llama_cpp.limit_overrides.m]\ncontext_window = \"10\"\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.m]\ncontext_window = true\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.m]\ncontext_window = 1.5\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.m]\ncontext_window = \"10\"\n",
 		// non-table
-		llamaBase + "[llama_cpp]\nlimit_overrides = { m = 1 }\n",
+		llamaBase + "[providers.llama_cpp]\nlimit_overrides = { m = 1 }\n",
 		// bad model id
-		llamaBase + "[llama_cpp.limit_overrides.\" padded \"]\ncontext_window = 1\n",
+		llamaBase + "[providers.llama_cpp.limit_overrides.\" padded \"]\ncontext_window = 1\n",
 	}
 	for _, body := range bads {
 		if err := rejectLlama(t, body); err == nil {
@@ -93,7 +93,7 @@ func TestLlamaLimitsOverridesReject(t *testing.T) {
 
 func TestLlamaLimitsJSONNullWithdraw(t *testing.T) {
 	llamaEnv(t)
-	body := `{"server":{"auth_mode":"none","allow_dynamic_routes":false},"retry":{"max_attempts":1},"providers":{"up":{"dialect":"anthropic","base_url":"http://127.0.0.1:9"}},"llama_cpp":{"limit_overrides":{"m":{"context_window":null,"default_output_tokens":null}}}}`
+	body := `{"server":{"auth_mode":"none","allow_dynamic_routes":false},"retry":{"max_attempts":1},"providers":{"up":{"dialect":"anthropic","base_url":"http://127.0.0.1:9"},"llama_cpp":{"limit_overrides":{"m":{"context_window":null,"default_output_tokens":null}}}}}`
 	cfg, err := Load(writeJSONCfg(t, body))
 	if err != nil {
 		t.Fatalf("JSON null must admit as explicit withdraw: %v", err)
@@ -109,11 +109,11 @@ func TestLlamaLimitsJSONNullWithdraw(t *testing.T) {
 
 func TestLlamaLimitsLosersValidate(t *testing.T) {
 	// Unknown/losing model names still validate value-free before any I/O.
-	if err := rejectLlama(t, llamaBase+"[llama_cpp.limit_overrides.unknown-loser]\ncontext_window = 0\n"); err == nil {
+	if err := rejectLlama(t, llamaBase+"[providers.llama_cpp.limit_overrides.unknown-loser]\ncontext_window = 0\n"); err == nil {
 		t.Fatal("losing override with bad value must still reject")
 	}
 	// Valid losing override admits (publication filters later).
-	cfg := loadLlama(t, llamaBase+"[llama_cpp.limit_overrides.unknown-loser]\ncontext_window = 77\n")
+	cfg := loadLlama(t, llamaBase+"[providers.llama_cpp.limit_overrides.unknown-loser]\ncontext_window = 77\n")
 	if *cfg.Llama.LimitOverrides["unknown-loser"]["context_window"] != 77 {
 		t.Fatalf("losing override must be stored for publication filtering: %+v", cfg.Llama.LimitOverrides)
 	}

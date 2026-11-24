@@ -58,7 +58,7 @@ func LoadWithOptions(path string, opts LoadOptions) (*Config, error) {
 	if err := expandEnvValues(doc, "config"); err != nil {
 		return nil, err
 	}
-	return buildConfig(doc)
+	return buildConfig(doc, filepath.Dir(path))
 }
 
 var envKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

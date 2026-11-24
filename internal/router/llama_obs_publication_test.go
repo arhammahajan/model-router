@@ -139,7 +139,7 @@ func TestLlamaObsCollisionShadow(t *testing.T) {
 			ProbeTimeout: 2,
 		},
 	}
-	cfg.Providers["static"] = &config.Provider{Name: "static", Dialect: "openai-chat"}
+	cfg.Providers["static"] = &config.Provider{Name: "static", DefaultDialect: "openai-chat"}
 	reg := NewRegistry(cfg)
 	losing := capability.ExtractLlamaObs(llamaObsRowMap([]any{"text", "image"}), map[string]any{"modalities": map[string]any{"vision": true}}, "single")
 	layer := LlamaLayer{Servers: map[string]LlamaServerSnapshot{}}

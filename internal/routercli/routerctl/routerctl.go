@@ -160,7 +160,7 @@ func (o Options) spawnFn() func(string, []string, string) (int, error) {
 // $Home/dev/router/routerd, then "routerd" from PATH.
 //
 // RouterConfig: $ROUTER_CONFIG / $MODEL_ROUTER_CONFIG / $HARNESS_ROUTER_CONFIG,
-// then $ConfigHome/.router/router.toml, then the literal "router.toml".
+// then $ConfigHome/router/router.toml, then the literal "router.toml".
 //
 // Log/Pid default to $StateHome/router/router.log and router.pid;
 // HTTPTimeout defaults to DefaultHTTPTimeout.
@@ -209,7 +209,7 @@ func Detect(paths routerenv.Paths, router routerenv.RouterSettings) Options {
 	}
 	if cfg := firstEnv("ROUTER_CONFIG", "MODEL_ROUTER_CONFIG", "HARNESS_ROUTER_CONFIG"); cfg != "" {
 		opts.RouterConfig = cfg
-	} else if cand := filepath.Join(paths.ConfigHome, ".router", "router.toml"); fileExists(cand) {
+	} else if cand := filepath.Join(paths.ConfigHome, "router", "router.toml"); fileExists(cand) {
 		opts.RouterConfig = cand
 	} else {
 		opts.RouterConfig = "router.toml"
@@ -345,8 +345,9 @@ func spawnDetached(bin string, args []string, logPath string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	pid := proc.Pid
 	_ = proc.Release()
-	return proc.Pid, nil
+	return pid, nil
 }
 
 func writePidFile(path string, pid int) error {

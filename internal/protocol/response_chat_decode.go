@@ -242,6 +242,7 @@ func decodeChatAssistantMessageWithPolicy(choiceRaw json.RawMessage, lim Limits,
 	}
 	choice, rerr := chatResponseObject(choiceRaw, map[string]bool{
 		"index": true, "message": true, "finish_reason": true, "logprobs": true,
+		"native_finish_reason": true,
 	}, "response.choices[0]")
 	if rerr != nil {
 		return "", "", nil, 0, rerr
@@ -510,11 +511,12 @@ func parseChatUsageBucketsWithPolicy(raw json.RawMessage, allowLossy bool) (chat
 	if rawDet, ok := obj["prompt_tokens_details"]; ok && !isNull(rawDet) {
 		det, rerr := chatResponseObject(rawDet, map[string]bool{
 			"cached_tokens": true, "audio_tokens": true, "image_tokens": true,
-			"text_tokens": true, "cache_write_tokens": true,
+			"text_tokens": true, "cache_write_tokens": true, "cached_creation_tokens": true,
 		}, "response.usage.prompt_tokens_details")
 		if rerr != nil {
 			return b, rerr
 		}
+		var cachedCreation *int
 		for k, v := range det {
 			if isNull(v) {
 				continue
@@ -528,6 +530,8 @@ func parseChatUsageBucketsWithPolicy(raw json.RawMessage, allowLossy bool) (chat
 				b.cached = &n
 			case "cache_write_tokens":
 				b.cacheWrite = &n
+			case "cached_creation_tokens":
+				cachedCreation = &n
 			case "text_tokens":
 				if n != 0 {
 					b.textPrompt = &n
@@ -538,6 +542,16 @@ func parseChatUsageBucketsWithPolicy(raw json.RawMessage, allowLossy bool) (chat
 				if n != 0 {
 					return b, unrep("response.usage.prompt_tokens_details." + k)
 				}
+			}
+		}
+		if cachedCreation != nil {
+			switch {
+			case b.cacheWrite == nil, *b.cacheWrite == 0:
+				if *cachedCreation != 0 {
+					b.cacheWrite = cachedCreation
+				}
+			case *cachedCreation != 0 && *b.cacheWrite != *cachedCreation:
+				return b, bad
 			}
 		}
 	}

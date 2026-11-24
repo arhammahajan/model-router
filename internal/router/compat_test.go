@@ -174,7 +174,7 @@ func TestCompatSessionIDStripsAndPreserves(t *testing.T) {
 
 func TestCompatFallbackPrecedence(t *testing.T) {
 	p := &config.Provider{
-		Name: "up", Dialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9",
+		Name: "up", DefaultDialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9",
 		SessionHeader: "x-session-out", SessionSourceHeaders: []string{"session-id"},
 		SessionPromptCacheKey: true, SessionMissing: "omit",
 	}
@@ -215,14 +215,14 @@ func TestCompatFallbackPrecedence(t *testing.T) {
 		t.Fatalf("winning invalid fallback must 400: %+v", rerr)
 	}
 	// Explicit [] disables native selection but not fallback.
-	p2 := &config.Provider{Name: "up", Dialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9",
+	p2 := &config.Provider{Name: "up", DefaultDialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9",
 		SessionHeader: "x-session-out", SessionSourceHeaders: []string{}, SessionMissing: "omit"}
 	sess, _, rerr = PrepareSession(p2, mk("Session-Id", "native1"), []byte(`{}`), false, fb)
 	if rerr != nil || !sess.Has || sess.ID != compatTokA {
 		t.Fatalf("[] must disable natives, keep fallback: %+v %+v", sess, rerr)
 	}
 	// No policy ignores the fallback entirely.
-	p3 := &config.Provider{Name: "up", Dialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9"}
+	p3 := &config.Provider{Name: "up", DefaultDialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9"}
 	sess, eff, rerr := PrepareSession(p3, mk("Session-Id", "x"), []byte(`{"a":1}`), false, fb)
 	if rerr != nil || sess.Has || string(eff) != `{"a":1}` {
 		t.Fatalf("no policy must ignore fallback: %+v %s %+v", sess, eff, rerr)

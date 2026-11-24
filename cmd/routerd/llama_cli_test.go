@@ -68,7 +68,7 @@ func TestLlamaValidateConfigStaysOffline(t *testing.T) {
 	healthy.Store(true)
 	srv := llamaFake(t, &hits, `{"data": [{"id": "m1"}]}`, &healthy)
 	defer srv.Close()
-	cfg := fmt.Sprintf("[llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL)
+	cfg := fmt.Sprintf("[providers.llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL)
 	if code := run([]string{"--config", writeLlamaCLICfg(t, cfg), "--validate-config"}); code != 0 {
 		t.Fatalf("validate must exit 0, got %d", code)
 	}
@@ -86,7 +86,7 @@ func TestLlamaCheckReadinessBoundedPerServer(t *testing.T) {
 	defer s1.Close()
 	s2 := llamaFake(t, &hits, `{"data": [{"id": "b1"}, {"id": "b2"}]}`, &healthy)
 	defer s2.Close()
-	cfg := fmt.Sprintf("[llama_cpp]\nservers = [\"%s\", \"%s\"]\nrefresh_seconds = 0\n", s1.URL, s2.URL)
+	cfg := fmt.Sprintf("[providers.llama_cpp]\nservers = [\"%s\", \"%s\"]\nrefresh_seconds = 0\n", s1.URL, s2.URL)
 	if code := run([]string{"--config", writeLlamaCLICfg(t, cfg), "--check-readiness"}); code != 0 {
 		t.Fatalf("llama-ready must exit 0, got %d", code)
 	}
@@ -102,7 +102,7 @@ func TestLlamaCheckReadinessFailureUnready(t *testing.T) {
 	var healthy atomic.Bool // false: every probe fails
 	srv := llamaFake(t, &hits, `{"data": [{"id": "m1"}]}`, &healthy)
 	defer srv.Close()
-	cfg := fmt.Sprintf("[llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL)
+	cfg := fmt.Sprintf("[providers.llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL)
 	if code := run([]string{"--config", writeLlamaCLICfg(t, cfg), "--check-readiness"}); code != 3 {
 		t.Fatalf("failed llama must exit 3, got %d", code)
 	}
@@ -113,13 +113,13 @@ func TestLlamaCheckReadinessFailureUnready(t *testing.T) {
 
 func TestLlamaOnlyZeroProvidersReady(t *testing.T) {
 	catalogTestEnv(t)
-	// No [providers] table at all: llama-only installs are valid.
+	// No static [providers.*] tables: llama-only installs are valid.
 	var hits atomic.Int64
 	var healthy atomic.Bool
 	healthy.Store(true)
 	srv := llamaFake(t, &hits, `{"data": [{"id": "m1"}]}`, &healthy)
 	defer srv.Close()
-	cfg := fmt.Sprintf("[llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL)
+	cfg := fmt.Sprintf("[providers.llama_cpp]\nservers = [\"%s\"]\nrefresh_seconds = 0\n", srv.URL)
 	loaded, err := config.Load(writeLlamaCLICfg(t, cfg))
 	if err != nil {
 		t.Fatalf("llama-only must load: %v", err)
@@ -132,6 +132,29 @@ func TestLlamaOnlyZeroProvidersReady(t *testing.T) {
 	}
 }
 
+func TestStrataCheckReadinessBounded(t *testing.T) {
+	catalogTestEnv(t)
+	var hits atomic.Int64
+	var healthy atomic.Bool
+	healthy.Store(true)
+	srv := llamaFake(t, &hits, `{"data": [{"id": "s1"}]}`, &healthy)
+	defer srv.Close()
+	cfg := fmt.Sprintf("[providers.strata]\nservers = [\"%s\"]\nprobe_timeout = 2\nrefresh_seconds = 0\n", srv.URL)
+	cfgPath := writeLlamaCLICfg(t, cfg)
+	if code := run([]string{"--config", cfgPath, "--validate-config"}); code != 0 {
+		t.Fatalf("strata validate must exit 0, got %d", code)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("strata validate must stay offline: %d hits", hits.Load())
+	}
+	if code := run([]string{"--config", cfgPath, "--check-readiness"}); code != 0 {
+		t.Fatalf("strata readiness must exit 0, got %d", code)
+	}
+	if hits.Load() != 3 {
+		t.Fatalf("strata readiness must perform exactly one attempt (3 GETs): %d", hits.Load())
+	}
+}
+
 func TestLlamaServeStaleRetainedNoRequestIO(t *testing.T) {
 	catalogTestEnv(t)
 	var hits atomic.Int64
@@ -139,7 +162,7 @@ func TestLlamaServeStaleRetainedNoRequestIO(t *testing.T) {
 	healthy.Store(true)
 	srv := llamaFake(t, &hits, `{"data": [{"id": "m1", "aliases": ["m-alias"]}]}`, &healthy)
 	cfg, err := config.Load(writeLlamaCLICfg(t,
-		fmt.Sprintf("[llama_cpp]\nservers = [\"%s\"]\ntimeout = 5\nrefresh_seconds = 0\n", srv.URL)))
+		fmt.Sprintf("[providers.llama_cpp]\nservers = [\"%s\"]\nprobe_timeout = 5\nrefresh_seconds = 0\n", srv.URL)))
 	if err != nil {
 		t.Fatal(err)
 	}

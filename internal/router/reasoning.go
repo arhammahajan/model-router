@@ -27,9 +27,11 @@ func (s *Snapshot) CanonicalBase(canonicalName string, effDialect string) capabi
 		// to its canonical name/upstream first.
 		canonical := canonicalName
 		upstream := ""
+		provName := ""
 		if pos >= 0 && pos < len(s.llama) {
 			canonical = s.llama[pos].Name
 			upstream = s.llama[pos].Upstream
+			provName = s.llama[pos].Provider
 		}
 		if stored, ok := s.LlamaBase(canonical); ok {
 			return stored
@@ -37,9 +39,10 @@ func (s *Snapshot) CanonicalBase(canonicalName string, effDialect string) capabi
 		// Restored route-only rows have no stored base: reapply the
 		// explicit trusted policy on the empty base (config facts, not
 		// cached observations).
-		if s.llamaPolicy != nil && !s.llamaPolicy.Empty() && upstream != "" && s.llamaPolicy.Covers(upstream) {
+		policy := s.llamaPolicyFor(provName)
+		if policy != nil && !policy.Empty() && upstream != "" && policy.Covers(upstream) {
 			base := capability.Empty(effDialect)
-			capability.ApplyLlamaLimits(&base, upstream, s.llamaPolicy)
+			capability.ApplyLlamaLimits(&base, upstream, policy)
 			return base
 		}
 		return capability.Empty(effDialect)

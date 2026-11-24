@@ -26,7 +26,7 @@ func TestOpsLlamaRetainsAcceptedModelCountOnFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := llamaWorkerCfg(srv.URL, "localup")
-	cfg.Providers["static"] = &config.Provider{Name: "static", Dialect: config.DialectOpenAIChat, BaseURL: srv.URL}
+	cfg.Providers["static"] = &config.Provider{Name: "static", DefaultDialect: config.DialectOpenAIChat, BaseURL: srv.URL}
 	cfg.Models = []config.Model{{Name: "reserved", Provider: "static", Upstream: "explicit"}}
 	reg := router.NewRegistry(cfg)
 	worker := NewLlamaWorker(cfg.Llama, reg)

@@ -9,6 +9,7 @@ import (
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/transport"
 )
@@ -59,12 +60,10 @@ func (s *Server) serveGeminiToChat(w http.ResponseWriter, r *http.Request, p *co
 	// planner with the pinned runtime scope, then enforce the provider
 	// policy before any upstream I/O. Unknown cached runtimes drop a
 	// present intent as a diagnosed loss in the planner.
+	dest := p.ResolveDialect(config.DialectGemini, model.Dialect)
 	contract := snap.RequestCapability(model, p)
 	caps := capability.ReasoningFor(contract)
-	scope := protocol.OrdinaryRoute()
-	if snap.HasLlamaProvider(p.Name) {
-		scope = protocol.LocalRoute(snap.LlamaRuntime(p.Name))
-	}
+	scope := provider.ForKind(p.Kind).EffortScope(dest)
 	planned, planLosses := protocol.PlanEffort(intent, caps, scope)
 	losses = append(losses, planLosses...)
 	kept, rerr := protocol.EnforcePolicy(losses, p.IsLossy())
@@ -77,8 +76,7 @@ func (s *Server) serveGeminiToChat(w http.ResponseWriter, r *http.Request, p *co
 		s.writeIngressError(w, config.DialectGemini, *rerr)
 		return rerr.Status
 	}
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectGemini, *rerr)
 		return rerr.Status

@@ -17,6 +17,7 @@ import (
 
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/redact"
 )
 
@@ -388,6 +389,7 @@ func buildSnapshot(static *Snapshot, trusted map[string]*config.Provider, order 
 		llamaCaps:           map[string]capability.Contract{},
 		llamaRuntime:        map[string]capability.LocalRuntime{},
 		llamaPolicy:         static.llamaPolicy.Clone(),
+		llamaPolicies:       cloneLlamaPolicies(static.llamaPolicies),
 	}
 	for k, v := range static.index {
 		s.index[k] = v
@@ -420,12 +422,16 @@ func buildSnapshot(static *Snapshot, trusted map[string]*config.Provider, order 
 		if !known {
 			return nil, errLlamaEntry("llama layer: unknown provider")
 		}
-		s.providers[name] = copyProvider(p)
+		cp := copyProvider(p)
+		kind, resolvedRT, supported := resolveLocalProvider(p.Kind, snap.Runtime)
+		cp.Kind = kind
+		cp.SupportedDialects = supported
+		s.providers[name] = cp
 		active[name] = true
 		s.llamaProviders[name] = struct{}{}
 		// The engine runtime pins atomically with routes, status and wall
 		// times on the same snapshot; concurrent requests share the pin.
-		s.llamaRuntime[name] = snap.Runtime
+		s.llamaRuntime[name] = resolvedRT
 		if snap.State == LlamaUnreachableStale {
 			s.unreachable[name] = struct{}{}
 		}
@@ -465,20 +471,19 @@ func buildSnapshot(static *Snapshot, trusted map[string]*config.Provider, order 
 			// rows store no base, so their caps cannot leak through
 			// aliases or later lookups. Public aliases share the
 			// canonical fact via Resolve canonicalization (no shadow leak).
+			policy := s.llamaPolicyFor(name)
+			kind := s.providers[name].Kind
 			if e.Obs != nil {
 				if at, ok := llamaAt[name]; ok {
 					base := capability.ObservedLlama(e.Obs, float64(at))
-					capability.ApplyLlamaLimits(&base, e.Upstream, s.llamaPolicy)
-					if rt := snap.Runtime; rt == capability.RuntimeLlamaCpp ||
-						rt == capability.RuntimeStrata {
-						capability.ApplyLlamaMapper(&base, rt, float64(at))
-					}
+					capability.ApplyLlamaLimits(&base, e.Upstream, policy)
+					provider.ForKind(kind).ApplyCapabilities(&base, float64(at))
 					s.llamaCaps[e.Name] = base
 				}
-			} else if s.llamaPolicy != nil && !s.llamaPolicy.Empty() {
-				if at, ok := llamaAt[name]; ok && s.llamaPolicy.Covers(e.Upstream) {
+			} else if policy != nil && !policy.Empty() {
+				if at, ok := llamaAt[name]; ok && policy.Covers(e.Upstream) {
 					base := capability.ObservedLlama(nil, float64(at))
-					capability.ApplyLlamaLimits(&base, e.Upstream, s.llamaPolicy)
+					capability.ApplyLlamaLimits(&base, e.Upstream, policy)
 					s.llamaCaps[e.Name] = base
 				}
 			}
@@ -635,3 +640,30 @@ func (e *catalogEntryError) Error() string { return e.msg }
 func errCatalogEntry(msg string) error { return &catalogEntryError{msg} }
 
 func errLlamaEntry(msg string) error { return &catalogEntryError{msg} }
+
+// resolveLocalProvider binds the runtime plugin kind, LocalRuntime, and native
+// SupportedDialects for one local server provider. Explicitly configured
+// [providers.strata] servers always bind KindStrata even before live probe;
+// [providers.llama_cpp] servers bind KindUnobserved (openai-chat only) until a
+// live /props probe resolves them to KindLlamaCpp or KindStrata.
+func resolveLocalProvider(trustedKind string, rt capability.LocalRuntime) (string, capability.LocalRuntime, []string) {
+	if trustedKind == provider.KindStrata {
+		return provider.KindStrata, capability.RuntimeStrata, []string{config.DialectOpenAIChat, config.DialectAnthropic}
+	}
+	switch rt {
+	case capability.RuntimeStrata:
+		return provider.KindStrata, capability.RuntimeStrata, []string{config.DialectOpenAIChat, config.DialectAnthropic}
+	case capability.RuntimeLlamaCpp:
+		return provider.KindLlamaCpp, capability.RuntimeLlamaCpp, []string{config.DialectOpenAIChat, config.DialectAnthropic}
+	default:
+		return provider.KindUnobserved, capability.RuntimeUnobserved, []string{config.DialectOpenAIChat}
+	}
+}
+
+func cloneLlamaPolicies(in map[string]*capability.LlamaLimitPolicy) map[string]*capability.LlamaLimitPolicy {
+	out := make(map[string]*capability.LlamaLimitPolicy, len(in))
+	for k, v := range in {
+		out[k] = v.Clone()
+	}
+	return out
+}

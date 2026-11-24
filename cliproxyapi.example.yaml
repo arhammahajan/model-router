@@ -1,0 +1,74 @@
+# Example CLIProxyAPI configuration for routerd development.
+# Copy this file to config.yaml, install the opencode-go plugin binary, and
+# replace the placeholder secrets with environment references or local values.
+# Upstream AI/OAuth credentials live only here (and in env), never in
+# routerd's TOML. routerd points at this proxy via its
+# `[providers.cliproxyapi]` section (`base_url`, `api_key`, optional `config_path`).
+#
+# Plugin binary installation (Go 1.26.7+, CGO enabled for c-shared builds):
+#   go build -tags debug -buildmode=c-shared \
+#     -o plugins/linux/amd64/opencode-go-cliproxyapi.so .
+# Place the built library under <cliproxyapi_root>/plugins/<os>/<arch>/, e.g.
+# plugins/linux/amd64/opencode-go-cliproxyapi.so on Linux amd64,
+# plugins/darwin/arm64/opencode-go-cliproxyapi.dylib on macOS arm64, or
+# plugins/windows/amd64/opencode-go-cliproxyapi.dll on Windows amd64.
+# See https://github.com/massiveits/opencode-go-cliproxyapi for sources.
+# CLIProxyAPI itself requires Go 1.26.10 to build from source.
+config-version: 8
+
+server:
+  host: "127.0.0.1"
+  port: 8317
+
+# Directory for CLIProxyAPI auth files and local KV store (required by embedded mode).
+oauth:
+  auth-dir: "~/.config/router/cliproxyapi-auth"
+
+# Client authentication for the proxy API. routerd presents one of these
+# keys as its `[providers.cliproxyapi] api_key`. Replace this dummy value in both files.
+# CLIProxyAPI access keys are literal YAML strings. The OpenCode plugin below
+# supports environment references for its own upstream keys.
+access:
+  api-keys:
+    - "replace-this-proxy-key"
+
+# Optional management API & web dashboard (http://127.0.0.1:8317/management.html).
+# Set this key in the proxy YAML (CLIProxyAPI hashes it in-place on startup).
+# management:
+#   allow-remote: false
+#   secret-key: "replace-this-management-key"
+#   disable-control-panel: false
+
+# Standard dynamic library plugins are trusted in-process code.
+plugins:
+  enabled: true
+  dir: "plugins"
+  configs:
+    opencode-go-cliproxyapi:
+      enabled: true
+      # Upstream base URL (default shown).
+      base-url: "https://opencode.ai/zen/go/v1"
+      # Client-facing model ID prefix: "opencode-go/<model>".
+      model-prefix:
+        enabled: true
+        value: "opencode-go"
+      # OpenCode Go API keys (at least one required).
+      # Supports ${ENV_VAR} expansion; never commit real keys.
+      api-keys:
+        - value: "${OPENCODE_GO_API_KEY}"
+      catalog:
+        refresh-interval: "15m"
+        stale-while-unavailable: true
+      protocols:
+        chat-completions: true
+        messages: true
+        responses: true
+      request-timeout: "5m"
+      max-response-bytes: 67108864
+      allow-http: false
+
+observability:
+  logs:
+    logging-to-file: true
+    logs-max-total-size-mb: 50
+    error-logs-max-files: 10

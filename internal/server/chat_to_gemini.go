@@ -69,7 +69,7 @@ func (s *Server) serveChatToGemini(w http.ResponseWriter, r *http.Request, p *co
 		method = "streamGenerateContent"
 		alt = "sse"
 	}
-	dest := model.EffectiveDialect(p)
+	dest := p.ResolveDialect(config.DialectOpenAIChat, model.Dialect)
 	url, rerr := transport.GeminiURL(p.BaseURL, model.Upstream, method, alt)
 	if rerr != nil {
 		s.writeChatError(w, *rerr)

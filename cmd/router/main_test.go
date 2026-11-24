@@ -89,7 +89,7 @@ func TestHelpAndVersion(t *testing.T) {
 		}
 	}
 
-	for _, topic := range []string{"start", "stop", "restart", "status", "models", "validate", "logs", "usage"} {
+	for _, topic := range []string{"start", "stop", "restart", "status", "models", "providers", "validate", "logs", "usage"} {
 		code, stdout, _ := captureBoth(t, func() int { return run([]string{"help", topic}) })
 		if code != 0 || !strings.Contains(stdout, "router "+topic) {
 			t.Fatalf("help %s = (%d, %q)", topic, code, stdout)
@@ -323,7 +323,7 @@ func TestStatusNotLiveReturnsExit1(t *testing.T) {
 func TestValidateAndUsage(t *testing.T) {
 	paths := isolateEnv(t)
 
-	cfgPath := filepath.Join(paths.ConfigHome, ".router", "router.toml")
+	cfgPath := filepath.Join(paths.ConfigHome, "router", "router.toml")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -30,6 +30,7 @@ import (
 	"github.com/arhammahajan/router/internal/capability"
 	"github.com/arhammahajan/router/internal/config"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 	"github.com/arhammahajan/router/internal/router"
 	"github.com/arhammahajan/router/internal/transport"
 )
@@ -48,12 +49,10 @@ func (s *Server) serveAnthropicTranslated(w http.ResponseWriter, r *http.Request
 	// Same pinned snapshot plans the closed Anthropic disabled intent
 	// through the shared planner; the Responses-ingress hard refusal for
 	// unobserved runtimes is not copied here (the planner diagnoses it).
+	dest := p.ResolveDialect(config.DialectAnthropic, model.Dialect)
 	contract := snap.RequestCapability(model, p)
 	caps := capability.ReasoningFor(contract)
-	scope := protocol.OrdinaryRoute()
-	if snap.HasLlamaProvider(p.Name) {
-		scope = protocol.LocalRoute(snap.LlamaRuntime(p.Name))
-	}
+	scope := provider.ForKind(p.Kind).EffortScope(dest)
 	planned, planLosses := protocol.PlanEffort(gen.Reasoning, caps, scope)
 	losses = append(losses, planLosses...)
 	kept, rerr := protocol.EnforcePolicy(losses, p.IsLossy())
@@ -66,8 +65,7 @@ func (s *Server) serveAnthropicTranslated(w http.ResponseWriter, r *http.Request
 		s.writeIngressError(w, config.DialectAnthropic, *rerr)
 		return rerr.Status
 	}
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectAnthropic, *rerr)
 		return rerr.Status

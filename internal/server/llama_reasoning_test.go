@@ -68,9 +68,9 @@ allow_dynamic_routes = false
 max_generations = 8
 [retry]
 max_attempts = 1
-[llama_cpp]
+[providers.llama_cpp]
 ` + compat + `
-[[llama_cpp.servers]]
+[[providers.llama_cpp.servers]]
 name = "llama-test"
 url = "` + srv.URL + `"
 `
@@ -355,5 +355,132 @@ func TestLlamaListingFacts(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("llama-chat missing from listing: %s", data)
+	}
+}
+
+func TestLocalNativeAnthropicForwarding(t *testing.T) {
+	const apiKey = "local-secret"
+	for _, tc := range []struct {
+		name       string
+		table      string
+		serverName string
+		runtime    capability.LocalRuntime
+		authHeader string
+		wantAuth   string
+		wantXAPI   string
+	}{
+		{
+			name:       "llama_cpp default x-api-key",
+			table:      "llama_cpp",
+			serverName: "llama-anth",
+			runtime:    capability.RuntimeLlamaCpp,
+			authHeader: "",
+			wantAuth:   "",
+			wantXAPI:   apiKey,
+		},
+		{
+			name:       "llama_cpp explicit bearer",
+			table:      "llama_cpp",
+			serverName: "llama-anth",
+			runtime:    capability.RuntimeLlamaCpp,
+			authHeader: "bearer",
+			wantAuth:   "Bearer " + apiKey,
+			wantXAPI:   "",
+		},
+		{
+			name:       "strata default x-api-key",
+			table:      "strata",
+			serverName: "strata-anth",
+			runtime:    capability.RuntimeStrata,
+			authHeader: "",
+			wantAuth:   "",
+			wantXAPI:   apiKey,
+		},
+		{
+			name:       "strata explicit bearer",
+			table:      "strata",
+			serverName: "strata-anth",
+			runtime:    capability.RuntimeStrata,
+			authHeader: "bearer",
+			wantAuth:   "Bearer " + apiKey,
+			wantXAPI:   "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotPath, gotAuth, gotXAPI string
+			var gotBody []byte
+			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				gotAuth = r.Header.Get("Authorization")
+				gotXAPI = r.Header.Get("x-api-key")
+				gotBody, _ = io.ReadAll(r.Body)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"local-model","content":[{"type":"text","text":"native-ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
+			}))
+			defer up.Close()
+
+			authLine := ""
+			if tc.authHeader != "" {
+				authLine = "auth_header = \"" + tc.authHeader + "\"\n"
+			}
+			toml := `
+[server]
+auth_mode = "none"
+allow_dynamic_routes = false
+max_generations = 8
+[retry]
+max_attempts = 1
+[providers.` + tc.table + `]
+api_key = "` + apiKey + `"
+` + authLine + `
+[[providers.` + tc.table + `.servers]]
+name = "` + tc.serverName + `"
+url = "` + up.URL + `"
+`
+			p := filepath.Join(t.TempDir(), "router.toml")
+			if err := os.WriteFile(p, []byte(toml), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := config.Load(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reg := router.NewRegistry(cfg)
+			layer := router.LlamaLayer{Servers: map[string]router.LlamaServerSnapshot{
+				tc.serverName: {
+					State:   router.LlamaReachable,
+					Runtime: tc.runtime,
+					Entries: []router.LlamaEntry{{Name: "local-model", Upstream: "local-model"}},
+				},
+			}}
+			if err := reg.CommitLlama(router.LlamaAttempt{Layer: layer, AtWall: router.Wall(1000)}); err != nil {
+				t.Fatal(err)
+			}
+			rsrv := httptest.NewServer(NewWithRegistry(cfg, reg).Handler())
+			defer rsrv.Close()
+
+			// Include reasoning_effort + thinking in the Anthropic body to verify
+			// PrepareNativeBody does not mutate Anthropic payloads even on llama_cpp.
+			reqBody := `{"model":"local-model","max_tokens":32,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"enabled","budget_tokens":1024},"reasoning_effort":"high"}`
+			status, hdr, respBody := postChat(t, rsrv.URL+"/v1/messages", reqBody)
+			if status != 200 || !strings.Contains(string(respBody), "native-ok") {
+				t.Fatalf("status=%d body=%s", status, respBody)
+			}
+			if hdr.Get("X-Model-Router-Loss") != "" {
+				t.Fatalf("unexpected loss header: %q", hdr.Get("X-Model-Router-Loss"))
+			}
+			if gotPath != "/v1/messages" {
+				t.Fatalf("upstream path = %q, want /v1/messages", gotPath)
+			}
+			if gotAuth != tc.wantAuth {
+				t.Fatalf("Authorization = %q, want %q", gotAuth, tc.wantAuth)
+			}
+			if gotXAPI != tc.wantXAPI {
+				t.Fatalf("x-api-key = %q, want %q", gotXAPI, tc.wantXAPI)
+			}
+			if string(gotBody) != reqBody {
+				t.Fatalf("upstream body mutated:\n got: %s\nwant: %s", gotBody, reqBody)
+			}
+		})
 	}
 }

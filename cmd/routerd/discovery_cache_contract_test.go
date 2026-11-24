@@ -36,7 +36,7 @@ func dccEnv(t *testing.T) {
 }
 
 // dccWriteCfg writes a hermetic router.toml. catalogURL empty means no
-// [catalog]; llamaURLs empty means no [llama_cpp]. extraModels appends raw
+// [catalog]; llamaURLs empty means no [providers.llama_cpp]. extraModels appends raw
 // TOML (explicit [[models]] metadata controls). cachePath empty omits
 // [discovery_cache].
 func dccWriteCfg(t *testing.T, catalogURL string, llamaURLs []string, cachePath string, extraModels string) string {
@@ -49,14 +49,14 @@ func dccWriteCfg(t *testing.T, catalogURL string, llamaURLs []string, cachePath 
 		b.WriteString("[catalog.model_providers]\n\"cat-a\" = \"up\"\n")
 	}
 	if len(llamaURLs) > 0 {
-		b.WriteString("[llama_cpp]\nservers = [")
+		b.WriteString("[providers.llama_cpp]\nservers = [")
 		for i, u := range llamaURLs {
 			if i > 0 {
 				b.WriteString(", ")
 			}
 			fmt.Fprintf(&b, "%q", u)
 		}
-		fmt.Fprintf(&b, "]\ntimeout = %d\nrefresh_seconds = 0\n", dccProbeTimeout)
+		fmt.Fprintf(&b, "]\nprobe_timeout = %d\nrefresh_seconds = 0\n", dccProbeTimeout)
 	}
 	if cachePath != "" {
 		fmt.Fprintf(&b, "[discovery_cache]\npath = %q\nmax_age_seconds = %v\n", cachePath, dccMaxAge)
@@ -552,8 +552,8 @@ func TestDiscoveryCacheContractPrefixLocalAliasRoundtrip(t *testing.T) {
 	defer srv.Close()
 	cachePath := filepath.Join(t.TempDir(), "dc.json")
 	body := "[server]\nauth_mode = \"none\"\nallow_dynamic_routes = false\n[retry]\nmax_attempts = 1\n" +
-		"[llama_cpp]\nservers = [" + fmt.Sprintf("%q", srv.URL) + "]\n" +
-		"timeout = 1\nrefresh_seconds = 0\nprefix = \"p-\"\naliases = true\n" +
+		"[providers.llama_cpp]\nservers = [" + fmt.Sprintf("%q", srv.URL) + "]\n" +
+		"probe_timeout = 1\nrefresh_seconds = 0\nprefix = \"p-\"\naliases = true\n" +
 		"[discovery_cache]\npath = " + fmt.Sprintf("%q", cachePath) + "\nmax_age_seconds = 3600\n"
 	cfg := filepath.Join(t.TempDir(), "router.toml")
 	if err := os.WriteFile(cfg, []byte(body), 0o600); err != nil {

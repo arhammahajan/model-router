@@ -77,7 +77,7 @@ func TestCatalogHitAndDynamicFallback(t *testing.T) {
 	reg := NewRegistry(cfg)
 	publish(t, reg, []CatalogEntry{{Name: "cat-1", Provider: "up", Upstream: "cat-1"}}, nil, 1000)
 	m, p, fault := reg.Current().Resolve("cat-1")
-	if fault != Found || p.Dialect != config.DialectAnthropic || m.Upstream != "cat-1" {
+	if fault != Found || p.DefaultDialect != config.DialectAnthropic || m.Upstream != "cat-1" {
 		t.Fatalf("catalog hit broken: %+v %+v %v", m, p, fault)
 	}
 	m, _, fault = reg.Current().Resolve("up/other")

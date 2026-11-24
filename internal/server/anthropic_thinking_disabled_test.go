@@ -287,16 +287,18 @@ func TestAnthDisabledNativeBigInt(t *testing.T) {
 }
 
 func TestAnthDisabledLlamaOff(t *testing.T) {
+	// Confirmed llama_cpp natively supports Anthropic (/v1/messages), so the
+	// Anthropic body passes through untouched.
 	up, rsrv, _ := llamaVerticalServer(t, capability.RuntimeLlamaCpp, "")
 	status, _, _ := anthDisabledPost(t, rsrv.URL+"/v1/messages",
 		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"disabled"}}`)
 	if status != 200 {
-		t.Fatalf("llama off must 200, got %d", status)
+		t.Fatalf("llama native anthropic off must 200, got %d", status)
 	}
 	got := up.last(t)
-	kwargs, ok := got["chat_template_kwargs"].(map[string]any)
-	if !ok || kwargs["enable_thinking"] != false {
-		t.Fatalf("llama wire must be kwargs toggle: %v", got)
+	thinking, ok := got["thinking"].(map[string]any)
+	if !ok || thinking["type"] != "disabled" {
+		t.Fatalf("llama native anthropic must preserve thinking untouched: %v", got)
 	}
 	if _, has := got["reasoning_effort"]; has {
 		t.Fatalf("llama must not emit effort: %v", got)

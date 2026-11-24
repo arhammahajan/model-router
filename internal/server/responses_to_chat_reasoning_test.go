@@ -466,9 +466,9 @@ allow_dynamic_routes = false
 max_generations = 8
 [retry]
 max_attempts = 1
-[llama_cpp]
+[providers.llama_cpp]
 ` + compat + `
-[[llama_cpp.servers]]
+[[providers.llama_cpp.servers]]
 name = "llama-test"
 url = "` + up.URL + `"
 `

@@ -9,7 +9,7 @@ import (
 func fpCfg() *config.Config {
 	return &config.Config{
 		Providers: map[string]*config.Provider{
-			"up": {Name: "up", Dialect: config.DialectOpenAIChat, BaseURL: "https://up.example", APIKey: "k", Timeout: 600},
+			"up": {Name: "up", DefaultDialect: config.DialectOpenAIChat, BaseURL: "https://up.example", APIKey: "k", Timeout: 600},
 		},
 		Models: []config.Model{
 			{Name: "m", Provider: "up", Upstream: "gpt"},
@@ -33,7 +33,7 @@ func TestCacheFingerprintOverrideChangeVsNoop(t *testing.T) {
 		t.Fatalf("override rotation must change digest")
 	}
 	rotated := fpCfg()
-	rotated.Providers["up"].Dialect = config.DialectAnthropic
+	rotated.Providers["up"].DefaultDialect = config.DialectAnthropic
 	if cacheIdentity(rotated) == cacheIdentity(base) {
 		t.Fatalf("provider rotation must invalidate")
 	}

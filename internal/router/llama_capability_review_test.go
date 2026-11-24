@@ -128,7 +128,7 @@ func TestLlamaCapRevAliasHasNoBase(t *testing.T) {
 func TestLlamaCapRevLosingObsCannotLeak(t *testing.T) {
 	cfg := &config.Config{
 		Server:    config.Server{},
-		Providers: map[string]*config.Provider{"static": {Name: "static", Dialect: "openai-chat"}},
+		Providers: map[string]*config.Provider{"static": {Name: "static", DefaultDialect: "openai-chat"}},
 		Models:    []config.Model{{Name: "m1", Provider: "static", Upstream: "u"}},
 		Llama: &config.LlamaConfig{
 			Servers:      []config.LlamaServer{{URL: "http://127.0.0.1:1111", Name: "llama-a"}},

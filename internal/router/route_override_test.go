@@ -11,8 +11,8 @@ func overrideTestConfig() *config.Config {
 	return &config.Config{
 		Server: config.Server{AllowDynamicRoutes: false},
 		Providers: map[string]*config.Provider{
-			"chatup": {Name: "chatup", Dialect: config.DialectOpenAIChat, BaseURL: "https://up.example", APIKey: "k"},
-			"anthup": {Name: "anthup", Dialect: config.DialectAnthropic, BaseURL: "https://up.example", APIKey: "k"},
+			"chatup": {Name: "chatup", DefaultDialect: config.DialectOpenAIChat, BaseURL: "https://up.example", APIKey: "k"},
+			"anthup": {Name: "anthup", DefaultDialect: config.DialectAnthropic, BaseURL: "https://up.example", APIKey: "k"},
 		},
 		Models: []config.Model{
 			{Name: "chat-native", Provider: "chatup", Upstream: "gpt"},
@@ -44,17 +44,17 @@ func TestOverrideSnapshotConcurrentImmutable(t *testing.T) {
 				t.Errorf("dest=%q", got)
 				return
 			}
-			if p.Dialect != config.DialectOpenAIChat {
-				t.Errorf("provider mutated: %q", p.Dialect)
+			if p.DefaultDialect != config.DialectOpenAIChat {
+				t.Errorf("provider mutated: %q", p.DefaultDialect)
 				return
 			}
 			m.Dialect = "mutated"
-			p.Dialect = "mutated"
+			p.DefaultDialect = "mutated"
 		}(i)
 	}
 	wg.Wait()
 	m, p, _ := snap.Resolve("chat-to-anthropic")
-	if m.EffectiveDialect(p) != config.DialectAnthropic || p.Dialect != config.DialectOpenAIChat {
+	if m.EffectiveDialect(p) != config.DialectAnthropic || p.DefaultDialect != config.DialectOpenAIChat {
 		t.Fatalf("shared snapshot mutated: %+v %+v", m, p)
 	}
 	if _, _, fault := snap.Resolve("disabled-over"); fault != DisabledReserved {

@@ -16,28 +16,31 @@ import (
 // lossy 200 with header). No live creds/cache.
 
 func TestAnthEnabledLlamaExactWire(t *testing.T) {
+	// Confirmed llama_cpp supports native Anthropic (/v1/messages), so the
+	// Anthropic thinking budget passes through untouched with no loss header.
 	up, rsrv, _ := llamaVerticalServer(t, capability.RuntimeLlamaCpp, "")
 	status, hdr, _ := anthDisabledPost(t, rsrv.URL+"/v1/messages",
 		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"enabled","budget_tokens":2048}}`)
 	if status != 200 {
-		t.Fatalf("llama exact must 200, got %d", status)
+		t.Fatalf("llama native anthropic must 200, got %d", status)
 	}
 	if hdr.Get("X-Model-Router-Loss") != "" {
-		t.Fatalf("exact must emit no loss: %q", hdr.Get("X-Model-Router-Loss"))
+		t.Fatalf("native anthropic must emit no loss: %q", hdr.Get("X-Model-Router-Loss"))
 	}
 	got := up.last(t)
 	if _, has := got["reasoning_effort"]; has {
-		t.Fatalf("budget must not emit effort: %v", got)
+		t.Fatalf("native anthropic must not emit effort: %v", got)
 	}
-	if _, ok := got["thinking_budget_tokens"]; !ok {
-		t.Fatalf("llama wire must carry budget: %v", got)
+	thinking, ok := got["thinking"].(map[string]any)
+	if !ok || thinking["type"] != "enabled" {
+		t.Fatalf("llama native anthropic must preserve thinking: %v", got)
 	}
 	// Exact numeric check via raw body.
 	up.mu.Lock()
 	body := string(up.bodies[len(up.bodies)-1])
 	up.mu.Unlock()
-	if !strings.Contains(body, `"thinking_budget_tokens":2048`) {
-		t.Fatalf("wire must carry exact 2048: %s", body)
+	if !strings.Contains(body, `"budget_tokens":2048`) {
+		t.Fatalf("wire must preserve exact budget_tokens 2048: %s", body)
 	}
 }
 
@@ -71,30 +74,33 @@ func TestAnthEnabledOrdinaryStrictLossyNoIO(t *testing.T) {
 }
 
 func TestAnthEnabledDisplayLlamaStrictLossy(t *testing.T) {
-	// Strict llama with admitted display: display loss refuses before I/O.
-	up, rsrv, _ := llamaVerticalServer(t, capability.RuntimeLlamaCpp, "")
-	status, _, data := anthDisabledPost(t, rsrv.URL+"/v1/messages",
-		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"enabled","budget_tokens":512,"display":"summarized"}}`)
-	if status != 400 || !strings.Contains(string(data), "thinking.display") {
-		t.Fatalf("strict display must 400 thinking.display, got %d %s", status, data)
-	}
-	_ = up
-	// Lossy llama: exact budget wire plus display loss header.
-	up2, rsrv2, _ := llamaVerticalServer(t, capability.RuntimeLlamaCpp, "compatibility = \"lossy\"\n")
-	status, hdr, _ := anthDisabledPost(t, rsrv2.URL+"/v1/messages",
-		`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"enabled","budget_tokens":512,"display":"omitted"}}`)
-	if status != 200 || hdr.Get("X-Model-Router-Loss") == "" {
-		t.Fatalf("lossy display must 200 with header, got %d %q", status, hdr.Get("X-Model-Router-Loss"))
-	}
-	if !strings.Contains(hdr.Get("X-Model-Router-Loss"), "thinking.display") {
-		t.Fatalf("header must name display: %q", hdr.Get("X-Model-Router-Loss"))
-	}
-	got := up2.last(t)
-	up2.mu.Lock()
-	body := string(up2.bodies[len(up2.bodies)-1])
-	up2.mu.Unlock()
-	if !strings.Contains(body, `"thinking_budget_tokens":512`) {
-		t.Fatalf("lossy llama must still carry exact budget: %s %v", body, got)
+	// Confirmed llama_cpp supports native Anthropic (/v1/messages), so
+	// thinking.display passes through natively untouched in both strict and
+	// lossy modes with no loss header.
+	for _, tc := range []struct {
+		name    string
+		compat  string
+		display string
+	}{
+		{"strict", "", "summarized"},
+		{"lossy", "compatibility = \"lossy\"\n", "omitted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			up, rsrv, _ := llamaVerticalServer(t, capability.RuntimeLlamaCpp, tc.compat)
+			status, hdr, data := anthDisabledPost(t, rsrv.URL+"/v1/messages",
+				`{"model":"llama-chat","max_tokens":16,"messages":[{"role":"user","content":"Hi"}],"thinking":{"type":"enabled","budget_tokens":512,"display":"`+tc.display+`"}}`)
+			if status != 200 {
+				t.Fatalf("native anthropic (%s) must 200, got %d %s", tc.name, status, data)
+			}
+			if hdr.Get("X-Model-Router-Loss") != "" {
+				t.Fatalf("native anthropic (%s) must emit no loss header, got %q", tc.name, hdr.Get("X-Model-Router-Loss"))
+			}
+			got := up.last(t)
+			thinking, ok := got["thinking"].(map[string]any)
+			if !ok || thinking["display"] != tc.display {
+				t.Fatalf("native anthropic (%s) must preserve thinking.display=%q: %v", tc.name, tc.display, got)
+			}
+		})
 	}
 }
 

@@ -86,19 +86,94 @@ Configure upstream retries and absolute request deadlines in `[retry]`.
 | `backoff_max` | Maximum backoff delay between retry attempts. |
 | `deadline` | Absolute deadline covering request preparation, attempts, backoff, and full stream consumption. The clock starts at handler entry. |
 
+## CLIProxyAPI upstream (default)
+
+The default setup fronts CLIProxyAPI under `[providers.cliproxyapi]` instead of
+configuring upstream providers directly. Upstream AI/OAuth credentials live
+only in the CLIProxyAPI YAML file and environment, never in the router TOML.
+
+```toml
+[providers.cliproxyapi]
+base_url = "http://127.0.0.1:8317/v1"
+api_key = "replace-this-proxy-key"
+# api_key_env = "CLIPROXYAPI_API_KEY"  # alternative: read the key from env
+# config_path = "/path/to/cliproxyapi-config.yaml"  # optional embedded mode
+# passthrough = true  # forward Chat, Responses, and Anthropic natively
+```
+
+`[providers.cliproxyapi]` accepts all shared `[providers.<name>]` common fields
+(`base_url`, `api_key`, `api_key_env`, `api_key_file`, `auth_header`, `headers`,
+`compatibility`, `timeout`) plus these CLIProxyAPI-specific keys:
+
+| Key | Description |
+| --- | --- |
+| `base_url` | Proxy base URL. Defaults to `http://127.0.0.1:8317/v1`. |
+| `api_key`, `api_key_env`, `api_key_file` | Proxy access key supplied inline, from an environment variable, or from a file. This is the client key in the proxy's `access.api-keys` list, not an upstream provider credential. |
+| `auth_header` | Optional custom upstream authentication header name. When omitted, follows the effective egress dialect (`Authorization: Bearer` for OpenAI, `x-api-key` for Anthropic, `x-goog-api-key` for Gemini). |
+| `headers` | Trusted static headers sent on proxy discovery probes and generation requests. |
+| `compatibility` | Translation compatibility mode, either `strict` (default) or `lossy`. |
+| `timeout` | Generation request timeout in seconds. Defaults to `600` (`600s`). Separate from `probe_timeout`. |
+| `config_path` | Optional path to a CLIProxyAPI YAML file. When set, model-router runs the SDK service embedded in-process; when omitted, it dials an external proxy listener. |
+| `passthrough` | When `true`, natively forwards OpenAI Chat, OpenAI Responses, and Anthropic Messages requests to CLIProxyAPI (while Gemini ingress and explicit `[[models]]` overrides still translate). Defaults to `false` (all non-Chat dialects translate through OpenAI Chat). |
+| `refresh_seconds` | Periodic model discovery interval in seconds. Defaults to `30.0`. Setting `0` runs only the initial startup fetch. |
+| `probe_timeout` | Discovery probe timeout in seconds for fetching `{base_url}/models`. Defaults to `30.0`. Separate from the generation `timeout`. |
+
+A default external-wrapper config needs no custom `[providers.<name>]`,
+`[[models]]`, or `[catalog]` sections. Model names are discovered from the
+proxy as opaque `opencode-go/...` IDs. Discovery refreshes every 30 seconds by
+default (configurable via `refresh_seconds`) so newly loaded plugins and OAuth
+accounts become available promptly. By default the generated `cliproxyapi`
+provider speaks OpenAI Chat on the wire while model-router retains
+cross-dialect translation for all ingress dialects; setting `passthrough = true`
+adds native OpenAI Responses and Anthropic Messages passthrough.
+
+External mode: start CLIProxyAPI separately (see
+[cliproxyapi.example.yaml](../cliproxyapi.example.yaml) for the proxy-side
+access key and `plugins.configs.opencode-go-cliproxyapi` setup with secrets
+from env), then start model-router with the wrapper config. Embedded mode:
+set `config_path` and model-router starts the SDK service itself. The proxy
+`base_url` must match the YAML listener and include `/v1`. Startup waits up
+to 30 seconds for the authenticated model endpoint before discovery.
+`--check-readiness` queries the configured proxy endpoint without starting
+an embedded listener. Run the service before using an online readiness check.
+
+The `harness` OpenCode agent launcher is unrelated: it starts the local
+OpenCode coding tool and is unaffected by this upstream change. The
+`metadata_source = "opencode-go-v1"` catalog option below selects frozen
+historical capability provenance only; it carries no credentials and never
+contacts `opencode.ai`.
+
 ## Providers
 
-Configure upstream providers under `[providers.<name>]`.
+All upstream integrations use the unified `[providers.<name>]` table schema:
+
+- `[providers.cliproxyapi]` — built-in CLIProxyAPI proxy provider (see [CLIProxyAPI upstream](#cliproxyapi-upstream-default)).
+- `[providers.llama_cpp]` and `[providers.strata]` — built-in local discovery fleets (see [Local llama.cpp and Strata discovery](#local-llamacpp-and-strata-discovery)).
+- `[providers.<name>]` — custom direct providers for non-proxy upstreams and local fixtures.
+
+Top-level `[cliproxyapi]` and `[llama_cpp]` tables are rejected at startup with
+a migration hint to move them under `[providers.*]`.
+
+### Shared common fields
+
+Every `[providers.<name>]` table (built-in or custom) accepts these common fields:
+
+| Key | Description |
+| --- | --- |
+| `base_url` | Upstream base URL. Required for custom providers; optional for `[providers.cliproxyapi]` (defaults to `http://127.0.0.1:8317/v1`), `[providers.llama_cpp]`, and `[providers.strata]` (cannot be combined with `servers` or `ports`). |
+| `api_key`, `api_key_env`, `api_key_file` | Upstream credential supplied inline, from an environment variable, or from a file. At most one form may be set per provider. |
+| `auth_header` | Optional override for the upstream authentication header name (for example `bearer`, `x-api-key`, `api-key`, `x-goog-api-key`, or a custom header token). When omitted, the default auth header follows the effective egress dialect (`x-api-key` for `anthropic`, `x-goog-api-key` for `gemini`, and `Authorization: Bearer` for OpenAI dialects). |
+| `headers` | Trusted static headers sent to the upstream provider. |
+| `compatibility` | Translation compatibility mode, either `strict` (default) or `lossy`. Custom providers also accept the legacy `drop_params = true` alias for `lossy`. |
+| `timeout` | Upstream generation request timeout in seconds. Defaults to `600` (`600s`). For discovery-backed providers (`cliproxyapi`, `llama_cpp`, `strata`), `timeout` bounds generation requests while `probe_timeout` separately bounds discovery probes. |
+
+### Custom provider fields
+
+Custom `[providers.<name>]` entries also accept:
 
 | Key | Description |
 | --- | --- |
 | `dialect` | Upstream protocol dialect. Supported values are `openai-chat`, `openai-responses`, `anthropic`, and `gemini`. All four dialects execute natively. |
-| `base_url` | Upstream base URL. |
-| `api_key`, `api_key_env`, `api_key_file` | Upstream credential supplied inline, from an environment variable, or from a file. |
-| `headers` | Trusted static headers sent to the upstream provider. |
-| `timeout` | Upstream request timeout. |
-| `compatibility` | Translation compatibility mode, either `strict` or `lossy`. The legacy setting `drop_params = true` selects `lossy`. |
-| `auth_header` | Custom upstream authentication header name. |
 | `count_tokens` | Enables token counting. Supported on Anthropic providers only. |
 
 ### Session affinity
@@ -183,7 +258,7 @@ Setting `enabled = false` reserves the model `name` and all `aliases` and return
 
 Route `dialect` selects the actual upstream protocol for the route. Omitting `dialect` or setting it equal to the provider dialect inherits the provider default. Aliases share the route destination. Catalog, llama.cpp, and dynamic routes inherit their provider's default dialect.
 
-The effective route destination controls dispatch, URL construction, codecs, native forwarding, translated headers, and session-body consumption. Credentials remain provider-owned. For example, a Chat-default provider still sends its configured Bearer credential on an Anthropic route. A route dialect override does not grant token-count support. Both the route destination and the provider's `count_tokens` policy must allow token counting. Diagnostics continue to report the configured provider dialect.
+The effective route destination controls dispatch, URL construction, codecs, native forwarding, translated headers, and session-body consumption. Credentials remain provider-owned. When `auth_header` is omitted, the auth header follows the destination dialect when the provider natively supports it (for example `x-api-key` for Anthropic on a multi-dialect provider) and otherwise follows the provider's default dialect (for example a single-dialect Chat provider still sends its Bearer credential on an Anthropic route override); setting `auth_header` always pins the header explicitly. A route dialect override does not grant token-count support. Both the route destination and the provider's `count_tokens` policy must allow token counting. Diagnostics continue to report the configured provider default dialect.
 
 ## Capability overrides
 
@@ -237,30 +312,41 @@ When `metadata_source = "opencode-go-v1"` is configured, the router applies revi
 - `--validate-config` remains offline. `--check-readiness` makes one bounded attempt per configured discovery source.
 - On shutdown, the server closes admission, cancels and joins the catalog worker, drains active requests within the 10-second bound, and closes idle upstream pools.
 
-## Local llama.cpp discovery
+## Local llama.cpp and Strata discovery
 
-Configure local llama.cpp and Strata discovery in `[llama_cpp]`. Llama-only configurations need no static `[providers.*]` entries.
+Configure local llama.cpp discovery in `[providers.llama_cpp]` and Strata
+discovery in `[providers.strata]`. Both tables share the same schema and can
+coexist in one config. Local-only configurations need no custom
+`[providers.<name>]` entries.
+
+`[providers.llama_cpp]` defaults `prefix` to `"llama/"` and falls back to the
+`LLAMA_SERVER_URL` environment variable (and then `http://127.0.0.1:9931`) when
+`base_url`, `servers`, and `ports` are all omitted. `[providers.strata]`
+defaults `prefix` to `"strata/"` and falls back directly to
+`http://127.0.0.1:9931` when no server address is given.
 
 | Key | Description |
 | --- | --- |
-| `servers`, `ports` | Configured local servers and ports to probe. Each server entry accepts `url`, `name`, `headers`, `api_key`, `api_key_env`, and `api_key_file`. |
-| `headers`, `api_key`, `api_key_env`, `api_key_file` | Trusted global headers and credentials applied to all llama.cpp probes and generation requests unless overridden per server. |
-| `prefix` | Optional prefix added to discovered model names. |
-| `aliases` | Optional alias definitions for discovered models. |
-| `compatibility` | Translation compatibility mode, either `strict` or `lossy`. |
-| `timeout` | Probe timeout. Defaults to 2 seconds. |
-| `refresh_seconds` | Periodic refresh interval in seconds. Defaults to 30 seconds. |
+| `base_url` | Single local server URL. Cannot be combined with `servers` or `ports`. |
+| `servers`, `ports` | Configured local servers and ports to probe. Each server entry accepts `url`, `name`, `headers`, `auth_header`, `timeout`, `api_key`, `api_key_env`, and `api_key_file`. |
+| `headers`, `auth_header`, `api_key`, `api_key_env`, `api_key_file` | Trusted fleet-wide headers, auth header override, and credentials applied to all probes and generation requests unless overridden per server. |
+| `prefix` | Optional prefix added to discovered model names. Defaults to `"llama/"` for `llama_cpp` and `"strata/"` for `strata`. |
+| `aliases` | Optional boolean exposing unprefixed aliases for discovered models. Defaults to `false`. |
+| `compatibility` | Translation compatibility mode, either `strict` (default) or `lossy`. |
+| `timeout` | Generation request timeout in seconds for generated providers (also overridable per server). Defaults to `600` (`600s`). Separate from `probe_timeout`. |
+| `probe_timeout` | Discovery probe timeout in seconds (whole-probe bound per server). Defaults to `2.0` (`2.0s`). |
+| `refresh_seconds` | Periodic refresh interval in seconds. Defaults to `30.0`. Setting `0` runs only the initial startup probe. |
 | `context_fallback` | Context window published when discovery has no value. If omitted, an unobserved context window stays unknown. |
-| `[llama_cpp.limit_overrides.<upstream-model-id>]` | Overrides reported limits for an exact upstream model ID before the router applies a prefix or alias. |
+| `[providers.llama_cpp.limit_overrides.<upstream-model-id>]`, `[providers.strata.limit_overrides.<upstream-model-id>]` | Overrides reported limits for an exact upstream model ID before the router applies a prefix or alias. |
 
 ### Probes and generated providers
 
 - The router probes each server at `/health`, `/v1/models`, and optional `/props?autoload=false`.
 - Every valid model ID is eligible regardless of load status.
 - Canonical rows precede aliases within each server. Aliases resolve without adding listing rows.
-- Route precedence puts explicit `[[models]]` reservations first, llama.cpp routes second, and catalog routes third.
-- Generated providers use trusted configuration, OpenAI Chat endpoints, and a 600-second generation timeout. The probe timeout is separate from the generation timeout.
-- Trusted server headers override global headers case-insensitively and apply to generation requests as well as probes.
+- Route precedence puts explicit `[[models]]` reservations first, llama.cpp/Strata routes second, and catalog routes third.
+- Generated providers use trusted configuration, support OpenAI Chat (default) and Anthropic Messages natively, and default to a 600-second generation `timeout`. The discovery `probe_timeout` (default `2.0s`) is separate from the generation `timeout`.
+- Trusted server headers override fleet-wide headers case-insensitively and apply to generation requests as well as probes.
 - A first failed probe does not activate dynamic routing. A successful probe returning an empty model list does activate it.
 - Later probe failures retain existing routes while excluding the unreachable provider from readiness.
 

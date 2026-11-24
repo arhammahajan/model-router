@@ -41,17 +41,20 @@ The suite also verifies these translation and state rules:
 
 Tool-result regression tests pin exact content preservation, which covers empty strings and Unicode strings. The tests reject duplicated tool-result content.
 
+## Toolchain notes
+
+The router root module and CLIProxyAPI v8 SDK dependency require Go 1.26.10 or later. Building the `opencode-go-cliproxyapi` shared library and loading dynamic plugins in embedded mode require CGO (`CGO_ENABLED=1`). Native release archives built with `go run ./cmd/release build` default to `CGO_ENABLED=1` for the host target so embedded CLIProxyAPI plugins work out of the box; pass `--no-cgo` if you need static cross-compilation without a C cross-compiler.
 ## Development release archives
 
 Build development archives separately from deployment:
 
 ```bash
-python3 scripts/build_release.py --go go --version 0.1.0-dev --out dist/0.1.0-dev
-python3 scripts/check_release.py dist/0.1.0-dev/routerd-0.1.0-dev-linux-amd64.tar.gz --version 0.1.0-dev
+go run ./cmd/release build --version 0.1.0-dev --out dist/0.1.0-dev
+go run ./cmd/release check --version 0.1.0-dev dist/0.1.0-dev/routerd-0.1.0-dev-linux-amd64.tar.gz
 ```
 
-The build script uses cached dependencies only. It emits deterministic tarballs, `SHA256SUMS`, and a source and toolchain manifest for Linux and macOS on amd64 and arm64. Pass `--target OS/ARCH` to build one target. Use a separate output directory for each version and target set. The build script rejects mixed outputs instead of leaving stale archives behind.
+The release tool uses cached dependencies only. By default it builds a CGO-enabled archive for the host OS/architecture, along with `SHA256SUMS` and a source and toolchain manifest. Pass `--no-cgo` to cross-compile all Linux and macOS targets (`amd64` and `arm64`) without CGO, or pass `--target OS/ARCH` to select specific targets. Use a separate output directory for each version and target set. The tool rejects mixed outputs instead of leaving stale archives behind.
 
-Run `scripts/check_release.py` with the archive that matches your host platform. The smoke checker extracts and executes the packaged binary with an isolated `HOME` and `XDG` environment and a dummy configuration. The Linux amd64 archive passed this check locally, and repeated builds produced identical archive bytes. Other targets cross-compile. CI defines runtime smoke checks for those targets, and those checks have not run locally. Windows is outside the current Unix-cache platform contract.
+Run `go run ./cmd/release check` with the archive that matches your host platform. The smoke checker extracts and executes the packaged binary with an isolated `HOME` and `XDG` environment and a dummy configuration. The Linux amd64 archive passed this check locally, and repeated builds produced identical archive bytes. Other targets cross-compile. CI defines runtime smoke checks for those targets, and those checks have not run locally. Windows is outside the current Unix-cache platform contract.
 
 See [installation and rollback](../RELEASE.md) for deployment and rollback instructions.

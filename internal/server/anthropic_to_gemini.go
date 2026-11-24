@@ -71,7 +71,7 @@ func (s *Server) serveAnthropicToGemini(w http.ResponseWriter, r *http.Request, 
 		method = "streamGenerateContent"
 		alt = "sse"
 	}
-	dest := model.EffectiveDialect(p)
+	dest := p.ResolveDialect(config.DialectAnthropic, model.Dialect)
 	url, rerr := transport.GeminiURL(p.BaseURL, model.Upstream, method, alt)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectAnthropic, *rerr)

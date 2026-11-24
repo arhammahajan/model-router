@@ -193,7 +193,7 @@ func TestLlamaLimitsCopyRace(t *testing.T) {
 			defer wg.Done()
 			snap := reg.Current()
 			_ = snap.CanonicalBase("m1", "openai-chat")
-			_ = snap.RequestCapability(&config.Model{Name: "m1", Provider: "llama-a", Upstream: "m1"}, &config.Provider{Name: "llama-a", Dialect: "openai-chat"})
+			_ = snap.RequestCapability(&config.Model{Name: "m1", Provider: "llama-a", Upstream: "m1"}, &config.Provider{Name: "llama-a", DefaultDialect: "openai-chat"})
 			_ = snap.ListedModels()
 		}()
 	}

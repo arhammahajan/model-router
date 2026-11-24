@@ -127,7 +127,7 @@ func TestBearerCompatReviewChatPresence(t *testing.T) {
 	if hout2.Get("x-session-id") != revTokA {
 		t.Fatalf("absent nominated still injects at compat layer: %v", hout2)
 	}
-	p := &config.Provider{Name: "up", Dialect: config.DialectOpenAIChat, BaseURL: "http://127.0.0.1:9", SessionHeader: "x-session-out", SessionSourceHeaders: []string{"x-session-id"}, SessionMissing: "omit"}
+	p := &config.Provider{Name: "up", DefaultDialect: config.DialectOpenAIChat, BaseURL: "http://127.0.0.1:9", SessionHeader: "x-session-out", SessionSourceHeaders: []string{"x-session-id"}, SessionMissing: "omit"}
 	sess, _, rerr := PrepareSession(p, hout2, []byte(`{}`), false, NoCompatFallback())
 	if rerr != nil {
 		t.Fatal(rerr)
@@ -161,7 +161,7 @@ func TestBearerCompatReviewFallbackOrder(t *testing.T) {
 		return h
 	}
 	// Custom destination beats configured sources and body and fallback.
-	p := &config.Provider{Name: "up", Dialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9", SessionHeader: "x-custom", SessionSourceHeaders: []string{"session-id"}, SessionPromptCacheKey: true, SessionMissing: "omit"}
+	p := &config.Provider{Name: "up", DefaultDialect: config.DialectGemini, BaseURL: "http://127.0.0.1:9", SessionHeader: "x-custom", SessionSourceHeaders: []string{"session-id"}, SessionPromptCacheKey: true, SessionMissing: "omit"}
 	fb := CompatFallback{ID: revTokA, Has: true}
 	sess, _, rerr := PrepareSession(p, mk("X-Custom", "dest1", "Session-Id", "src1"), []byte(`{"prompt_cache_key":"body1"}`), true, fb)
 	if rerr != nil || sess.ID != "dest1" {

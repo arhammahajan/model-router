@@ -46,8 +46,8 @@ func (s *Server) serveResponsesToAnthropic(w http.ResponseWriter, r *http.Reques
 		s.writeIngressError(w, config.DialectOpenAIResponses, *rerr)
 		return rerr.Status
 	}
-	dest := model.EffectiveDialect(p)
-	url, rerr := transport.UpstreamURL(p.BaseURL, dest)
+	dest := p.ResolveDialect(config.DialectOpenAIResponses, model.Dialect)
+	url, rerr := transport.GenerationEndpoint(p, dest)
 	if rerr != nil {
 		s.writeIngressError(w, config.DialectOpenAIResponses, *rerr)
 		return rerr.Status

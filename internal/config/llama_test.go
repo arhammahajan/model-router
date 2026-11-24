@@ -1,4 +1,4 @@
-// Focused [llama_cpp] validation: URL/name/header/credential trust,
+// Focused [providers.llama_cpp] validation: URL/name/header/credential trust,
 // generated inventory, and the deferred-enrichment rejections.
 package config
 
@@ -23,7 +23,7 @@ func loadLlama(t *testing.T, body string) *Config {
 		t.Fatalf("load: %v", err)
 	}
 	if cfg.Llama == nil {
-		t.Fatal("expected [llama_cpp] to parse")
+		t.Fatal("expected [providers.llama_cpp] to parse")
 	}
 	return cfg
 }
@@ -60,7 +60,7 @@ func TestLlamaURLTrustBoundary(t *testing.T) {
 		"",
 	} {
 		rejectLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["`+bad+`"]
 `)
 	}
@@ -68,7 +68,7 @@ servers = ["`+bad+`"]
 
 func TestLlamaPortsAndTrailingSlash(t *testing.T) {
 	cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931/"]
 ports = [8080]
 `)
@@ -82,14 +82,14 @@ ports = [8080]
 		t.Fatalf("port not mapped to loopback: %q", cfg.Llama.Servers[1].URL)
 	}
 	for _, bad := range []string{"ports = [0]", "ports = [70000]", "ports = [\"x\"]", "ports = [8.5]"} {
-		rejectLlama(t, llamaBase+"[llama_cpp]\n"+bad+"\n")
+		rejectLlama(t, llamaBase+"[providers.llama_cpp]\n"+bad+"\n")
 	}
 }
 
 func TestLlamaDuplicateURLValidatedBeforeDedup(t *testing.T) {
 	// Same URL twice collapses to one ordered entry.
 	cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931", "http://127.0.0.1:9931/"]
 `)
 	if len(cfg.Llama.Servers) != 1 {
@@ -98,14 +98,14 @@ servers = ["http://127.0.0.1:9931", "http://127.0.0.1:9931/"]
 	// Every duplicate is still validated: a bad name on the collapsed
 	// repeat must reject, not vanish silently.
 	rejectLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931", { url = "http://127.0.0.1:9931", name = "bad/name" }]
 `)
 }
 
 func TestLlamaEnvFallbackChain(t *testing.T) {
 	t.Setenv("LLAMA_SERVER_URL", "http://127.0.0.1:1111;,http://127.0.0.1:2222,,http://127.0.0.1:1111")
-	cfg, err := Load(writeCfg(t, llamaBase+"[llama_cpp]\n"))
+	cfg, err := Load(writeCfg(t, llamaBase+"[providers.llama_cpp]\n"))
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestLlamaEnvFallbackChain(t *testing.T) {
 	}
 	// Unset env falls back to the conventional local port.
 	os.Unsetenv("LLAMA_SERVER_URL")
-	cfg, err = Load(writeCfg(t, llamaBase+"[llama_cpp]\n"))
+	cfg, err = Load(writeCfg(t, llamaBase+"[providers.llama_cpp]\n"))
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestLlamaEnvFallbackChain(t *testing.T) {
 func TestLlamaExplicitNamesReserved(t *testing.T) {
 	// Collision with a static provider name rejects.
 	err := rejectLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = [{ url = "http://127.0.0.1:9931", name = "up" }]
 `)
 	if !strings.Contains(err.Error(), "already configured") {
@@ -136,7 +136,7 @@ servers = [{ url = "http://127.0.0.1:9931", name = "up" }]
 	}
 	// Duplicate explicit names reject.
 	rejectLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = [
   { url = "http://127.0.0.1:9931", name = "a" },
   { url = "http://127.0.0.1:9932", name = "a" },
@@ -144,7 +144,7 @@ servers = [
 `)
 	// Slash in an explicit name rejects.
 	rejectLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = [{ url = "http://127.0.0.1:9931", name = "a/b" }]
 `)
 }
@@ -152,7 +152,7 @@ servers = [{ url = "http://127.0.0.1:9931", name = "a/b" }]
 func TestLlamaGeneratedNamesUnique(t *testing.T) {
 	// Distinct URLs sanitizing to one base uniquify with -2.
 	cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://h:1/a-b", "http://h:1/a+b"]
 `)
 	names := []string{cfg.Llama.Servers[0].Name, cfg.Llama.Servers[1].Name}
@@ -161,7 +161,7 @@ servers = ["http://h:1/a-b", "http://h:1/a+b"]
 	}
 	// Stripped names behave as absent.
 	cfg = loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 servers = [{ url = "http://127.0.0.1:9931", name = "   " }]
 `)
 	if !strings.HasPrefix(cfg.Llama.Servers[0].Name, "llama-") {
@@ -178,7 +178,7 @@ func TestLlamaCompatibilityAndProviders(t *testing.T) {
 		{"lossy", true},
 	} {
 		cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 compatibility = "`+tc.compat+`"
 `)
 		provs := cfg.LlamaProviders()
@@ -186,8 +186,8 @@ compatibility = "`+tc.compat+`"
 			t.Fatalf("providers=%d", len(provs))
 		}
 		for name, p := range provs {
-			if p.Dialect != DialectOpenAIChat {
-				t.Fatalf("dialect=%q", p.Dialect)
+			if p.DefaultDialect != DialectOpenAIChat {
+				t.Fatalf("dialect=%q", p.DefaultDialect)
 			}
 			if p.Lossy != tc.lossy {
 				t.Fatalf("lossy=%v want %v", p.Lossy, tc.lossy)
@@ -206,14 +206,14 @@ compatibility = "`+tc.compat+`"
 			}
 		}
 	}
-	rejectLlama(t, llamaBase+"[llama_cpp]\ncompatibility = \"nope\"\n")
-	rejectLlama(t, llamaBase+"[llama_cpp]\ndrop_params = true\n")
-	rejectLlama(t, llamaBase+"[llama_cpp]\nunknown_key = 1\n")
+	rejectLlama(t, llamaBase+"[providers.llama_cpp]\ncompatibility = \"nope\"\n")
+	rejectLlama(t, llamaBase+"[providers.llama_cpp]\ndrop_params = true\n")
+	rejectLlama(t, llamaBase+"[providers.llama_cpp]\nunknown_key = 1\n")
 }
 
 func TestLlamaV1SuffixAndHeaders(t *testing.T) {
 	cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 headers = { X-Global = "g" }
 servers = [{ url = "http://127.0.0.1:9931/v1", name = "s", headers = { X-Srv = "s" } }]
 `)
@@ -233,7 +233,7 @@ func TestLlamaCredentialSelection(t *testing.T) {
 	t.Setenv("TEST_LLAMA_KEY", "secret-key")
 	// Server key wins over the global one.
 	cfg := loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 api_key = "global-key"
 servers = [{ url = "http://127.0.0.1:9931", name = "s", api_key_env = "TEST_LLAMA_KEY" }]
 `)
@@ -242,7 +242,7 @@ servers = [{ url = "http://127.0.0.1:9931", name = "s", api_key_env = "TEST_LLAM
 	}
 	// Without a server key the global key applies.
 	cfg = loadLlama(t, llamaBase+`
-[llama_cpp]
+[providers.llama_cpp]
 api_key = "global-key"
 servers = ["http://127.0.0.1:9931"]
 `)
@@ -250,7 +250,7 @@ servers = ["http://127.0.0.1:9931"]
 		t.Fatalf("global key must inherit: %q", cfg.Llama.Servers[0].APIKey)
 	}
 	// Missing env names reject without echoing values.
-	if err := rejectLlama(t, llamaBase+"[llama_cpp]\napi_key_env = \"LLAMA_MISSING_KEY_XYZ\"\n"); err == nil {
+	if err := rejectLlama(t, llamaBase+"[providers.llama_cpp]\napi_key_env = \"LLAMA_MISSING_KEY_XYZ\"\n"); err == nil {
 		t.Fatal("expected env error")
 	}
 }
@@ -259,28 +259,28 @@ func TestLlamaDeferredEnrichmentRejects(t *testing.T) {
 	// Root migration (M4 Next): explicit fallback/overrides are now typed
 	// config, no longer startup-rejected. Valid values admit; empty stays
 	// an exact no-op.
-	cfg := loadLlama(t, llamaBase+"[llama_cpp]\ncontext_fallback = 128000\n")
+	cfg := loadLlama(t, llamaBase+"[providers.llama_cpp]\ncontext_fallback = 128000\n")
 	if cfg.Llama.ContextFallback == nil || *cfg.Llama.ContextFallback != 128000 {
 		t.Fatalf("fallback must admit: %+v", cfg.Llama)
 	}
-	cfg = loadLlama(t, llamaBase+"[llama_cpp]\nlimit_overrides = { m = { context_window = 10 } }\n")
+	cfg = loadLlama(t, llamaBase+"[providers.llama_cpp]\nlimit_overrides = { m = { context_window = 10 } }\n")
 	if cfg.Llama.LimitOverrides["m"]["context_window"] == nil {
 		t.Fatalf("overrides must admit: %+v", cfg.Llama.LimitOverrides)
 	}
 	// An empty overrides table is an exact no-op and is admitted.
-	cfg = loadLlama(t, llamaBase+"[llama_cpp]\nlimit_overrides = {}\n")
+	cfg = loadLlama(t, llamaBase+"[providers.llama_cpp]\nlimit_overrides = {}\n")
 	if cfg.Llama == nil {
 		t.Fatal("empty overrides must be admitted")
 	}
 }
 
 func TestLlamaRefreshZeroAndBounds(t *testing.T) {
-	cfg := loadLlama(t, llamaBase+"[llama_cpp]\nrefresh_seconds = 0\n")
+	cfg := loadLlama(t, llamaBase+"[providers.llama_cpp]\nrefresh_seconds = 0\n")
 	if cfg.Llama.RefreshSeconds != 0 {
 		t.Fatalf("refresh=%v", cfg.Llama.RefreshSeconds)
 	}
-	rejectLlama(t, llamaBase+"[llama_cpp]\ntimeout = -1\n")
-	rejectLlama(t, llamaBase+"[llama_cpp]\ntimeout = 0\n")
+	rejectLlama(t, llamaBase+"[providers.llama_cpp]\ntimeout = -1\n")
+	rejectLlama(t, llamaBase+"[providers.llama_cpp]\ntimeout = 0\n")
 }
 
 func TestLlamaOnlyZeroProviders(t *testing.T) {
@@ -291,7 +291,7 @@ auth_mode = "none"
 allow_dynamic_routes = false
 [retry]
 max_attempts = 1
-[llama_cpp]
+[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931"]
 `
 	cfg, err := Load(writeCfg(t, body))
@@ -300,5 +300,78 @@ servers = ["http://127.0.0.1:9931"]
 	}
 	if len(cfg.Providers) != 0 || len(cfg.LlamaProviders()) != 1 {
 		t.Fatalf("providers=%d llama=%d", len(cfg.Providers), len(cfg.LlamaProviders()))
+	}
+}
+
+func TestLlamaAndStrataCoexistAndSecrets(t *testing.T) {
+	llamaEnv(t)
+	body := llamaBase + `
+[providers.llama_cpp]
+base_url = "http://127.0.0.1:9931/v1"
+api_key = "llama-secret"
+timeout = 180
+probe_timeout = 3.5
+
+[providers.strata]
+ports = [9932]
+api_key = "strata-secret"
+headers = { X-Strata = "strata-hdr-secret" }
+`
+	cfg, err := Load(writeCfg(t, body))
+	if err != nil {
+		t.Fatalf("llama_cpp + strata must coexist: %v", err)
+	}
+	if _, exists := cfg.Providers["llama_cpp"]; exists {
+		t.Fatal("parent key llama_cpp must not be placed in cfg.Providers")
+	}
+	if _, exists := cfg.Providers["strata"]; exists {
+		t.Fatal("parent key strata must not be placed in cfg.Providers")
+	}
+	if cfg.Llama == nil || len(cfg.Llama.Servers) != 2 {
+		t.Fatalf("expected 2 merged local servers, got %+v", cfg.Llama)
+	}
+	llamaSrv := cfg.Llama.Servers[0]
+	strataSrv := cfg.Llama.Servers[1]
+	if llamaSrv.Kind != "llama_cpp" || llamaSrv.URL != "http://127.0.0.1:9931" || llamaSrv.BaseURL != "http://127.0.0.1:9931/v1" || llamaSrv.Prefix != "" || !llamaSrv.ExposeAliases {
+		t.Fatalf("llama server wrong: %+v", llamaSrv)
+	}
+	if llamaSrv.Timeout != 180 || llamaSrv.ProbeTimeout != 3.5 {
+		t.Fatalf("llama timeouts wrong: %+v", llamaSrv)
+	}
+	if strataSrv.Kind != "strata" || strataSrv.URL != "http://127.0.0.1:9932" || strataSrv.BaseURL != "http://127.0.0.1:9932/v1" || strataSrv.Prefix != "" || !strataSrv.ExposeAliases {
+		t.Fatalf("strata server wrong: %+v", strataSrv)
+	}
+
+	provs := cfg.LlamaProviders()
+	if len(provs) != 2 {
+		t.Fatalf("LlamaProviders len = %d", len(provs))
+	}
+	if p := provs[llamaSrv.Name]; p == nil || p.Kind != "llama_cpp" || !p.SupportsDialect(DialectOpenAIChat) || !p.SupportsDialect(DialectAnthropic) || p.Timeout != 180 {
+		t.Fatalf("llama generated provider wrong: %+v", p)
+	}
+	if p := provs[strataSrv.Name]; p == nil || p.Kind != "strata" || !p.SupportsDialect(DialectOpenAIChat) || !p.SupportsDialect(DialectAnthropic) {
+		t.Fatalf("strata generated provider wrong: %+v", p)
+	}
+
+	secrets := ConfigSecrets(cfg)
+	joined := strings.Join(secrets, "|")
+	for _, want := range []string{"llama-secret", "strata-secret", "strata-hdr-secret"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("ConfigSecrets missing %q: %v", want, secrets)
+		}
+	}
+
+	// Cross-fleet explicit name collision must be rejected.
+	rejectLlama(t, llamaBase+`
+[providers.llama_cpp]
+servers = [{ url = "http://127.0.0.1:9931", name = "dup" }]
+[providers.strata]
+servers = [{ url = "http://127.0.0.1:9932", name = "dup" }]
+`)
+
+	// Top-level [llama_cpp] must be rejected with migration hint.
+	err = rejectLlama(t, llamaBase+"[llama_cpp]\n")
+	if !strings.Contains(err.Error(), "providers.llama_cpp") {
+		t.Fatalf("expected migration hint to [providers.llama_cpp], got: %v", err)
 	}
 }

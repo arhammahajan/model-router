@@ -204,7 +204,7 @@ func TestDetectRouterConfigOrder(t *testing.T) {
 		p := testPaths(t)
 		t.Setenv("HARNESS_ROUTER_CONFIG", "")
 		t.Setenv("HARNESS_ROUTER_BIN", "")
-		want := filepath.Join(p.ConfigHome, ".router", "router.toml")
+		want := filepath.Join(p.ConfigHome, "router", "router.toml")
 		write(want)
 		opts := Detect(p, testRouter("http://x"))
 		if opts.RouterConfig != want {

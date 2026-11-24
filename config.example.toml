@@ -1,5 +1,12 @@
-# Development example: replace these dummy keys, endpoints and model IDs.
-# Native routes preserve fields; change a model's dialect to select a bridge.
+# Development example: routerd fronts an external or embedded CLIProxyAPI
+# service. No `[providers.*]`, `[[models]]`, or `[catalog]` sections are
+# needed: model names are discovered from the proxy as opaque IDs (e.g.
+# `opencode-go/...`). By default the generated `cliproxyapi` provider speaks
+# OpenAI Chat with cross-dialect translation; with `passthrough = true` below,
+# Chat, Responses, and Anthropic Messages requests are forwarded natively to
+# CLIProxyAPI (which must accept those protocols), while Gemini ingress and
+# explicit `[[models]]` dialect overrides still translate.
+# Upstream AI/OAuth credentials live only in the CLIProxyAPI YAML/env, never here.
 [server]
 host = "127.0.0.1"
 port = 4000
@@ -10,46 +17,28 @@ allow_dynamic_routes = false
 [retry]
 max_attempts = 1
 
-[providers.chat]
-dialect = "openai-chat"
-base_url = "http://127.0.0.1:8000/v1"
-api_key = "replace-this-upstream-key"
+[providers.cliproxyapi]
+compatibility = "lossy"
+# Forward Chat, Responses, and Anthropic Messages natively to CLIProxyAPI
+# (requires the proxy to support those protocols). Set to false or omit to
+# translate all non-Chat requests through OpenAI Chat instead.
+passthrough = true
+base_url = "http://127.0.0.1:8317/v1"
+api_key = "replace-this-proxy-key"
+# To supply the proxy key from the environment instead of inline, replace
+# `api_key` with `api_key_env = "CLIPROXYAPI_API_KEY"` (or `api_key_file`).
+# Optional embedded mode: point at a CLIProxyAPI YAML file to run the SDK
+# service in-process instead of dialing an external proxy listener.
+# config_path = "/path/to/cliproxyapi-config.yaml"
 
-[providers.responses]
-dialect = "openai-responses"
-base_url = "http://127.0.0.1:8000/v1"
-api_key = "replace-this-upstream-key"
-
-[providers.anthropic]
-dialect = "anthropic"
-base_url = "http://127.0.0.1:8000"
-api_key = "replace-this-upstream-key"
-count_tokens = false
-
-[providers.gemini]
-dialect = "gemini"
-base_url = "http://127.0.0.1:8000/v1beta"
-api_key = "replace-this-upstream-key"
-
-[[models]]
-name = "example-chat"
-provider = "chat"
-model = "upstream-chat-model"
-
-[[models]]
-name = "example-responses"
-provider = "responses"
-model = "upstream-responses-model"
-
-[[models]]
-name = "example-anthropic"
-provider = "anthropic"
-model = "upstream-anthropic-model"
-
-[[models]]
-name = "example-gemini"
-provider = "gemini"
-model = "upstream-gemini-model"
+# External mode (default): start CLIProxyAPI separately on port 8317, then
+# start routerd with this file. Request flow:
+# client -> routerd (port 4000) -> CLIProxyAPI (port 8317)
+#   -> opencode-go-cliproxyapi plugin -> OpenCode Go upstream.
+# Embedded mode: set `config_path` and routerd starts the SDK service
+# itself; no separate proxy process is needed.
+# See cliproxyapi.example.yaml for the proxy-side access key and
+# `plugins.configs.opencode-go-cliproxyapi` setup (secrets from env).
 
 # Opt-in usage metering: one metadata-only JSONL record per completed
 # generation (never bodies, prompts, headers or identities). Uncomment to

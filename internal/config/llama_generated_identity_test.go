@@ -9,7 +9,7 @@ func TestLlamaGeneratedNamesPreserveConfiguredURLSpelling(t *testing.T) {
 		{"/café", "caf"},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
-			cfg := loadLlama(t, `[llama_cpp]
+			cfg := loadLlama(t, `[providers.llama_cpp]
 servers = ["http://127.0.0.1:9931`+tc.path+`"]
 `)
 			want := "llama-127.0.0.1-9931-" + tc.suffix
