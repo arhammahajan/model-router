@@ -10,10 +10,10 @@ import (
 
 func reviewProvider() *config.Provider {
 	return &config.Provider{
-		Name:    "up",
+		Name:           "up",
 		DefaultDialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
 		Headers: map[string]string{
 			"Anthropic-Beta": "prov",
 			"X-Shared":       "prov",
@@ -148,10 +148,10 @@ func TestReviewClientIsolationWithLegacy(t *testing.T) {
 // case-insensitively, while non-credential legacy survives.
 func TestReviewAuthScrubAllLayers(t *testing.T) {
 	p := &config.Provider{
-		Name:    "up",
+		Name:           "up",
 		DefaultDialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
 		Headers: map[string]string{
 			"AUTHORIZATION": "Bearer prov-stale",
 			"X-Prov":        "prov",
@@ -186,10 +186,10 @@ func TestReviewAuthScrubAllLayers(t *testing.T) {
 // serialized JSON body's Content-Type or the identity Accept-Encoding.
 func TestReviewFramingEnforcedOverLegacy(t *testing.T) {
 	p := &config.Provider{
-		Name:    "up",
+		Name:           "up",
 		DefaultDialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
 		Headers: map[string]string{
 			"Content-Type":    "text/evil",
 			"Accept-Encoding": "gzip",

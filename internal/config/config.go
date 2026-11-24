@@ -244,12 +244,12 @@ func expandString(s, where string) (string, error) {
 
 // --- strict decoding helpers (delegated to internal/provider) ---
 
-func asString(v any) (string, bool)       { return provider.AsString(v) }
-func asBool(v any) (bool, bool)           { return provider.AsBool(v) }
-func asInt(v any) (int64, bool)           { return provider.AsInt(v) }
-func asNum(v any) (float64, bool)         { return provider.AsNum(v) }
+func asString(v any) (string, bool)        { return provider.AsString(v) }
+func asBool(v any) (bool, bool)            { return provider.AsBool(v) }
+func asInt(v any) (int64, bool)            { return provider.AsInt(v) }
+func asNum(v any) (float64, bool)          { return provider.AsNum(v) }
 func asTable(v any) (map[string]any, bool) { return provider.AsTable(v) }
-func asArray(v any) ([]any, bool)         { return provider.AsArray(v) }
+func asArray(v any) ([]any, bool)          { return provider.AsArray(v) }
 
 func finitePositive(v any, where, field string) (float64, error) {
 	return provider.FinitePositive(v, where, field)

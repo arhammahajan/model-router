@@ -30,9 +30,9 @@ func diagnosticsCfg(catURL, llamaURL string, keys ...string) *config.Config {
 				Name:           "up",
 				DefaultDialect: config.DialectAnthropic,
 				BaseURL:        "http://127.0.0.1:9",
-				APIKey:  "sk-testproviderkey1",
-				Headers: map[string]string{"X-Custom": "header-secret-value"},
-				Timeout: 5,
+				APIKey:         "sk-testproviderkey1",
+				Headers:        map[string]string{"X-Custom": "header-secret-value"},
+				Timeout:        5,
 			},
 		},
 		Models: []config.Model{

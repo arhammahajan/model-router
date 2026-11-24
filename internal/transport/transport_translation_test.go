@@ -38,10 +38,10 @@ func TestTranslatedLegacyOnlyOnTranslated(t *testing.T) {
 
 func TestTranslatedPrecedenceAllCases(t *testing.T) {
 	p := &config.Provider{
-		Name:    "up",
+		Name:           "up",
 		DefaultDialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "k",
+		BaseURL:        "https://up.example",
+		APIKey:         "k",
 		Headers: map[string]string{
 			"X-Shared":       "prov",
 			"Anthropic-Beta": "prov-beta",
@@ -79,11 +79,11 @@ func TestTranslatedPrecedenceAllCases(t *testing.T) {
 
 func TestTranslatedStaticDoubleCredentialsScrub(t *testing.T) {
 	p := &config.Provider{
-		Name:    "up",
+		Name:           "up",
 		DefaultDialect: config.DialectAnthropic,
-		BaseURL: "https://up.example",
-		APIKey:  "real-key",
-		Headers: map[string]string{"Authorization": "Bearer stale"},
+		BaseURL:        "https://up.example",
+		APIKey:         "real-key",
+		Headers:        map[string]string{"Authorization": "Bearer stale"},
 		TranslatedHeaders: map[string]string{
 			"Authorization": "Bearer legacy-stale",
 			"X-Api-Key":     "stale-key",

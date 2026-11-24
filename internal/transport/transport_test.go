@@ -24,9 +24,9 @@ func testProvider(dialect, base string) *config.Provider {
 		Name:           "up",
 		DefaultDialect: dialect,
 		BaseURL:        base,
-		APIKey:  "upstream-secret",
-		Headers: map[string]string{},
-		Timeout: 5,
+		APIKey:         "upstream-secret",
+		Headers:        map[string]string{},
+		Timeout:        5,
 	}
 }
 

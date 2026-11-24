@@ -209,14 +209,14 @@ func cacheIdentity(cfg *config.Config) string {
 		cat = &catalogView{URL: cfg.Catalog.URL, Headers: copyStrMap(cfg.Catalog.Headers), ModelProviders: copyStrMap(cfg.Catalog.ModelProviders), Rules: rules, MetadataSource: cfg.Catalog.MetadataSource}
 	}
 	type llamaServerView struct {
-		URL           string                       `json:"url"`
-		Name          string                       `json:"name"`
-		Kind          string                       `json:"kind,omitempty"`
-		APIKey        string                       `json:"api_key"`
-		AuthHeader    string                       `json:"auth_header,omitempty"`
-		Headers       map[string]string            `json:"headers"`
-		Timeout       float64                      `json:"timeout,omitempty"`
-		ProbeTimeout  float64                      `json:"probe_timeout,omitempty"`
+		URL              string                       `json:"url"`
+		Name             string                       `json:"name"`
+		Kind             string                       `json:"kind,omitempty"`
+		APIKey           string                       `json:"api_key"`
+		AuthHeader       string                       `json:"auth_header,omitempty"`
+		Headers          map[string]string            `json:"headers"`
+		Timeout          float64                      `json:"timeout,omitempty"`
+		ProbeTimeout     float64                      `json:"probe_timeout,omitempty"`
 		Prefix           string                       `json:"prefix,omitempty"`
 		ExposeAliases    bool                         `json:"expose_aliases,omitempty"`
 		CompatibilityRaw string                       `json:"compatibility,omitempty"`
