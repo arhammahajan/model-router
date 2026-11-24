@@ -28,8 +28,8 @@ const (
 // and its auth store, never here.
 type Settings struct {
 	// BaseURL is the proxy origin the generated provider dials, e.g.
-	// "http://127.0.0.1:8317/v1". Required in External mode; in Embedded
-	// mode it must match the YAML's listen address when set.
+	// "http://127.0.0.1:8317/v1". Required in both External and Embedded
+	// modes; in Embedded mode it must match the YAML's listen address.
 	BaseURL string
 	// APIKey is the credential model-router presents to the proxy. It may
 	// use ${ENV_VAR} expansion performed by the config layer; this package
@@ -75,6 +75,9 @@ func (s Settings) Validate() error {
 			return fmt.Errorf("cliproxy: 'api_key' requires 'base_url' or 'config_path'")
 		}
 		return nil
+	}
+	if path != "" && base == "" {
+		return fmt.Errorf("cliproxy: 'base_url' is required when 'config_path' is set")
 	}
 	if base != "" {
 		if err := checkBaseURL(base); err != nil {

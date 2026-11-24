@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -75,7 +76,7 @@ func TestSettingsValidate(t *testing.T) {
 		{"missing scheme rejected", FromFields("127.0.0.1:8317", "", ""), true},
 		{"userinfo rejected", FromFields("http://user@127.0.0.1:8317/", "", ""), true},
 		{"query rejected", FromFields("http://127.0.0.1:8317/?x=1", "", ""), true},
-		{"embedded path ok", FromFields("", "", "cliproxy.yaml"), false},
+		{"embedded missing base rejected", FromFields("", "", "cliproxy.yaml"), true},
 		{"embedded with base ok", FromFields("http://127.0.0.1:8317/v1", "k", "cliproxy.yaml"), false},
 		{"embedded bad base rejected", FromFields("ftp://x/", "", "cliproxy.yaml"), true},
 	}
@@ -132,7 +133,7 @@ func TestManagerExternalNoop(t *testing.T) {
 func TestManagerEmbeddedBuildError(t *testing.T) {
 	sentinel := errors.New("no such config")
 	m := newTestManager(
-		FromFields("", "", "missing.yaml"),
+		FromFields("http://127.0.0.1:8317/v1", "", "missing.yaml"),
 		WithBuilder(func(string) (service, error) { return nil, sentinel }),
 		WithStartupGrace(200*time.Millisecond),
 	)
@@ -148,7 +149,7 @@ func TestManagerEmbeddedBuildError(t *testing.T) {
 func TestManagerEmbeddedRunCancel(t *testing.T) {
 	fake := &fakeService{}
 	m := newTestManager(
-		FromFields("", "", "cliproxy.yaml"),
+		FromFields("http://127.0.0.1:8317/v1", "", "cliproxy.yaml"),
 		WithBuilder(func(string) (service, error) { return fake, nil }),
 		WithStartupGrace(200*time.Millisecond),
 	)
@@ -175,7 +176,7 @@ func TestManagerEmbeddedAsyncRunError(t *testing.T) {
 	sentinel := errors.New("listen bind failure")
 	fake := &fakeService{run: func(context.Context) error { return sentinel }}
 	m := newTestManager(
-		FromFields("", "", "cliproxy.yaml"),
+		FromFields("http://127.0.0.1:8317/v1", "", "cliproxy.yaml"),
 		WithBuilder(func(string) (service, error) { return fake, nil }),
 		WithStartupGrace(200*time.Millisecond),
 	)
@@ -196,7 +197,7 @@ func TestManagerEmbeddedAsyncRunError(t *testing.T) {
 func TestManagerShutdownIdempotent(t *testing.T) {
 	fake := &fakeService{}
 	m := newTestManager(
-		FromFields("", "", "cliproxy.yaml"),
+		FromFields("http://127.0.0.1:8317/v1", "", "cliproxy.yaml"),
 		WithBuilder(func(string) (service, error) { return fake, nil }),
 		WithStartupGrace(200*time.Millisecond),
 	)
@@ -229,7 +230,7 @@ func TestManagerDoubleStartRejected(t *testing.T) {
 
 func newTestManager(s Settings, opts ...Option) *Manager {
 	m := New(s, opts...)
-	m.ready = func(context.Context) bool { return true }
+	m.ready = func(context.Context) error { return nil }
 	return m
 }
 
@@ -263,9 +264,9 @@ func TestStartWaitsForAuthenticatedModelEndpoint(t *testing.T) {
 }
 
 func TestStartCancelledBeforeReadiness(t *testing.T) {
-	m := newTestManager(FromFields("", "", "config.yaml"),
+	m := newTestManager(FromFields("http://127.0.0.1:8317/v1", "", "config.yaml"),
 		WithBuilder(func(string) (service, error) { return &fakeService{}, nil }))
-	m.ready = func(context.Context) bool { return false }
+	m.ready = func(context.Context) error { return errors.New("not ready") }
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := m.Start(ctx); !errors.Is(err, context.Canceled) {
@@ -275,12 +276,19 @@ func TestStartCancelledBeforeReadiness(t *testing.T) {
 }
 
 func TestStartReadinessTimeoutStopsRun(t *testing.T) {
-	m := newTestManager(FromFields("", "", "config.yaml"),
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer proxy.Close()
+	m := New(FromFields(proxy.URL+"/v1", "", "config.yaml"),
 		WithBuilder(func(string) (service, error) { return &fakeService{}, nil }),
-		WithStartupGrace(30*time.Millisecond))
-	m.ready = func(context.Context) bool { return false }
-	if err := m.Start(context.Background()); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Start = %v", err)
+		WithStartupGrace(120*time.Millisecond))
+	err := m.Start(context.Background())
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Start = %v, want context.DeadlineExceeded", err)
+	}
+	if !strings.Contains(err.Error(), "unexpected HTTP status 401") || !strings.Contains(err.Error(), proxy.URL+"/v1/models") {
+		t.Fatalf("Start error missing probe diagnostic: %v", err)
 	}
 	if err := m.Shutdown(context.Background()); err != nil {
 		t.Fatal(err)
@@ -290,7 +298,7 @@ func TestStartReadinessTimeoutStopsRun(t *testing.T) {
 func TestShutdownDuringBuildStopsService(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	fake := &fakeService{}
-	m := newTestManager(FromFields("", "", "config.yaml"),
+	m := newTestManager(FromFields("http://127.0.0.1:8317/v1", "", "config.yaml"),
 		WithBuilder(func(string) (service, error) {
 			close(entered)
 			<-release

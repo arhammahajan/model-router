@@ -70,7 +70,7 @@ type Manager struct {
 	settings Settings
 	build    buildFunc
 	grace    time.Duration
-	ready    func(context.Context) bool
+	ready    func(context.Context) error
 
 	mu          sync.Mutex
 	started     bool
@@ -176,6 +176,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	defer startupCancel()
 	tick := time.NewTicker(20 * time.Millisecond)
 	defer tick.Stop()
+	var lastProbeErr error
 	for {
 		select {
 		case <-finished:
@@ -193,15 +194,23 @@ func (m *Manager) Start(ctx context.Context) error {
 			return fmt.Errorf("cliproxy: embedded service failed to start: %w", err)
 		case <-startupCtx.Done():
 			cancel()
-			return startupCtx.Err()
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if lastProbeErr != nil {
+				return fmt.Errorf("cliproxy: embedded service not ready at %s: %w (last probe: %v)", m.probeURL(), startupCtx.Err(), lastProbeErr)
+			}
+			return fmt.Errorf("cliproxy: embedded service not ready at %s: %w", m.probeURL(), startupCtx.Err())
 		case <-tick.C:
-			if m.ready(startupCtx) {
+			if err := m.ready(startupCtx); err == nil {
 				select {
 				case <-finished:
 					continue
 				default:
 					return nil
 				}
+			} else if startupCtx.Err() == nil || lastProbeErr == nil {
+				lastProbeErr = err
 			}
 		}
 	}
@@ -295,13 +304,17 @@ func (m *Manager) getRunErr() error {
 	return m.runErr
 }
 
+func (m *Manager) probeURL() string {
+	return strings.TrimRight(m.settings.BaseURL, "/") + "/models"
+}
+
 // probeReady checks the same authenticated endpoint used by discovery.
-func (m *Manager) probeReady(ctx context.Context) bool {
+func (m *Manager) probeReady(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(m.settings.BaseURL, "/")+"/models", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.probeURL(), nil)
 	if err != nil {
-		return false
+		return err
 	}
 	req.Close = true
 	if m.settings.APIKey != "" {
@@ -310,9 +323,12 @@ func (m *Manager) probeReady(ctx context.Context) bool {
 	client := &http.Client{Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
-		return false
+		return err
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-	return resp.StatusCode >= 200 && resp.StatusCode < 300
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
+	}
+	return nil
 }
