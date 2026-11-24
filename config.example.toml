@@ -1,8 +1,11 @@
 # Development example: routerd fronts an external or embedded CLIProxyAPI
 # service. No `[providers.*]`, `[[models]]`, or `[catalog]` sections are
 # needed: model names are discovered from the proxy as opaque IDs (e.g.
-# `opencode-go/...`), and the generated `cliproxyapi` provider speaks OpenAI
-# Chat while routerd keeps cross-dialect translation.
+# `opencode-go/...`). By default the generated `cliproxyapi` provider speaks
+# OpenAI Chat with cross-dialect translation; with `passthrough = true` below,
+# Chat, Responses, and Anthropic Messages requests are forwarded natively to
+# CLIProxyAPI (which must accept those protocols), while Gemini ingress and
+# explicit `[[models]]` dialect overrides still translate.
 # Upstream AI/OAuth credentials live only in the CLIProxyAPI YAML/env, never here.
 [server]
 host = "127.0.0.1"
@@ -16,6 +19,9 @@ max_attempts = 1
 
 [cliproxyapi]
 compatibility = "lossy"
+# Forward Chat, Responses, and Anthropic Messages natively to CLIProxyAPI
+# (requires the proxy to support those protocols). Set to false or omit to
+# translate all non-Chat requests through OpenAI Chat instead.
 passthrough = true
 base_url = "http://127.0.0.1:8317/v1"
 api_key = "replace-this-proxy-key"
