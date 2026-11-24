@@ -48,6 +48,7 @@ func (c *CLIProxyAPIConfig) Provider() *Provider {
 		Dialect:          DialectOpenAIChat,
 		BaseURL:          c.BaseURL,
 		APIKey:           c.APIKey,
+		AuthHeader:       "bearer",
 		Headers:          map[string]string{},
 		Timeout:          DefaultProviderTimeout,
 		Lossy:            c.Lossy,

@@ -119,8 +119,15 @@ api_key = "proxy-key"
 
 func TestCLIProxyAPIPassthrough(t *testing.T) {
 	const model = "gpt-6-luna"
+	const proxyKey = "proxy-secret"
 	var seenPaths []string
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+proxyKey {
+			t.Errorf("%s: Authorization = %q, want %q", r.URL.Path, got, "Bearer "+proxyKey)
+		}
+		if got := r.Header.Get("x-api-key"); got != "" {
+			t.Errorf("%s: unexpected x-api-key = %q", r.URL.Path, got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/v1/models":
@@ -141,7 +148,7 @@ func TestCLIProxyAPIPassthrough(t *testing.T) {
 	}))
 	defer proxy.Close()
 	path := filepath.Join(t.TempDir(), "router.toml")
-	raw := fmt.Sprintf("[server]\nallow_dynamic_routes = false\n[cliproxyapi]\nbase_url = %q\npassthrough = true\n", proxy.URL+"/v1")
+	raw := fmt.Sprintf("[server]\nallow_dynamic_routes = false\n[cliproxyapi]\nbase_url = %q\napi_key = %q\npassthrough = true\n", proxy.URL+"/v1", proxyKey)
 	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}

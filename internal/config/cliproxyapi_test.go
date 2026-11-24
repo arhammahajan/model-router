@@ -30,7 +30,7 @@ func TestCLIProxyAPIDefaults(t *testing.T) {
 	if p == nil || p.Name != CLIProxyAPIProviderName || p.Dialect != DialectOpenAIChat {
 		t.Fatalf("generated provider wrong: %+v", p)
 	}
-	if p.BaseURL != DefaultCLIProxyAPIBaseURL || p.LitellmProvider != "openai" {
+	if p.BaseURL != DefaultCLIProxyAPIBaseURL || p.LitellmProvider != "openai" || p.AuthHeader != "bearer" {
 		t.Fatalf("generated provider endpoint wrong: %+v", p)
 	}
 	if cfg.Catalog == nil || cfg.Catalog.RefreshSeconds != DefaultCatalogRefresh {
