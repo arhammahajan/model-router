@@ -130,7 +130,7 @@ func proxyTestOpts(cfgPath string) Options {
 func TestProxySettingsModes(t *testing.T) {
 	m := newProxyMock(t)
 
-	external := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	external := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	ep, err := ProxySettings(proxyTestOpts(external))
 	if err != nil {
 		t.Fatalf("external: %v", err)
@@ -145,7 +145,7 @@ func TestProxySettingsModes(t *testing.T) {
 		t.Fatalf("inference key not resolved")
 	}
 
-	embedded := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1/\"\napi_key=\"k\"\nconfig_path=\"/tmp/proxy.yaml\"\n")
+	embedded := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1/\"\napi_key=\"k\"\nconfig_path=\"/tmp/proxy.yaml\"\n")
 	ep, err = ProxySettings(proxyTestOpts(embedded))
 	if err != nil {
 		t.Fatalf("embedded: %v", err)
@@ -155,7 +155,7 @@ func TestProxySettingsModes(t *testing.T) {
 	}
 
 	// A bare origin without /v1 still yields the origin management root.
-	origin := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"\"\n")
+	origin := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"\"\n")
 	ep, err = ProxySettings(proxyTestOpts(origin))
 	if err != nil {
 		t.Fatalf("origin: %v", err)
@@ -177,7 +177,7 @@ func TestProxySettingsModes(t *testing.T) {
 func TestProxyStatusReachable(t *testing.T) {
 	m := newProxyMock(t)
 	t.Setenv(ProxyManagementKeyEnv, proxyTestMgmtKey)
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	st, err := FetchProxyStatus(context.Background(), proxyTestOpts(cfg))
 	if err != nil {
 		t.Fatalf("status: %v", err)
@@ -206,7 +206,7 @@ func TestProxyStatusReachable(t *testing.T) {
 
 func TestProxyStatusUnreachableAndDisabled(t *testing.T) {
 	closed := "http://127.0.0.1:1/v1"
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+closed+"\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+closed+"\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	t.Setenv(ProxyManagementKeyEnv, proxyTestMgmtKey)
 	st, err := FetchProxyStatus(context.Background(), proxyTestOpts(cfg))
 	if err != nil {
@@ -235,7 +235,7 @@ func TestProxyStatusUnreachableAndDisabled(t *testing.T) {
 func TestProxyStatusMissingManagementKey(t *testing.T) {
 	m := newProxyMock(t)
 	t.Setenv(ProxyManagementKeyEnv, "")
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	st, err := FetchProxyStatus(context.Background(), proxyTestOpts(cfg))
 	if err != nil {
 		t.Fatalf("status: %v", err)
@@ -250,7 +250,7 @@ func TestProxyStatusMissingManagementKey(t *testing.T) {
 
 func TestListProxyModels(t *testing.T) {
 	m := newProxyMock(t)
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	models, err := ListProxyModels(context.Background(), proxyTestOpts(cfg))
 	if err != nil {
 		t.Fatalf("models: %v", err)
@@ -271,7 +271,7 @@ func TestListProxyModels(t *testing.T) {
 
 func TestListProxyPluginsRequiresSeparateKey(t *testing.T) {
 	m := newProxyMock(t)
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 
 	t.Setenv(ProxyManagementKeyEnv, "")
 	_, err := ListProxyPlugins(context.Background(), proxyTestOpts(cfg))
@@ -318,7 +318,7 @@ func TestListProxyPluginsRequiresSeparateKey(t *testing.T) {
 func TestSetProxyPluginEnabled(t *testing.T) {
 	m := newProxyMock(t)
 	t.Setenv(ProxyManagementKeyEnv, proxyTestMgmtKey)
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	opts := proxyTestOpts(cfg)
 
 	if err := SetProxyPluginEnabled(context.Background(), opts, "idle-plugin", true); err != nil {
@@ -354,7 +354,7 @@ func TestListProxyAccountsProjection(t *testing.T) {
 	m := newProxyMock(t)
 	_ = m
 	t.Setenv(ProxyManagementKeyEnv, proxyTestMgmtKey)
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+m.srv.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	accounts, err := ListProxyAccounts(context.Background(), proxyTestOpts(cfg))
 	if err != nil {
 		t.Fatalf("accounts: %v", err)
@@ -390,7 +390,7 @@ func TestProxyClientDoesNotFollowRedirectsWithCredentials(t *testing.T) {
 	}))
 	defer redirector.Close()
 
-	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\""+redirector.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
+	cfg := writeProxyTestConfig(t, "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\""+redirector.URL+"/v1\"\napi_key=\""+proxyTestInferKey+"\"\n")
 	_, err := ListProxyModels(context.Background(), proxyTestOpts(cfg))
 	if err == nil || !strings.Contains(err.Error(), "status 302") {
 		t.Fatalf("redirect err = %v", err)
@@ -413,7 +413,7 @@ func TestProxyStatusRejectsInvalidModelListing(t *testing.T) {
 		_, _ = w.Write([]byte(`null`))
 	}))
 	defer proxy.Close()
-	path := writeProxyTestConfig(t, "[cliproxyapi]\nbase_url = \""+proxy.URL+"/v1\"\n")
+	path := writeProxyTestConfig(t, "[providers.cliproxyapi]\nbase_url = \""+proxy.URL+"/v1\"\n")
 	status, err := FetchProxyStatus(context.Background(), proxyTestOpts(path))
 	if err != nil {
 		t.Fatal(err)
@@ -480,7 +480,7 @@ func TestProxyStatusModelIDsTruncated(t *testing.T) {
 	}))
 	defer proxy.Close()
 
-	cfg := writeProxyTestConfig(t, "[cliproxyapi]\nbase_url = \""+proxy.URL+"/v1\"\n")
+	cfg := writeProxyTestConfig(t, "[providers.cliproxyapi]\nbase_url = \""+proxy.URL+"/v1\"\n")
 	st, err := FetchProxyStatus(context.Background(), proxyTestOpts(cfg))
 	if err != nil {
 		t.Fatalf("status: %v", err)

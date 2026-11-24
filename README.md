@@ -18,7 +18,7 @@ go build -o routerd ./cmd/routerd
 ./routerd --version
 ```
 
-The router reads TOML and JSON configuration files. For local tests, copy [config.example.toml](config.example.toml) and keep dummy keys rather than pointing at a file with real credentials. The default example fronts CLIProxyAPI: it needs only `[server]`, `[retry]`, and `[cliproxyapi]` (`base_url`, `api_key`, optional `config_path`), with no `[providers.*]`, `[[models]]`, or `[catalog]` sections. Model names are discovered from the proxy as opaque `opencode-go/...` IDs; the generated `cliproxyapi` provider speaks OpenAI Chat while model-router keeps cross-dialect translation. Upstream AI/OAuth credentials live only in the CLIProxyAPI YAML/env (see [cliproxyapi.example.yaml](cliproxyapi.example.yaml)), never in the router TOML.
+The router reads TOML and JSON configuration files. For local tests, copy [config.example.toml](config.example.toml) and keep dummy keys rather than pointing at a file with real credentials. All providers use the unified `[providers.<name>]` schema (`[providers.cliproxyapi]`, `[providers.llama_cpp]`, `[providers.strata]`, and custom `[providers.<name>]`). The default example fronts CLIProxyAPI: it needs only `[server]`, `[retry]`, and `[providers.cliproxyapi]` (`base_url`, `api_key`, optional `config_path`, optional `passthrough`), with no custom providers, `[[models]]`, or `[catalog]` sections. Model names are discovered from the proxy as opaque `opencode-go/...` IDs; the generated `cliproxyapi` provider defaults to OpenAI Chat while model-router keeps cross-dialect translation (or forwards Chat, Responses, and Anthropic natively when `passthrough = true`). Upstream AI/OAuth credentials live only in the CLIProxyAPI YAML/env (see [cliproxyapi.example.yaml](cliproxyapi.example.yaml)), never in the router TOML.
 
 Flags `--host` and `--port` override `server.host` and `server.port`. On `SIGINT` or `SIGTERM`, the server stops admitting new work, drains active requests for up to 10 seconds, and closes remaining connections. See [Configuration and CLI](docs/configuration.md) for config discovery, environment loading, exit codes, and all supported sections.
 
@@ -43,7 +43,7 @@ go build -o router ./cmd/router
 ./router proxy accounts [--json]
 ```
 
-Run `router help` to print the full command list. The `router proxy` family inspects the CLIProxyAPI proxy: mode (disabled/external/embedded from `[cliproxyapi]`), sanitized endpoint, live reachability and model count, the model inventory with opaque IDs, the plugin inventory, and a sanitized credential summary. Plugin enable/disable uses the proxy management API and needs `CLIPROXYAPI_MANAGEMENT_KEY`, which is separate from the proxy inference key in the router config (no fallback is attempted).
+Run `router help` to print the full command list. The `router proxy` family inspects the CLIProxyAPI proxy: mode (disabled/external/embedded from `[providers.cliproxyapi]`), sanitized endpoint, live reachability and model count, the model inventory with opaque IDs, the plugin inventory, and a sanitized credential summary. Plugin enable/disable uses the proxy management API and needs `CLIPROXYAPI_MANAGEMENT_KEY`, which is separate from the proxy inference key in the router config (no fallback is attempted).
 
 ## Endpoints
 
@@ -63,7 +63,7 @@ See [Endpoints and protocol translation](docs/endpoints-and-translation.md) for 
 
 ## Documentation
 
-- [Configuration and CLI](docs/configuration.md) documents CLI flags, exit codes, `[server]`, `[retry]`, `[cliproxyapi]`, `[providers.*]`, `[[models]]`, capability overrides, `[catalog]`, `[llama_cpp]`, `[discovery_cache]`, `[accounting]`, `[search]`, and diagnostics. Start with the `[cliproxyapi]` section and [cliproxyapi.example.yaml](cliproxyapi.example.yaml) for the default setup.
+- [Configuration and CLI](docs/configuration.md) documents CLI flags, exit codes, `[server]`, `[retry]`, unified `[providers.*]` (`[providers.cliproxyapi]`, `[providers.llama_cpp]`, `[providers.strata]`, and custom providers), `[[models]]`, capability overrides, `[catalog]`, `[discovery_cache]`, `[accounting]`, `[search]`, and diagnostics. Start with the `[providers.cliproxyapi]` section and [cliproxyapi.example.yaml](cliproxyapi.example.yaml) for the default setup.
 - [Endpoints and protocol translation](docs/endpoints-and-translation.md) documents the shared IR architecture, HTTP endpoints, Gemini 4 extensions, reasoning translation, and all six bidirectional dialect pairs.
 - [Transport, security, and scope](docs/transport-and-security.md) documents client and upstream authentication, header isolation, retries, admission bounds, behavior changes compared to Python, known limits, and deferred milestones.
 - [Verification and release archives](docs/verification-and-releases.md) documents Go test commands and development release builds.

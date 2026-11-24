@@ -79,9 +79,9 @@ type ProxyEndpoint struct {
 	EmbeddedConfigPath string // CLIProxyAPI YAML path, "" unless embedded
 }
 
-// ProxySettings resolves the [cliproxyapi] table from the router config
+// ProxySettings resolves the [providers.cliproxyapi] table from the router config
 // file named by opts plus the management key environment variable. A
-// missing [cliproxyapi] table resolves to Mode "disabled" without an
+// missing [providers.cliproxyapi] table resolves to Mode "disabled" without an
 // error: the caller reports the state instead of failing.
 func ProxySettings(opts Options) (ProxyEndpoint, error) {
 	ep := ProxyEndpoint{Mode: "disabled"}
@@ -121,7 +121,7 @@ func proxyManagementKey() string {
 // error that names the variable without echoing any secret.
 func managementKeyOrError(ep ProxyEndpoint) (string, error) {
 	if ep.Mode == "disabled" {
-		return "", fmt.Errorf("proxy is disabled: no [cliproxyapi] in the router config")
+		return "", fmt.Errorf("proxy is disabled: no [providers.cliproxyapi] in the router config")
 	}
 	if !ep.HasManagementKey {
 		return "", fmt.Errorf("proxy management key is not configured: set %s (it is separate from the proxy inference key)", ProxyManagementKeyEnv)
@@ -260,7 +260,7 @@ func ListProxyModels(ctx context.Context, opts Options) ([]ProxyModel, error) {
 		return nil, err
 	}
 	if ep.Mode == "disabled" {
-		return nil, fmt.Errorf("proxy is disabled: no [cliproxyapi] in the router config")
+		return nil, fmt.Errorf("proxy is disabled: no [providers.cliproxyapi] in the router config")
 	}
 	code, body, err := proxyGet(ctx, proxyHTTPClient(opts), ep.BaseURL+"/models", ep.InferenceKey, "models")
 	if err != nil {
@@ -306,7 +306,7 @@ func parseProxyModels(body []byte) ([]ProxyModel, error) {
 
 // ProxyStatus is the point-in-time proxy overview for `router proxy
 // status`. Degradation is expressed in the fields, never as an error,
-// except for config load failures: a missing [cliproxyapi] table is the
+// except for config load failures: a missing [providers.cliproxyapi] table is the
 // Disabled mode, an unreachable proxy flips Reachable, and management
 // state (which needs its own key) is reported separately.
 type ProxyStatus struct {
@@ -341,7 +341,7 @@ func FetchProxyStatus(ctx context.Context, opts Options) (ProxyStatus, error) {
 	}
 	if ep.Mode == "disabled" {
 		st.Management = "disabled"
-		st.Note = "no [cliproxyapi] in the router config"
+		st.Note = "no [providers.cliproxyapi] in the router config"
 		return st, nil
 	}
 	client := proxyHTTPClient(opts)

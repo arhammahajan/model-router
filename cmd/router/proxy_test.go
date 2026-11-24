@@ -59,7 +59,7 @@ func startCLIProxyMock(t *testing.T) (*httptest.Server, *string) {
 func writeCLIProxyConfig(t *testing.T, baseURL string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "router.toml")
-	body := "[server]\nhost=\"127.0.0.1\"\nport=4000\n[cliproxyapi]\nbase_url=\"" + baseURL + "/v1\"\napi_key=\"" + cliProxyInferKey + "\"\n"
+	body := "[server]\nhost=\"127.0.0.1\"\nport=4000\n[providers.cliproxyapi]\nbase_url=\"" + baseURL + "/v1\"\napi_key=\"" + cliProxyInferKey + "\"\n"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestProxyStatusSeam(t *testing.T) {
 	}
 
 	routerFetchProxyStatus = func(_ context.Context, _ routerctl.Options) (routerctl.ProxyStatus, error) {
-		return routerctl.ProxyStatus{Mode: "disabled", Reachable: false, Management: "disabled", Note: "no [cliproxyapi] in the router config"}, nil
+		return routerctl.ProxyStatus{Mode: "disabled", Reachable: false, Management: "disabled", Note: "no [providers.cliproxyapi] in the router config"}, nil
 	}
 	code, stdout, _ = captureBoth(t, func() int { return run([]string{"proxy", "status"}) })
 	if code != 0 || !strings.Contains(stdout, "proxy:      disabled") {

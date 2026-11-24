@@ -135,7 +135,7 @@ func runCheck(args []string) error {
 
 	smokeConfig := filepath.Join(home, "smoke.toml")
 	smokeBody := fmt.Sprintf(
-		"[server]\napi_keys = [\"replace-this-local-key\"]\n[cliproxyapi]\nbase_url = \"%s/v1\"\napi_key = \"proxy-smoke-key\"\n",
+		"[server]\napi_keys = [\"replace-this-local-key\"]\n[providers.cliproxyapi]\nbase_url = \"%s/v1\"\napi_key = \"proxy-smoke-key\"\n",
 		proxy.URL,
 	)
 	if err := os.WriteFile(smokeConfig, []byte(smokeBody), 0o600); err != nil {
