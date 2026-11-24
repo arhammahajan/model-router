@@ -66,7 +66,7 @@ def main() -> None:
         if json.loads(offline) != {"status": "indeterminate", "network_checked": False,
                                   "reason": "offline_readiness_requires_discovery"}:
             raise AssertionError("offline readiness contract changed")
-        class ProxyHandler(BaseHTTPRequestHandler):
+        class ProxyFixtureHandler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 if (self.path != "/v1/models"
                         or self.headers.get("Authorization") != "Bearer proxy-smoke-key"):
@@ -83,7 +83,7 @@ def main() -> None:
                 pass
 
         # Exercise proxy discovery against a local fixture with dummy credentials.
-        proxy = ThreadingHTTPServer(("127.0.0.1", 0), ProxyHandler)
+        proxy = ThreadingHTTPServer(("127.0.0.1", 0), ProxyFixtureHandler)
         proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         proxy_thread.start()
         smoke_config = home / "smoke.toml"
