@@ -32,7 +32,7 @@ func (*LlamaCppPlugin) ParseConfig(common CommonConfig, raw map[string]any, _ st
 	return parseLocalFleet(localFleetOpts{
 		kind:          KindLlamaCpp,
 		namePrefix:    "llama",
-		defaultPrefix: "llama/",
+		defaultPrefix: "",
 		envFallback:   "LLAMA_SERVER_URL",
 	}, common, raw, env)
 }
@@ -139,7 +139,7 @@ func parseLocalFleet(opts localFleetOpts, common CommonConfig, raw map[string]an
 		prefix = s
 	}
 
-	expose := false
+	expose := true
 	if v, ok := raw["aliases"]; ok {
 		b, ok := AsBool(v)
 		if !ok {

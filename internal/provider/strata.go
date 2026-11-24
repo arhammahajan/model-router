@@ -15,7 +15,7 @@ func (*StrataPlugin) ParseConfig(common CommonConfig, raw map[string]any, _ stri
 	return parseLocalFleet(localFleetOpts{
 		kind:          KindStrata,
 		namePrefix:    "strata",
-		defaultPrefix: "strata/",
+		defaultPrefix: "",
 		envFallback:   "",
 	}, common, raw, env)
 }

@@ -332,13 +332,13 @@ headers = { X-Strata = "strata-hdr-secret" }
 	}
 	llamaSrv := cfg.Llama.Servers[0]
 	strataSrv := cfg.Llama.Servers[1]
-	if llamaSrv.Kind != "llama_cpp" || llamaSrv.URL != "http://127.0.0.1:9931" || llamaSrv.BaseURL != "http://127.0.0.1:9931/v1" || llamaSrv.Prefix != "llama/" || llamaSrv.ExposeAliases {
+	if llamaSrv.Kind != "llama_cpp" || llamaSrv.URL != "http://127.0.0.1:9931" || llamaSrv.BaseURL != "http://127.0.0.1:9931/v1" || llamaSrv.Prefix != "" || !llamaSrv.ExposeAliases {
 		t.Fatalf("llama server wrong: %+v", llamaSrv)
 	}
 	if llamaSrv.Timeout != 180 || llamaSrv.ProbeTimeout != 3.5 {
 		t.Fatalf("llama timeouts wrong: %+v", llamaSrv)
 	}
-	if strataSrv.Kind != "strata" || strataSrv.URL != "http://127.0.0.1:9932" || strataSrv.BaseURL != "http://127.0.0.1:9932/v1" || strataSrv.Prefix != "strata/" || strataSrv.ExposeAliases {
+	if strataSrv.Kind != "strata" || strataSrv.URL != "http://127.0.0.1:9932" || strataSrv.BaseURL != "http://127.0.0.1:9932/v1" || strataSrv.Prefix != "" || !strataSrv.ExposeAliases {
 		t.Fatalf("strata server wrong: %+v", strataSrv)
 	}
 

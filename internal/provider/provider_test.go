@@ -147,7 +147,7 @@ func TestLlamaCppAndStrataPluginParseAndHooks(t *testing.T) {
 	if srv.Kind != provider.KindLlamaCpp || srv.URL != "http://127.0.0.1:9931" || srv.BaseURL != "http://127.0.0.1:9931/v1" {
 		t.Fatalf("server URLs/kind wrong: %+v", srv)
 	}
-	if srv.Prefix != "llama/" || srv.ExposeAliases != false || srv.Timeout != 120 || srv.ProbeTimeout != 3.5 {
+	if srv.Prefix != "" || !srv.ExposeAliases || srv.Timeout != 120 || srv.ProbeTimeout != 3.5 {
 		t.Fatalf("server defaults/timeouts wrong: %+v", srv)
 	}
 	if !strings.HasPrefix(srv.Name, "llama-") {
@@ -164,7 +164,7 @@ func TestLlamaCppAndStrataPluginParseAndHooks(t *testing.T) {
 		t.Fatal("base_url + ports must fail")
 	}
 
-	// strata defaults: prefix="strata/", strata- generated name, no LLAMA_SERVER_URL fallback.
+	// strata defaults: prefix="", aliases=true, strata- generated name, no LLAMA_SERVER_URL fallback.
 	withEnv := func(k string) (string, bool) {
 		if k == "LLAMA_SERVER_URL" {
 			return "http://127.0.0.1:7777", true
@@ -183,7 +183,7 @@ func TestLlamaCppAndStrataPluginParseAndHooks(t *testing.T) {
 		t.Fatalf("strata servers = %+v", sRes.LocalServers)
 	}
 	ss := sRes.LocalServers[0]
-	if ss.Kind != provider.KindStrata || ss.URL != provider.DefaultLlamaURL || ss.Prefix != "strata/" || !strings.HasPrefix(ss.Name, "strata-") {
+	if ss.Kind != provider.KindStrata || ss.URL != provider.DefaultLlamaURL || ss.Prefix != "" || !ss.ExposeAliases || !strings.HasPrefix(ss.Name, "strata-") {
 		t.Fatalf("strata server wrong: %+v", ss)
 	}
 
