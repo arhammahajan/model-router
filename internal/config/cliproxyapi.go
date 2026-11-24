@@ -10,8 +10,9 @@ import (
 	"strings"
 )
 
-// CLIProxyAPIProviderName is the single generated provider name. It is
-// reserved: an explicit [providers.cliproxyapi] is a startup error.
+// CLIProxyAPIProviderName is the single generated provider name when
+// [cliproxyapi] is configured; an explicit [providers.cliproxyapi] collides
+// with it and is rejected at startup.
 const CLIProxyAPIProviderName = "cliproxyapi"
 
 // DefaultCLIProxyAPIBaseURL is the conventional local CLIProxyAPI endpoint.

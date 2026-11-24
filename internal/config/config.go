@@ -484,8 +484,8 @@ func buildConfig(doc map[string]any) (*Config, error) {
 	}
 	// models
 	// cliproxyapi (before models: explicit routes may target the generated
-	// provider for protocol-translation overrides; the reserved name cannot
-	// collide with an explicit provider).
+	// provider for protocol-translation overrides; when [cliproxyapi] is
+	// present, its generated name cannot collide with an explicit provider).
 	if raw, ok := doc["cliproxyapi"]; ok {
 		tab, ok := asTable(raw)
 		if !ok {
