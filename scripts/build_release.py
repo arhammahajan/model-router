@@ -16,10 +16,48 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ("linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64")
+LICENSE_PREFIXES = ("LICENSE", "LICENCE", "COPYING", "NOTICE")
 
 
 def run(command: list[str], env: dict[str, str]) -> str:
     return subprocess.check_output(command, cwd=ROOT, env=env, text=True).strip()
+
+
+def collect_linked_modules(go_bin: str, env: dict[str, str]) -> dict[str, tuple[str, Path]]:
+    raw = run([go_bin, "list", "-deps", "-json", "./cmd/routerd"], env)
+    decoder = json.JSONDecoder()
+    pos = 0
+    modules: dict[str, tuple[str, Path]] = {}
+    while pos < len(raw):
+        while pos < len(raw) and raw[pos].isspace():
+            pos += 1
+        if pos >= len(raw):
+            break
+        pkg, pos = decoder.raw_decode(raw, pos)
+        mod = pkg.get("Module")
+        if not mod or mod.get("Main"):
+            continue
+        mod_path = mod["Path"]
+        mod_dir = mod.get("Dir")
+        if not mod_dir:
+            raise RuntimeError(f"linked module {mod_path} has no local Dir")
+        modules[mod_path] = (mod.get("Version", ""), Path(mod_dir))
+    return dict(sorted(modules.items()))
+
+
+def build_notices(goroot: Path, modules: dict[str, tuple[str, Path]]) -> bytes:
+    sections = ["Go standard library and runtime\n\n" + (goroot / "LICENSE").read_text().strip()]
+    for mod_path, (version, mod_dir) in sorted(modules.items()):
+        license_files = [
+            p for p in sorted(mod_dir.iterdir())
+            if p.is_file() and p.name.upper().startswith(LICENSE_PREFIXES)
+        ]
+        if not license_files:
+            raise RuntimeError(f"missing license/notice file for linked module {mod_path} {version}")
+        header = f"{mod_path} {version}".strip()
+        texts = [p.read_text(encoding="utf-8", errors="replace").strip() for p in license_files]
+        sections.append(f"{header}\n\n" + "\n\n".join(texts))
+    return ("\n\n".join(sections) + "\n").encode("utf-8")
 
 
 def archive(path: Path, prefix: str, files: dict[str, tuple[bytes, int]]) -> None:
@@ -61,21 +99,13 @@ def main() -> None:
     env.pop("GOARM", None)
     env.pop("GOAMD64", None)
     goroot = Path(run([args.go, "env", "GOROOT"], env))
-    toml = json.loads(run([args.go, "list", "-m", "-json", "github.com/pelletier/go-toml/v2"], env))
-    notices = (
-        "Go standard library and runtime\n\n" + (goroot / "LICENSE").read_text()
-        + f"\n\n{toml['Path']} {toml['Version']}\n\n"
-        + (Path(toml["Dir"]) / "LICENSE").read_text()
-    ).encode()
-    proxy = json.loads(run([args.go, "list", "-m", "-json", "github.com/router-for-me/CLIProxyAPI/v8"], env))
-    notices += (f"\n\ngithub.com/router-for-me/CLIProxyAPI/v8 {proxy['Version']}\n\n"
-                + (Path(proxy["Dir"]) / "LICENSE").read_text()).encode()
+    all_dependencies: dict[str, str] = {}
     manifest = {
         "version": args.version,
         "source_revision": run(["git", "rev-parse", "HEAD"], env),
         "source_dirty": bool(run(["git", "status", "--porcelain", "--", "."], env)),
         "go_version": run([args.go, "version"], env),
-        "dependencies": {toml["Path"]: toml["Version"], proxy["Path"]: proxy["Version"]},
+        "dependencies": {},
         "artifacts": [],
     }
     with tempfile.TemporaryDirectory(prefix=".release-", dir=out) as directory:
@@ -83,6 +113,10 @@ def main() -> None:
         for target in targets:
             goos, goarch = target.split("/")
             build_env = dict(env, GOOS=goos, GOARCH=goarch, GOAMD64="v1")
+            modules = collect_linked_modules(args.go, build_env)
+            notices = build_notices(goroot, modules)
+            for mod_path, (version, _) in modules.items():
+                all_dependencies[mod_path] = version
             binary = staging / "routerd"
             subprocess.run([
                 args.go, "build", "-trimpath", "-buildvcs=false",
@@ -103,6 +137,7 @@ def main() -> None:
                 "sha256": hashlib.sha256(packed.read_bytes()).hexdigest(),
             })
             print(f"built {packed.name}", flush=True)
+        manifest["dependencies"] = dict(sorted(all_dependencies.items()))
         checksums = "".join(f"{item['sha256']}  {item['file']}\n"
                             for item in manifest["artifacts"])
         (staging / "SHA256SUMS").write_text(checksums)
