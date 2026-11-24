@@ -106,7 +106,7 @@ func TestFetchProviderAliasesAndDiagnostics(t *testing.T) {
 	diagSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/diagnostics" {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"providers":{"cliproxyapi":{"reachability":"available"}}}`))
+			_, _ = w.Write([]byte(`{"providers":1,"provider_details":[{"name":"cliproxyapi","reachability":"available"}]}`))
 			return
 		}
 		http.NotFound(w, r)

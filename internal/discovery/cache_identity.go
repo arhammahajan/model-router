@@ -217,10 +217,12 @@ func cacheIdentity(cfg *config.Config) string {
 		Headers       map[string]string            `json:"headers"`
 		Timeout       float64                      `json:"timeout,omitempty"`
 		ProbeTimeout  float64                      `json:"probe_timeout,omitempty"`
-		Prefix        string                       `json:"prefix,omitempty"`
-		ExposeAliases bool                         `json:"expose_aliases,omitempty"`
-		Fallback      *int64                       `json:"context_fallback,omitempty"`
-		Overrides     map[string]map[string]*int64 `json:"limit_overrides,omitempty"`
+		Prefix           string                       `json:"prefix,omitempty"`
+		ExposeAliases    bool                         `json:"expose_aliases,omitempty"`
+		CompatibilityRaw string                       `json:"compatibility,omitempty"`
+		Lossy            bool                         `json:"lossy,omitempty"`
+		Fallback         *int64                       `json:"context_fallback,omitempty"`
+		Overrides        map[string]map[string]*int64 `json:"limit_overrides,omitempty"`
 	}
 	type llamaView struct {
 		Servers []llamaServerView `json:"servers"`
@@ -269,6 +271,7 @@ func cacheIdentity(cfg *config.Config) string {
 				AuthHeader: s.AuthHeader, Headers: copyStrMap(s.Headers),
 				Timeout: s.Timeout, ProbeTimeout: s.ProbeTimeout,
 				Prefix: s.Prefix, ExposeAliases: s.ExposeAliases,
+				CompatibilityRaw: s.CompatibilityRaw, Lossy: s.Lossy,
 				Fallback: sfb, Overrides: copyOverrides(s.LimitOverrides),
 			})
 		}

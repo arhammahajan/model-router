@@ -291,6 +291,8 @@ func ForConfigName(name string) Plugin {
 		return llamaCppPlugin
 	case KindStrata:
 		return strataPlugin
+	case KindUnobserved:
+		return unobservedPlugin
 	default:
 		return genericPlugin
 	}

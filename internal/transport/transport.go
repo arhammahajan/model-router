@@ -161,7 +161,7 @@ func CountTokensURL(baseURL string) (string, *protocol.RouterError) {
 // count_tokens setting wins; absent, only the exact first-party host
 // https://api.anthropic.com qualifies (userinfo, ports and look-alikes fail).
 func CountTokensEnabled(p *config.Provider) bool {
-	if p.DefaultDialect != config.DialectAnthropic {
+	if p == nil || p.DefaultDialect != config.DialectAnthropic {
 		return false
 	}
 	if p.CountTokens != nil {

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -70,7 +72,7 @@ func formatHostPort(it routerctl.ProviderInfo) string {
 		parts := make([]string, 0, len(it.Servers))
 		for _, s := range it.Servers {
 			if s.Port > 0 {
-				parts = append(parts, fmt.Sprintf("%s:%d", s.Host, s.Port))
+				parts = append(parts, net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
 			} else if s.Host != "" {
 				parts = append(parts, s.Host)
 			}
@@ -83,7 +85,7 @@ func formatHostPort(it routerctl.ProviderInfo) string {
 		return "-"
 	}
 	if it.Port > 0 {
-		return fmt.Sprintf("%s:%d", it.Host, it.Port)
+		return net.JoinHostPort(it.Host, strconv.Itoa(it.Port))
 	}
 	return it.Host
 }

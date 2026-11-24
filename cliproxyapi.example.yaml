@@ -3,7 +3,7 @@
 # replace the placeholder secrets with environment references or local values.
 # Upstream AI/OAuth credentials live only here (and in env), never in
 # routerd's TOML. routerd points at this proxy via its
-# `[cliproxyapi]` section (`base_url`, `api_key`, optional `config_path`).
+# `[providers.cliproxyapi]` section (`base_url`, `api_key`, optional `config_path`).
 #
 # Plugin binary installation (Go 1.26.7+, CGO enabled for c-shared builds):
 #   go build -tags debug -buildmode=c-shared \
@@ -25,7 +25,7 @@ oauth:
   auth-dir: "~/.config/router/cliproxyapi-auth"
 
 # Client authentication for the proxy API. routerd presents one of these
-# keys as its `[cliproxyapi] api_key`. Replace this dummy value in both files.
+# keys as its `[providers.cliproxyapi] api_key`. Replace this dummy value in both files.
 # CLIProxyAPI access keys are literal YAML strings. The OpenCode plugin below
 # supports environment references for its own upstream keys.
 access:
@@ -33,8 +33,7 @@ access:
     - "replace-this-proxy-key"
 
 # Optional management API & web dashboard (http://127.0.0.1:8317/management.html).
-# Set this key in the proxy YAML (CLIProxyAPI hashes it in-place on startup),
-# then export CLIPROXYAPI_MANAGEMENT_KEY with the plaintext value for `router proxy`.
+# Set this key in the proxy YAML (CLIProxyAPI hashes it in-place on startup).
 # management:
 #   allow-remote: false
 #   secret-key: "replace-this-management-key"

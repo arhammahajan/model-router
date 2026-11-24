@@ -295,17 +295,18 @@ func fetchProviderDiagnostics(ctx context.Context, opts Options) map[string]stri
 		return nil
 	}
 	var payload struct {
-		Providers map[string]struct {
+		ProviderDetails []struct {
+			Name         string `json:"name"`
 			Reachability string `json:"reachability"`
-		} `json:"providers"`
+		} `json:"provider_details"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil
 	}
-	out := make(map[string]string, len(payload.Providers))
-	for name, p := range payload.Providers {
-		if p.Reachability != "" {
-			out[name] = p.Reachability
+	out := make(map[string]string, len(payload.ProviderDetails))
+	for _, p := range payload.ProviderDetails {
+		if p.Name != "" && p.Reachability != "" && p.Reachability != "unprobed" {
+			out[p.Name] = p.Reachability
 		}
 	}
 	return out
