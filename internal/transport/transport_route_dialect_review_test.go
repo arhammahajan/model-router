@@ -12,7 +12,7 @@ import (
 // one legacy translated header and framing-relevant statics.
 func rdReviewProvider(dialect, authHeader string) *config.Provider {
 	return &config.Provider{
-		Name: "up", Dialect: dialect, BaseURL: "https://up.example",
+		Name: "up", DefaultDialect: dialect, BaseURL: "https://up.example",
 		APIKey: "k", Headers: map[string]string{}, Timeout: 5,
 		AuthHeader:        authHeader,
 		TranslatedHeaders: map[string]string{"X-Legacy": "legacy"},

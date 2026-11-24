@@ -63,7 +63,7 @@ func TestGeminiURLValidationAndEscaping(t *testing.T) {
 
 func TestCountTokensEnabled(t *testing.T) {
 	mk := func(dialect, base string, ct *bool) *config.Provider {
-		return &config.Provider{Name: "p", Dialect: dialect, BaseURL: base, CountTokens: ct}
+		return &config.Provider{Name: "p", DefaultDialect: dialect, BaseURL: base, CountTokens: ct}
 	}
 	tr, fl := true, false
 	cases := []struct {
@@ -89,23 +89,23 @@ func TestCountTokensEnabled(t *testing.T) {
 }
 
 func TestAuthHeadersGeminiDefault(t *testing.T) {
-	p := &config.Provider{Name: "g", Dialect: config.DialectGemini, BaseURL: "https://x", APIKey: "k"}
-	if h := AuthHeaders(p); h["x-goog-api-key"] != "k" {
+	p := &config.Provider{Name: "g", DefaultDialect: config.DialectGemini, BaseURL: "https://x", APIKey: "k"}
+	if h := AuthHeaders(p, config.DialectGemini); h["x-goog-api-key"] != "k" {
 		t.Fatalf("gemini default must be x-goog-api-key: %v", h)
 	}
 	p.AuthHeader = "bearer"
-	if h := AuthHeaders(p); h["Authorization"] != "Bearer k" {
+	if h := AuthHeaders(p, config.DialectGemini); h["Authorization"] != "Bearer k" {
 		t.Fatalf("bearer override: %v", h)
 	}
 	// Empty key sends the unauthenticated placeholder, never an empty header.
-	p2 := &config.Provider{Name: "g", Dialect: config.DialectGemini, BaseURL: "https://x"}
-	if h := AuthHeaders(p2); h["x-goog-api-key"] != "router-no-auth" {
+	p2 := &config.Provider{Name: "g", DefaultDialect: config.DialectGemini, BaseURL: "https://x"}
+	if h := AuthHeaders(p2, config.DialectGemini); h["x-goog-api-key"] != "router-no-auth" {
 		t.Fatalf("empty gemini key must use placeholder: %v", h)
 	}
 }
 
 func TestOutboundNativeGeminiAndResponses(t *testing.T) {
-	gem := &config.Provider{Name: "g", Dialect: config.DialectGemini, BaseURL: "https://x", APIKey: "s", Headers: map[string]string{}}
+	gem := &config.Provider{Name: "g", DefaultDialect: config.DialectGemini, BaseURL: "https://x", APIKey: "s", Headers: map[string]string{}}
 	in := http.Header{}
 	in.Set("X-Custom", "keep")
 	in.Set("Authorization", "Bearer client")
@@ -124,7 +124,7 @@ func TestOutboundNativeGeminiAndResponses(t *testing.T) {
 			t.Fatalf("session/idempotency forwarded: %v", out)
 		}
 	}
-	resp := &config.Provider{Name: "r", Dialect: config.DialectOpenAIResponses, BaseURL: "https://x", APIKey: "s", Headers: map[string]string{}}
+	resp := &config.Provider{Name: "r", DefaultDialect: config.DialectOpenAIResponses, BaseURL: "https://x", APIKey: "s", Headers: map[string]string{}}
 	out = OutboundHeaders(in, resp, config.DialectOpenAIResponses, "", "", false)
 	if out["Authorization"] != "Bearer s" {
 		t.Fatalf("responses auth wrong: %v", out)

@@ -13,7 +13,7 @@ import (
 func legacyProvider(dialect string) *config.Provider {
 	return &config.Provider{
 		Name:              "up",
-		Dialect:           dialect,
+		DefaultDialect:    dialect,
 		BaseURL:           "https://up.example",
 		APIKey:            "k",
 		Headers:           map[string]string{},
@@ -39,7 +39,7 @@ func TestTranslatedLegacyOnlyOnTranslated(t *testing.T) {
 func TestTranslatedPrecedenceAllCases(t *testing.T) {
 	p := &config.Provider{
 		Name:    "up",
-		Dialect: config.DialectAnthropic,
+		DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://up.example",
 		APIKey:  "k",
 		Headers: map[string]string{
@@ -80,7 +80,7 @@ func TestTranslatedPrecedenceAllCases(t *testing.T) {
 func TestTranslatedStaticDoubleCredentialsScrub(t *testing.T) {
 	p := &config.Provider{
 		Name:    "up",
-		Dialect: config.DialectAnthropic,
+		DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://up.example",
 		APIKey:  "real-key",
 		Headers: map[string]string{"Authorization": "Bearer stale"},
@@ -123,7 +123,7 @@ func TestTranslatedWrongOptinClientIsolation(t *testing.T) {
 		t.Fatalf("legacy trusted openai-beta must survive (provider trusts), inbound wrong-dialect must not win: got %q in %v", v, out)
 	}
 	// Without legacy, wrong-dialect inbound must drop.
-	p2 := &config.Provider{Name: "up", Dialect: config.DialectAnthropic, BaseURL: "https://x", APIKey: "k", Timeout: 5}
+	p2 := &config.Provider{Name: "up", DefaultDialect: config.DialectAnthropic, BaseURL: "https://x", APIKey: "k", Timeout: 5}
 	out2 := OutboundHeaders(in, p2, "chat", "", "", false)
 	if _, ok := out2["Openai-Beta"]; ok {
 		t.Fatalf("wrong-dialect inbound must drop without legacy: %v", out2)
@@ -133,7 +133,7 @@ func TestTranslatedWrongOptinClientIsolation(t *testing.T) {
 func TestTranslatedSessionAllSourceIsolation(t *testing.T) {
 	p := &config.Provider{
 		Name:                 "up",
-		Dialect:              config.DialectAnthropic,
+		DefaultDialect:       config.DialectAnthropic,
 		BaseURL:              "https://x",
 		APIKey:               "k",
 		Headers:              map[string]string{"X-Session-Out": "static-prov", "X-Custom": "v"},

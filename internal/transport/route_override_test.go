@@ -9,7 +9,7 @@ import (
 
 func overrideProvider(dialect string) *config.Provider {
 	return &config.Provider{
-		Name: "up", Dialect: dialect, BaseURL: "https://up.example",
+		Name: "up", DefaultDialect: dialect, BaseURL: "https://up.example",
 		APIKey: "k", Headers: map[string]string{}, Timeout: 5,
 		TranslatedHeaders: map[string]string{"X-Legacy": "legacy"},
 	}

@@ -17,7 +17,7 @@ func sessProvider() *config.Provider {
 	_ = b
 	return &config.Provider{
 		Name:                 "up",
-		Dialect:              config.DialectAnthropic,
+		DefaultDialect:       config.DialectAnthropic,
 		BaseURL:              "http://127.0.0.1:9",
 		APIKey:               "k",
 		Headers:              map[string]string{},

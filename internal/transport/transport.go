@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/arhammahajan/router/internal/config"
-	"github.com/arhammahajan/router/internal/endpoint"
 	"github.com/arhammahajan/router/internal/protocol"
+	"github.com/arhammahajan/router/internal/provider"
 )
 
 // Version is the User-Agent product token.
@@ -116,15 +116,32 @@ func connectionNominated(h http.Header) map[string]bool {
 }
 
 // UpstreamURL joins base_url and the generation path for a dialect,
-// mirroring the Python router's suffix-tolerant rules. The derivation itself
-// lives in internal/endpoint so config startup comparison reuses the exact
-// same implementation; this wrapper only maps the neutral error into the
-// existing RouterError shape. Signature unchanged.
+// mirroring the Python router's suffix-tolerant rules. The derivation delegates
+// to the generic provider plugin (backed by internal/endpoint); this wrapper
+// maps the neutral error into the existing RouterError shape. Signature unchanged.
 func UpstreamURL(baseURL, dialect string) (string, *protocol.RouterError) {
-	u, err := endpoint.GenerationEndpoint(baseURL, dialect)
+	u, err := provider.ForKind(provider.KindGeneric).GenerationEndpoint(baseURL, dialect)
 	if err != nil {
 		return "", &protocol.RouterError{Status: 500, Code: "internal",
 			Msg: fmt.Sprintf("unsupported upstream dialect %q in this build", dialect)}
+	}
+	return u, nil
+}
+
+// GenerationEndpoint joins p.BaseURL and the generation path for dest via the
+// provider plugin for p.Kind. If dest is empty, p.DefaultDialect is used.
+func GenerationEndpoint(p *config.Provider, dest string) (string, *protocol.RouterError) {
+	if p == nil {
+		return "", &protocol.RouterError{Status: 500, Code: "internal",
+			Msg: "provider is required to derive upstream endpoint"}
+	}
+	if dest == "" {
+		dest = p.DefaultDialect
+	}
+	u, err := provider.ForKind(p.Kind).GenerationEndpoint(p.BaseURL, dest)
+	if err != nil {
+		return "", &protocol.RouterError{Status: 500, Code: "internal",
+			Msg: fmt.Sprintf("unsupported upstream dialect %q in this build", dest)}
 	}
 	return u, nil
 }
@@ -144,7 +161,7 @@ func CountTokensURL(baseURL string) (string, *protocol.RouterError) {
 // count_tokens setting wins; absent, only the exact first-party host
 // https://api.anthropic.com qualifies (userinfo, ports and look-alikes fail).
 func CountTokensEnabled(p *config.Provider) bool {
-	if p.Dialect != config.DialectAnthropic {
+	if p.DefaultDialect != config.DialectAnthropic {
 		return false
 	}
 	if p.CountTokens != nil {
@@ -220,23 +237,14 @@ func escapeGeminiName(s string) string {
 	return b.String()
 }
 
-// AuthHeaders returns the upstream credential headers. The key always comes
-// from provider config; client credentials never become upstream credentials.
-func AuthHeaders(p *config.Provider) map[string]string {
-	key := p.EffectiveKey()
-	switch strings.ToLower(p.AuthHeader) {
-	case "bearer":
-		return map[string]string{"Authorization": "Bearer " + key}
-	case "x-api-key", "api-key":
-		return map[string]string{p.AuthHeader: key}
+// AuthHeaders returns the upstream credential headers for p when sending to
+// destDialect. The key always comes from provider config; client credentials
+// never become upstream credentials.
+func AuthHeaders(p *config.Provider, destDialect string) map[string]string {
+	if p == nil {
+		return map[string]string{}
 	}
-	if p.Dialect == config.DialectAnthropic {
-		return map[string]string{"x-api-key": key}
-	}
-	if p.Dialect == config.DialectGemini {
-		return map[string]string{"x-goog-api-key": key}
-	}
-	return map[string]string{"Authorization": "Bearer " + key}
+	return provider.ForKind(p.Kind).AuthHeaders(p, destDialect)
 }
 
 // OutboundHeaders builds the upstream request headers from inbound client
@@ -256,12 +264,12 @@ func AuthHeaders(p *config.Provider) map[string]string {
 //
 // ingress is the server ingress label ("chat", "responses", "messages",
 // "count_tokens" or "gemini"); dest is the actual egress destination dialect
-// (model.EffectiveDialect(provider)). Provider stays configuration identity:
-// AuthHeaders(p) keeps the provider-owned choice even when dest differs.
+// (model.EffectiveDialect(provider)). AuthHeaders(p, dest) delegates to the
+// provider plugin for p.Kind.
 func OutboundHeaders(inbound http.Header, p *config.Provider, ingress, dest string, sessionID string, hasSession bool) map[string]string {
 	nominated := connectionNominated(inbound)
 	if dest == "" {
-		dest = p.Dialect
+		dest = p.DefaultDialect
 	}
 	src := ingressDialect(ingress)
 	native := dest == src
@@ -327,7 +335,7 @@ func OutboundHeaders(inbound http.Header, p *config.Provider, ingress, dest stri
 			delete(out, name)
 		}
 	}
-	for name, value := range AuthHeaders(p) {
+	for name, value := range AuthHeaders(p, dest) {
 		out[http.CanonicalHeaderKey(name)] = value
 	}
 	// Emit exactly one session identity: scrub every casing of the

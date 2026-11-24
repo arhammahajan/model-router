@@ -11,7 +11,7 @@ import (
 func reviewProvider() *config.Provider {
 	return &config.Provider{
 		Name:    "up",
-		Dialect: config.DialectAnthropic,
+		DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://up.example",
 		APIKey:  "real-key",
 		Headers: map[string]string{
@@ -132,7 +132,7 @@ func TestReviewClientIsolationWithLegacy(t *testing.T) {
 		t.Fatalf("provider must win the opt-in chain: %v", out)
 	}
 	p2 := &config.Provider{
-		Name: "up", Dialect: config.DialectAnthropic,
+		Name: "up", DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://x", APIKey: "k", Timeout: 5,
 		TranslatedHeaders: map[string]string{"X-Legacy": "v"},
 	}
@@ -149,7 +149,7 @@ func TestReviewClientIsolationWithLegacy(t *testing.T) {
 func TestReviewAuthScrubAllLayers(t *testing.T) {
 	p := &config.Provider{
 		Name:    "up",
-		Dialect: config.DialectAnthropic,
+		DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://up.example",
 		APIKey:  "real-key",
 		Headers: map[string]string{
@@ -187,7 +187,7 @@ func TestReviewAuthScrubAllLayers(t *testing.T) {
 func TestReviewFramingEnforcedOverLegacy(t *testing.T) {
 	p := &config.Provider{
 		Name:    "up",
-		Dialect: config.DialectAnthropic,
+		DefaultDialect: config.DialectAnthropic,
 		BaseURL: "https://up.example",
 		APIKey:  "real-key",
 		Headers: map[string]string{
