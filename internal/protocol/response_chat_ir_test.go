@@ -450,3 +450,51 @@ func TestChatIREncoderGate(t *testing.T) {
 		t.Fatalf("cleared reasoning must encode in anthropic: %v", rerr)
 	}
 }
+
+func TestChatUsageCachedCreationReconciliation(t *testing.T) {
+	mk := func(details string) []byte {
+		return []byte(chatIRRaw("stop", `{"role":"assistant","content":"ok"}`,
+			`{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15,"prompt_tokens_details":{`+details+`}}`))
+	}
+	intPtr := func(v int) *int { return &v }
+
+	cases := []struct {
+		name    string
+		details string
+		want    *int
+		wantErr bool
+	}{
+		{"alias nonzero alone", `"cached_creation_tokens":4`, intPtr(4), false},
+		{"alias zero alone", `"cached_creation_tokens":0`, nil, false},
+		{"write zero with alias nonzero", `"cache_write_tokens":0,"cached_creation_tokens":4`, intPtr(4), false},
+		{"write nonzero with alias zero", `"cache_write_tokens":4,"cached_creation_tokens":0`, intPtr(4), false},
+		{"both zero", `"cache_write_tokens":0,"cached_creation_tokens":0`, intPtr(0), false},
+		{"both equal nonzero", `"cache_write_tokens":4,"cached_creation_tokens":4`, intPtr(4), false},
+		{"disagreeing nonzero rejected", `"cache_write_tokens":3,"cached_creation_tokens":4`, nil, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Run multiple iterations to cover Go map iteration orders.
+			for i := 0; i < 20; i++ {
+				resp, rerr := DecodeChatResponse(mk(tc.details), DefaultLimits())
+				if tc.wantErr {
+					if rerr == nil {
+						t.Fatalf("expected error for %s, got nil", tc.details)
+					}
+					continue
+				}
+				if rerr != nil {
+					t.Fatalf("unexpected error for %s: %v", tc.details, rerr)
+				}
+				if tc.want == nil {
+					if resp.Usage.CacheCreation != nil {
+						t.Fatalf("CacheCreation = %d, want nil", *resp.Usage.CacheCreation)
+					}
+				} else if resp.Usage.CacheCreation == nil || *resp.Usage.CacheCreation != *tc.want {
+					t.Fatalf("CacheCreation = %v, want %d", resp.Usage.CacheCreation, *tc.want)
+				}
+			}
+		})
+	}
+}
