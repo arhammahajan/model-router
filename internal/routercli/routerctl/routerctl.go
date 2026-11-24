@@ -345,8 +345,9 @@ func spawnDetached(bin string, args []string, logPath string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	pid := proc.Pid
 	_ = proc.Release()
-	return proc.Pid, nil
+	return pid, nil
 }
 
 func writePidFile(path string, pid int) error {
